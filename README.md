@@ -12,6 +12,17 @@ disk images for crosvm. Every image comes with:
 - `video=Virtual-1:d` on the kernel command line
 - a static address (192.168.10.2/24) on a host tap device, using systemd-networkd and systemd-resolved
 
+## Non-goals
+
+These are out of scope on purpose. Don't add support for them:
+
+- **Secure Boot.** No signing keys, shim, signed UKIs or `SecureBoot=`.
+- **LUKS / disk encryption.** The root partition is plain ext4.
+- **Containers.** The images are meant for crosvm only. Running them with
+  `systemd-nspawn`, `mkosi boot` or similar is not supported.
+- **X11 / Xwayland.** Wayland only.
+- **Architectures other than x86-64.**
+
 ## Build
 
 Requires mkosi v26 or newer (tested config parsing with v27.1).
