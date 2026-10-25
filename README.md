@@ -142,6 +142,10 @@ partition at the next boot.
   `chown -R` on the home directory once at first boot, before user sessions
   and lingering start. It then writes `/var/lib/guest-home-owner/done` so it
   doesn't run again.
+- In the Arch image, the postinst script writes `/etc/pacman.d/mirrorlist`,
+  because the packaged one has every server commented out.
+  `pacman-init.service` creates the pacman keyring at first boot.
+  Creating it at build time would give every image the same local signing key.
 - The guest network config is written to
   `/etc/systemd/network/80-crosvm-tap.network`. It matches any Ethernet
   interface, which in practice is the virtio-net device.

@@ -75,6 +75,39 @@ rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 
 systemctl enable sshd-vsock.socket
 
+# --- package manager ----------------------------------------------------------
+# pacman-mirrorlist ships with every server commented out, and mkosi only
+# configures its mirror for the build itself. Use the same mirror mkosi uses
+# by default, plus the GeoIP redirector as a fallback.
+if [[ "$DISTRIBUTION" == arch ]] && ! grep -q '^[[:space:]]*Server' /etc/pacman.d/mirrorlist 2>/dev/null; then
+    cat > /etc/pacman.d/mirrorlist <<'MIRRORS'
+Server = https://fastly.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+MIRRORS
+fi
+
+# The pacman keyring is left uninitialized (mkosi uses its own for the build).
+# Create it on first boot rather than here so images don't share a local
+# signing key, like archiso's pacman-init.service.
+if [[ "$DISTRIBUTION" == arch ]]; then
+    cat > /etc/systemd/system/pacman-init.service <<'UNIT'
+[Unit]
+Description=Initialize the pacman keyring
+ConditionDirectoryNotEmpty=!/etc/pacman.d/gnupg
+After=time-sync.target
+Before=systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pacman-key --init
+ExecStart=/usr/bin/pacman-key --populate
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl enable pacman-init.service
+fi
+
 # --- network ----------------------------------------------------------------
 # Static address on the crosvm tap (see setup-host-net.sh for the host side).
 install -d /etc/systemd/network

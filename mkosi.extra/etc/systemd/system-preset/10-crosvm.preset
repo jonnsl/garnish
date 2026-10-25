@@ -4,3 +4,4 @@ enable sshd-vsock.socket
 enable systemd-networkd.service
 enable systemd-resolved.service
 enable guest-home-owner.service
+enable pacman-init.service
