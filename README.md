@@ -3,7 +3,7 @@
 Builds Arch Linux, Debian (trixie), Ubuntu (26.04 "resolute") and Fedora (44)
 disk images for crosvm. Every image comes with:
 
-- sshd on AF_VSOCK port 22 (`sshd-vsock.socket`)
+- sshd on AF_VSOCK port 22 (`sshd-vsock.socket`); public-key login only, root login disabled
 - sommelier built from ChromiumOS platform2, installed to `/usr/local/bin/sommelier`
 - a user (`jonnathan` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
@@ -16,7 +16,7 @@ disk images for crosvm. Every image comes with:
 Requires mkosi v26 or newer (tested config parsing with v27.1).
 
 ```sh
-# optional: your public key for ssh login
+# required for ssh: password and root logins are disabled
 cp ~/.ssh/id_ed25519.pub authorized_keys
 
 mkosi -d arch   build
@@ -39,7 +39,7 @@ These are set with `Environment=` in `mkosi.conf`. Override them per build with
 |---------------------|------------------|--------------------------------------------------|
 | `PASSWORDLESS_SUDO` | `yes`            | `no` makes sudo ask for the password             |
 | `GUEST_USER`        | `jonnathan`      | name of the user that gets created               |
-| `GUEST_PASSWORD`    | `changeme`       | the user's password; empty means key-only login  |
+| `GUEST_PASSWORD`    | `changeme`       | password for sudo and the serial console (not ssh) |
 | `SOMMELIER_REF`     | `main`           | platform2 branch, tag or commit to build         |
 | `SOMMELIER_REPO`    | platform2 URL    | git repository to clone sommelier from           |
 
@@ -83,7 +83,7 @@ partition at the next boot.
 | `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
 | `mkosi.build.chroot`                   | clones and builds sommelier inside the target distro |
 | `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, sommelier unit, linger and `.profile` |
-| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset   |
+| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `run-crosvm.sh`                        | boots an image with crosvm                           |
 
 ## Notes

@@ -39,7 +39,7 @@ fi
 if [[ -n "$GUEST_PASSWORD" ]]; then
     echo "$GUEST_USER:$GUEST_PASSWORD" | chpasswd
 else
-    # No password: account usable through ssh keys only.
+    # No password: no console login and no sudo unless PASSWORDLESS_SUDO=yes.
     usermod --password '*' "$GUEST_USER"
 fi
 
@@ -62,7 +62,8 @@ install -d -m 0700 "$home/.ssh"
 if [[ -f "$SRCDIR/authorized_keys" ]]; then
     install -m 0600 "$SRCDIR/authorized_keys" "$home/.ssh/authorized_keys"
 else
-    echo "WARNING: no authorized_keys in the project directory, ssh will need the password" >&2
+    # sshd only accepts keys (mkosi.extra/etc/ssh/sshd_config.d/10-crosvm.conf).
+    echo "WARNING: no authorized_keys in the project directory, ssh login will be impossible" >&2
 fi
 
 # Don't bake host keys into the image (Debian/Ubuntu generate them at
