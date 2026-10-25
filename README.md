@@ -134,6 +134,10 @@ partition at the next boot.
   The postinst script makes `~/.bash_profile` source `~/.profile`.
 - Debian and Ubuntu need `dbus-user-session` to get a user D-Bus session.
   Fedora and Arch have one by default.
+- `pam_systemd` sets `XDG_RUNTIME_DIR`. Without it, `user@.service` fails
+  ("$XDG_RUNTIME_DIR is not set") and sommelier never starts. Fedora ships it
+  as `systemd-pam`, and Debian and Ubuntu as `libpam-systemd`. On Arch it's
+  part of `systemd`.
 - These images are Wayland only: no Xwayland, and sommelier runs without `-X`.
   The xcb libraries are still installed because sommelier's `meson.build`
   needs them unconditionally.
