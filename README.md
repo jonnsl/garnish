@@ -182,3 +182,10 @@ partition at the next boot.
 - The guest network config is written to
   `/etc/systemd/network/80-crosvm-tap.network`. It matches any Ethernet
   interface, which in practice is the virtio-net device.
+- `KernelInitrdModules=` in `mkosi.conf` limits the initrd to the modules
+  needed to mount the root filesystem: `virtio_pci`, `virtio_blk`, `ext4` and
+  `crc32c*`, plus their dependencies. Kernels older than 6.14 (Debian) load
+  crc32c for ext4 as a soft dependency, which mkosi doesn't add by itself. Without it, mkosi puts every module in the initrd,
+  120 to 400 MiB depending on the distribution. If the root partition isn't
+  found at boot (the initrd drops into an emergency shell), a module is missing
+  from this list.
