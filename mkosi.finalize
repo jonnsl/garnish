@@ -1,0 +1,7 @@
+#!/bin/bash
+# Runs on the host side (not chrooted), so /etc/resolv.conf of the image is
+# a plain file here rather than the host's resolv.conf bind-mounted in by
+# mkosi for .chroot scripts.
+set -euo pipefail
+
+ln -sf ../run/systemd/resolve/stub-resolv.conf "$BUILDROOT/etc/resolv.conf"

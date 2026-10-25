@@ -10,6 +10,7 @@ disk images for crosvm. Every image comes with:
 - `~/.config/systemd/user/sommelier.service`, enabled, with linger turned on
 - the Wayland environment variables in `~/.profile` (Wayland only, no X11)
 - `video=Virtual-1:d` on the kernel command line
+- a static address (192.168.10.2/24) on a host tap device, using systemd-networkd and systemd-resolved
 
 ## Build
 
@@ -42,6 +43,9 @@ These are set with `Environment=` in `mkosi.conf`. Override them per build with
 | `GUEST_PASSWORD`    | `changeme`       | password for sudo and the serial console (not ssh) |
 | `SOMMELIER_REF`     | `main`           | platform2 branch, tag or commit to build         |
 | `SOMMELIER_REPO`    | platform2 URL    | git repository to clone sommelier from           |
+| `GUEST_ADDRESS`     | `192.168.10.2/24`| guest address on the tap network                 |
+| `GUEST_GATEWAY`     | `192.168.10.1`   | default gateway (the host end of the tap)        |
+| `GUEST_DNS`         | `1.1.1.1,9.9.9.9`| comma-separated DNS servers                      |
 
 ```sh
 mkosi -d debian -E PASSWORDLESS_SUDO=no -E GUEST_PASSWORD=hunter2 build
@@ -58,11 +62,31 @@ To keep the platform2 checkout and meson build between builds, run `mkdir mkosi.
 ## Run
 
 ```sh
-./run-crosvm.sh debian          # CID=3, 4 CPUs, 4 GiB by default
-CID=4 MEM=8192 ./run-crosvm.sh fedora --net tap-name=tap0
+./setup-host-net.sh up --nat    # tap crosvm_tap at 192.168.10.1; --nat adds internet access
+./run-crosvm.sh debian          # CID=3, 4 CPUs, 4 GiB, tap crosvm_tap by default
+CID=4 MEM=8192 ./run-crosvm.sh fedora
+TAP= ./run-crosvm.sh ubuntu     # no network
 ssh jonnathan@vsock/3           # host systemd >= 256; otherwise:
 ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
+ssh jonnathan@192.168.10.2      # over the tap also works
+./setup-host-net.sh down        # removes the tap and the NAT rule
 ```
+
+`setup-host-net.sh` runs the commands below through sudo. The tap belongs to your
+user, so crosvm doesn't need root.
+
+```sh
+sudo ip tuntap add mode tap user "$USER" vnet_hdr crosvm_tap
+sudo ip addr add 192.168.10.1/24 dev crosvm_tap
+sudo ip link set crosvm_tap up
+# --nat:
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo iptables -t nat -A POSTROUTING -s 192.168.10.0/24 -j MASQUERADE
+```
+
+`down` does not turn `ip_forward` off again. If the host firewall drops
+forwarded traffic, the NAT rule alone isn't enough: you also need to allow
+forwarding for 192.168.10.0/24.
 
 crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
 `run-crosvm.sh`, not from `mkosi.conf`. If you change one, change the other.
@@ -82,9 +106,11 @@ partition at the next boot.
 | `mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common     |
 | `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
 | `mkosi.build.chroot`                   | clones and builds sommelier inside the target distro |
-| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, sommelier unit, linger and `.profile` |
+| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier unit, linger and `.profile` |
+| `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
 | `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `run-crosvm.sh`                        | boots an image with crosvm                           |
+| `setup-host-net.sh`                    | creates/removes the host tap and the optional NAT    |
 
 ## Notes
 
@@ -99,5 +125,6 @@ partition at the next boot.
 - These images are Wayland only: no Xwayland, and sommelier runs without `-X`.
   The xcb libraries are still installed because sommelier's `meson.build`
   needs them unconditionally.
-- There is no guest networking out of the box. Add a crosvm `--net` option and a
-  systemd-networkd `.network` file under `mkosi.extra/` if you need it.
+- The guest network config is written to
+  `/etc/systemd/network/80-crosvm-tap.network`. It matches any Ethernet
+  interface, which in practice is the virtio-net device.

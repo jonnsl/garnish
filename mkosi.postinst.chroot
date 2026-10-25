@@ -5,6 +5,9 @@ set -euo pipefail
 : "${GUEST_USER:=jonnathan}"
 : "${GUEST_PASSWORD:=}"
 : "${PASSWORDLESS_SUDO:=yes}"
+: "${GUEST_ADDRESS:=192.168.10.2/24}"
+: "${GUEST_GATEWAY:=192.168.10.1}"
+: "${GUEST_DNS:=1.1.1.1,9.9.9.9}"
 
 is_true() {
     case "${1,,}" in
@@ -71,6 +74,26 @@ fi
 rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 
 systemctl enable sshd-vsock.socket
+
+# --- network ----------------------------------------------------------------
+# Static address on the crosvm tap (see setup-host-net.sh for the host side).
+install -d /etc/systemd/network
+{
+    echo "[Match]"
+    echo "Type=ether"
+    echo
+    echo "[Network]"
+    echo "Address=$GUEST_ADDRESS"
+    echo "Gateway=$GUEST_GATEWAY"
+    IFS=, read -ra dns_servers <<<"$GUEST_DNS"
+    for dns in "${dns_servers[@]}"; do
+        echo "DNS=$dns"
+    done
+} > /etc/systemd/network/80-crosvm-tap.network
+
+# /etc/resolv.conf -> resolved stub is set up in mkosi.finalize: here it is a
+# read-only bind mount of the host's file (WithNetwork=yes).
+systemctl enable systemd-networkd.service systemd-resolved.service
 
 # --- sommelier user service -------------------------------------------------
 unit_dir="$home/.config/systemd/user"

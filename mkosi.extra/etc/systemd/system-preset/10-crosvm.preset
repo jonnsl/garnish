@@ -1,3 +1,5 @@
 # mkosi runs `systemctl preset-all` after the postinst script; make sure the
 # distro presets (e.g. Fedora's disable-everything default) keep it enabled.
 enable sshd-vsock.socket
+enable systemd-networkd.service
+enable systemd-resolved.service
