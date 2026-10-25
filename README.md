@@ -7,8 +7,9 @@ disk images for crosvm. Every image comes with:
 - sommelier built from ChromiumOS platform2, installed to `/usr/local/bin/sommelier`
 - a user (`jonnathan` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
-- `~/.config/systemd/user/sommelier.service`, enabled, with linger turned on
-- the Wayland environment variables in `~/.profile` (Wayland only, no X11)
+- `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
+- the Wayland environment variables in `/etc/profile.d/crosvm-wayland.sh` (Wayland only, no X11)
+- optionally, a host directory as the user's home over virtio-fs (no root needed)
 - `video=Virtual-1:d` on the kernel command line
 - a static address (192.168.10.2/24) on a host tap device, using systemd-networkd and systemd-resolved
 
@@ -84,6 +85,7 @@ GPU_CONTEXTS=cross-domain:virgl2 ./run-crosvm.sh debian  # only if crosvm has vi
 ssh jonnathan@vsock/3           # host systemd >= 256; otherwise:
 ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
 ssh jonnathan@192.168.10.2      # over the tap also works
+SHARE_HOME=~/vm/home ./run-crosvm.sh debian  # host directory as the guest home
 ./setup-host-net.sh down        # removes the tap and the NAT rule
 ```
 
@@ -103,6 +105,27 @@ sudo iptables -t nat -A POSTROUTING -s 192.168.10.0/24 -j MASQUERADE
 forwarded traffic, the NAT rule alone isn't enough: you also need to allow
 forwarding for 192.168.10.0/24.
 
+### Shared home directory
+
+`SHARE_HOME=<dir>` mounts a host directory over `/home/$GUEST_USER` with
+virtio-fs. crosvm's built-in device serves it, running as your user, so you
+don't need virtiofsd or sudo. Nothing in the image depends on the home
+directory: ssh keys, the sommelier unit and the Wayland variables live in
+`/etc`. You can start with an empty directory.
+
+The device runs in a user namespace that has only one uid and one gid. They
+map the guest user (`GUEST_UID`/`GUEST_GID`, default 1000) to your host user.
+This means:
+
+- files the guest user creates are owned by you on the host
+- files with other owners on the host show up as `nobody` in the guest
+- guest root can't create files there or `chown` them
+- the guest user can't `chown` to other users either
+
+If you changed `GUEST_USER` at build time, pass the same value to
+`run-crosvm.sh`. If the mount fails (`systemctl status home-<user>.mount`),
+the guest boots anyway with the home from the image.
+
 crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
 `run-crosvm.sh`, not from `mkosi.conf`. If you change one, change the other.
 The image also has an ESP with a UKI, so UEFI boot (`--bios OVMF.fd`) works too.
@@ -121,7 +144,7 @@ partition at the next boot.
 | `mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common     |
 | `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
 | `mkosi.build.chroot`                   | clones and builds sommelier inside the target distro |
-| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier unit, linger and `.profile` |
+| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier unit, linger and Wayland variables |
 | `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
 | `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `run-crosvm.sh`                        | boots an image with crosvm                           |
@@ -133,8 +156,6 @@ partition at the next boot.
   makes, so these take precedence. They also work without the generator.
   Host keys are deleted at build time and created on the first connection,
   so two images never share host keys.
-- In Arch and Fedora, `/etc/skel/.bash_profile` stops bash from reading `~/.profile`.
-  The postinst script makes `~/.bash_profile` source `~/.profile`.
 - Debian and Ubuntu need `dbus-user-session` to get a user D-Bus session.
   Fedora and Arch have one by default.
 - `pam_systemd` sets `XDG_RUNTIME_DIR`. Without it, `user@.service` fails
@@ -148,7 +169,7 @@ partition at the next boot.
   user (chown fails with `Invalid argument`). `guest-home-owner.service` runs
   `chown -R` on the home directory once at first boot, before user sessions
   and lingering start. It then writes `/var/lib/guest-home-owner/done` so it
-  doesn't run again.
+  doesn't run again. It's skipped while a shared home is mounted there.
 - In the Arch image, the postinst script writes `/etc/pacman.d/mirrorlist`,
   because the packaged one has every server commented out.
   `pacman-init.service` creates the pacman keyring at first boot.

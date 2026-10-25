@@ -61,9 +61,10 @@ echo "$rule" > /etc/sudoers.d/10-guest-user
 chmod 0440 /etc/sudoers.d/10-guest-user
 
 # --- ssh --------------------------------------------------------------------
-install -d -m 0700 "$home/.ssh"
+# Outside $home so a shared home directory doesn't hide it (see 10-crosvm.conf).
 if [[ -f "$SRCDIR/authorized_keys" ]]; then
-    install -m 0600 "$SRCDIR/authorized_keys" "$home/.ssh/authorized_keys"
+    install -d -m 0755 /etc/ssh/authorized_keys.d
+    install -m 0644 "$SRCDIR/authorized_keys" "/etc/ssh/authorized_keys.d/$GUEST_USER"
 else
     # sshd only accepts keys (mkosi.extra/etc/ssh/sshd_config.d/10-crosvm.conf).
     echo "WARNING: no authorized_keys in the project directory, ssh login will be impossible" >&2
@@ -129,7 +130,9 @@ install -d /etc/systemd/network
 systemctl enable systemd-networkd.service systemd-resolved.service
 
 # --- sommelier user service -------------------------------------------------
-unit_dir="$home/.config/systemd/user"
+# Like everything below, this stays out of $home so the image keeps working
+# when run-crosvm.sh mounts a host directory over it (SHARE_HOME=).
+unit_dir=/etc/systemd/user
 install -d "$unit_dir/default.target.wants"
 cat > "$unit_dir/sommelier.service" <<'UNIT'
 [Unit]
@@ -142,7 +145,7 @@ Restart=on-failure
 [Install]
 WantedBy=default.target
 UNIT
-# Equivalent of `systemctl --user enable sommelier`.
+# Equivalent of `systemctl --global enable sommelier`.
 ln -sf ../sommelier.service "$unit_dir/default.target.wants/sommelier.service"
 
 # Equivalent of `loginctl enable-linger $GUEST_USER`: start the user manager
@@ -151,35 +154,28 @@ install -d /var/lib/systemd/linger
 touch "/var/lib/systemd/linger/$GUEST_USER"
 
 # --- shell environment ------------------------------------------------------
-marker="# >>> crosvm wayland >>>"
-if ! grep -qF "$marker" "$home/.profile" 2>/dev/null; then
-    cat >> "$home/.profile" <<PROFILE
-
-$marker
+# /etc/profile sources this for login shells on all four distros.
+cat > /etc/profile.d/crosvm-wayland.sh <<'PROFILE'
 export WAYLAND_DISPLAY=wayland-0
 export MOZ_ENABLE_WAYLAND=1
 export GDK_BACKEND=wayland
 export QT_QPA_PLATFORM=wayland
-# <<< crosvm wayland <<<
 PROFILE
-fi
-
-# Arch and Fedora ship ~/.bash_profile in /etc/skel, which makes bash ignore
-# ~/.profile for login shells. Source it from there.
-if [[ -f "$home/.bash_profile" ]] && ! grep -qF '. ~/.profile' "$home/.bash_profile"; then
-    printf '\n[ -f ~/.profile ] && . ~/.profile\n' >> "$home/.bash_profile"
-fi
 
 # --- home ownership ---------------------------------------------------------
 # Rootless mkosi maps only a single user (root) into the build, so chown to
 # $GUEST_USER fails here and everything above is owned by root. Hand the home
 # directory over on first boot instead, before any user session starts.
 # (A tmpfiles.d rule won't do: mkosi runs tmpfiles at build time, too.)
+# Skip it while a host directory is mounted there: chown would walk the host
+# files, and the image's own home is hidden anyway.
+home_mount="$(systemd-escape --path --suffix=mount "$home")"
 cat > /etc/systemd/system/guest-home-owner.service <<UNIT
 [Unit]
 Description=Give $GUEST_USER ownership of $home
 ConditionPathExists=!/var/lib/guest-home-owner/done
-After=local-fs.target
+ConditionPathIsMountPoint=!$home
+After=local-fs.target $home_mount
 Before=systemd-user-sessions.service
 
 [Service]
