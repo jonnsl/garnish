@@ -160,6 +160,9 @@ export WAYLAND_DISPLAY=wayland-0
 export MOZ_ENABLE_WAYLAND=1
 export GDK_BACKEND=wayland
 export QT_QPA_PLATFORM=wayland
+# Electron/Chromium (VS Code, ...) pick their backend from this. logind sets
+# it to "tty" for ssh logins, so they try X11, find no $DISPLAY and quit.
+export XDG_SESSION_TYPE=wayland
 PROFILE
 
 # --- home ownership ---------------------------------------------------------

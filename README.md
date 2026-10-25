@@ -165,6 +165,11 @@ partition at the next boot.
 - These images are Wayland only: no Xwayland, and sommelier runs without `-X`.
   The xcb libraries are still installed because sommelier's `meson.build`
   needs them unconditionally.
+- Electron and Chromium apps such as VS Code choose X11 or Wayland from
+  `XDG_SESSION_TYPE`. logind sets it to `tty` for ssh logins, so they try
+  X11 and exit right away (`code` still returns 0). The profile script sets
+  it to `wayland`. `ELECTRON_OZONE_PLATFORM_HINT` is ignored by current
+  Electron.
 - mkosi builds rootless, so the build can't make files owned by the guest
   user (chown fails with `Invalid argument`). `guest-home-owner.service` runs
   `chown -R` on the home directory once at first boot, before user sessions
