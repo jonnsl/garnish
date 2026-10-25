@@ -136,6 +136,11 @@ partition at the next boot.
 - These images are Wayland only: no Xwayland, and sommelier runs without `-X`.
   The xcb libraries are still installed because sommelier's `meson.build`
   needs them unconditionally.
+- mkosi builds rootless, so the build can't make files owned by the guest
+  user (chown fails with `Invalid argument`). `guest-home-owner.service` runs
+  `chown -R` on the home directory once at first boot, before user sessions
+  and lingering start. It then writes `/var/lib/guest-home-owner/done` so it
+  doesn't run again.
 - The guest network config is written to
   `/etc/systemd/network/80-crosvm-tap.network`. It matches any Ethernet
   interface, which in practice is the virtio-net device.

@@ -137,4 +137,25 @@ if [[ -f "$home/.bash_profile" ]] && ! grep -qF '. ~/.profile' "$home/.bash_prof
     printf '\n[ -f ~/.profile ] && . ~/.profile\n' >> "$home/.bash_profile"
 fi
 
-chown -R "$GUEST_USER:$GUEST_USER" "$home"
+# --- home ownership ---------------------------------------------------------
+# Rootless mkosi maps only a single user (root) into the build, so chown to
+# $GUEST_USER fails here and everything above is owned by root. Hand the home
+# directory over on first boot instead, before any user session starts.
+# (A tmpfiles.d rule won't do: mkosi runs tmpfiles at build time, too.)
+cat > /etc/systemd/system/guest-home-owner.service <<UNIT
+[Unit]
+Description=Give $GUEST_USER ownership of $home
+ConditionPathExists=!/var/lib/guest-home-owner/done
+After=local-fs.target
+Before=systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+StateDirectory=guest-home-owner
+ExecStart=/usr/bin/chown -R $GUEST_USER:$GUEST_USER $home
+ExecStart=/usr/bin/touch /var/lib/guest-home-owner/done
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl enable guest-home-owner.service
