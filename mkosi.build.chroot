@@ -20,22 +20,10 @@ git -C "$src" fetch --depth=1 origin "$SOMMELIER_REF"
 git -C "$src" checkout --force FETCH_HEAD
 echo "sommelier: building $(git -C "$src" rev-parse HEAD)"
 
-# Xwayland is not installed by default, but point sommelier at the distro
-# locations so `sommelier -X` works once it is.
-gl_driver_path=
-for d in "/usr/lib/$(gcc -print-multiarch 2>/dev/null)/dri" /usr/lib64/dri /usr/lib/dri; do
-    if [[ -d "$d" ]]; then
-        gl_driver_path="$d"
-        break
-    fi
-done
-
 rm -rf "$work/build"
 meson setup "$work/build" "$src/vm_tools/sommelier" \
     --prefix=/usr/local \
     --buildtype=release \
-    -Dwith_tests=false \
-    -Dxwayland_path=/usr/bin/Xwayland \
-    -Dxwayland_gl_driver_path="${gl_driver_path:-/usr/lib/dri}"
+    -Dwith_tests=false
 meson compile -C "$work/build"
 meson install -C "$work/build" --destdir "$DESTDIR"

@@ -8,7 +8,7 @@ disk images for crosvm. Every image comes with:
 - a user (`jonnathan` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
 - `~/.config/systemd/user/sommelier.service`, enabled, with linger turned on
-- the Wayland environment variables in `~/.profile`
+- the Wayland environment variables in `~/.profile` (Wayland only, no X11)
 - `video=Virtual-1:d` on the kernel command line
 
 ## Build
@@ -96,8 +96,8 @@ partition at the next boot.
   The postinst script makes `~/.bash_profile` source `~/.profile`.
 - Debian and Ubuntu need `dbus-user-session` to get a user D-Bus session.
   Fedora and Arch have one by default.
-- Xwayland is not installed. Sommelier is built to look for it at
-  `/usr/bin/Xwayland`, so `sommelier -X` works once you add the
-  `xwayland`/`xorg-x11-server-Xwayland` package.
+- These images are Wayland only: no Xwayland, and sommelier runs without `-X`.
+  The xcb libraries are still installed because sommelier's `meson.build`
+  needs them unconditionally.
 - There is no guest networking out of the box. Add a crosvm `--net` option and a
   systemd-networkd `.network` file under `mkosi.extra/` if you need it.
