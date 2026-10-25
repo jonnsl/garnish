@@ -25,7 +25,10 @@ These are out of scope on purpose. Don't add support for them:
 
 ## Build
 
-Requires mkosi v26 or newer (tested config parsing with v27.1).
+Requires mkosi v26 or newer. Tested with mkosi v27.1 on an Arch Linux host
+(rootless builds). All four images build and work under crosvm: ssh over
+vsock and the tap network, the distro package manager, and GTK apps through
+sommelier.
 
 ```sh
 # required for ssh: password and root logins are disabled
