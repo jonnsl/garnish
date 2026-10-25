@@ -77,6 +77,7 @@ To keep the platform2 checkout and meson build between builds, run `mkdir mkosi.
 ./run-crosvm.sh debian          # CID=3, 4 CPUs, 4 GiB, tap crosvm_tap by default
 CID=4 MEM=8192 ./run-crosvm.sh fedora
 TAP= ./run-crosvm.sh ubuntu     # no network
+GPU_CONTEXTS=cross-domain:virgl2 ./run-crosvm.sh debian  # only if crosvm has virglrenderer
 ssh jonnathan@vsock/3           # host systemd >= 256; otherwise:
 ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
 ssh jonnathan@192.168.10.2      # over the tap also works

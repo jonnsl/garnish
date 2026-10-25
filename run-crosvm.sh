@@ -13,6 +13,9 @@ out="${OUTPUT_DIR:-$(dirname "$0")/mkosi.output}"
 CID="${CID:-3}"
 CPUS="${CPUS:-4}"
 MEM="${MEM:-4096}"
+# cross-domain is what sommelier --virtgpu-channel uses. Add e.g.
+# GPU_CONTEXTS=cross-domain:virgl2 only if crosvm was built with virglrenderer.
+GPU_CONTEXTS="${GPU_CONTEXTS:-cross-domain}"
 TAP="${TAP-crosvm_tap}"   # created by ./setup-host-net.sh up; TAP= disables networking
 
 # Keep in sync with KernelCommandLine= in mkosi.conf.
@@ -34,7 +37,7 @@ exec crosvm run \
     --initrd "$out/$name.initrd" \
     --params "$cmdline" \
     --vsock "cid=$CID" \
-    --gpu context-types=cross-domain:virgl2 \
+    --gpu "context-types=$GPU_CONTEXTS" \
     --wayland-sock "$XDG_RUNTIME_DIR/${WAYLAND_DISPLAY:-wayland-0}" \
     "${net_args[@]}" \
     "$@" \
