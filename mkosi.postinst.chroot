@@ -1,0 +1,116 @@
+#!/bin/bash
+# Creates the guest user and wires up sommelier, sudo and sshd-vsock.
+set -euo pipefail
+
+: "${GUEST_USER:=jonnathan}"
+: "${GUEST_PASSWORD:=}"
+: "${PASSWORDLESS_SUDO:=yes}"
+
+is_true() {
+    case "${1,,}" in
+        1|y|yes|true|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# --- groups -----------------------------------------------------------------
+# video/render are needed for /dev/dri access by sommelier. systemd-sysusers
+# normally creates them, but it only runs after this script.
+for g in video render; do
+    getent group "$g" >/dev/null || groupadd --system "$g"
+done
+
+# Debian/Ubuntu use "sudo", Arch/Fedora use "wheel".
+if getent group sudo >/dev/null; then
+    admin_group=sudo
+else
+    getent group wheel >/dev/null || groupadd --system wheel
+    admin_group=wheel
+fi
+
+# --- user -------------------------------------------------------------------
+if ! id "$GUEST_USER" >/dev/null 2>&1; then
+    useradd --create-home --shell /bin/bash --user-group \
+        --groups "video,render,$admin_group" "$GUEST_USER"
+else
+    usermod --append --groups "video,render,$admin_group" "$GUEST_USER"
+fi
+
+if [[ -n "$GUEST_PASSWORD" ]]; then
+    echo "$GUEST_USER:$GUEST_PASSWORD" | chpasswd
+else
+    # No password: account usable through ssh keys only.
+    usermod --password '*' "$GUEST_USER"
+fi
+
+home="$(getent passwd "$GUEST_USER" | cut -d: -f6)"
+
+# --- sudo -------------------------------------------------------------------
+# Per-user rule, so it works regardless of whether the distro's sudoers
+# enables %wheel / %sudo (Arch ships it commented out).
+if is_true "$PASSWORDLESS_SUDO"; then
+    rule="$GUEST_USER ALL=(ALL:ALL) NOPASSWD: ALL"
+else
+    rule="$GUEST_USER ALL=(ALL:ALL) ALL"
+fi
+install -d -m 0750 /etc/sudoers.d
+echo "$rule" > /etc/sudoers.d/10-guest-user
+chmod 0440 /etc/sudoers.d/10-guest-user
+
+# --- ssh --------------------------------------------------------------------
+install -d -m 0700 "$home/.ssh"
+if [[ -f "$SRCDIR/authorized_keys" ]]; then
+    install -m 0600 "$SRCDIR/authorized_keys" "$home/.ssh/authorized_keys"
+else
+    echo "WARNING: no authorized_keys in the project directory, ssh will need the password" >&2
+fi
+
+# Don't bake host keys into the image (Debian/Ubuntu generate them at
+# package install time); sshd-vsock@.service runs ssh-keygen -A on demand.
+rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
+
+systemctl enable sshd-vsock.socket
+
+# --- sommelier user service -------------------------------------------------
+unit_dir="$home/.config/systemd/user"
+install -d "$unit_dir/default.target.wants"
+cat > "$unit_dir/sommelier.service" <<'UNIT'
+[Unit]
+Description=Sommelier Wayland proxy
+
+[Service]
+ExecStart=/usr/local/bin/sommelier --parent --socket=wayland-0 --virtgpu-channel
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+UNIT
+# Equivalent of `systemctl --user enable sommelier`.
+ln -sf ../sommelier.service "$unit_dir/default.target.wants/sommelier.service"
+
+# Equivalent of `loginctl enable-linger $GUEST_USER`: start the user manager
+# (and thus sommelier) at boot without needing a login.
+install -d /var/lib/systemd/linger
+touch "/var/lib/systemd/linger/$GUEST_USER"
+
+# --- shell environment ------------------------------------------------------
+marker="# >>> crosvm wayland >>>"
+if ! grep -qF "$marker" "$home/.profile" 2>/dev/null; then
+    cat >> "$home/.profile" <<PROFILE
+
+$marker
+export WAYLAND_DISPLAY=wayland-0
+export MOZ_ENABLE_WAYLAND=1
+export GDK_BACKEND=wayland
+export QT_QPA_PLATFORM=wayland
+# <<< crosvm wayland <<<
+PROFILE
+fi
+
+# Arch and Fedora ship ~/.bash_profile in /etc/skel, which makes bash ignore
+# ~/.profile for login shells. Source it from there.
+if [[ -f "$home/.bash_profile" ]] && ! grep -qF '. ~/.profile' "$home/.bash_profile"; then
+    printf '\n[ -f ~/.profile ] && . ~/.profile\n' >> "$home/.bash_profile"
+fi
+
+chown -R "$GUEST_USER:$GUEST_USER" "$home"

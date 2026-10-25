@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenSSH per-connection server over AF_VSOCK
+Documentation=man:sshd(8)
+
+[Service]
+# Host keys are removed at build time so every image gets unique ones.
+ExecStartPre=-/usr/bin/ssh-keygen -A
+ExecStart=-/usr/sbin/sshd -i
+StandardInput=socket
+StandardError=journal
+RuntimeDirectory=sshd
+RuntimeDirectoryPreserve=yes

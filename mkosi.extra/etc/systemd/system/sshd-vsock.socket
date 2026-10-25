@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenSSH Server over AF_VSOCK
+Documentation=man:sshd(8)
+# Same name as systemd-ssh-generator's unit, so this one takes precedence
+# over the generated copy in /run/systemd/generator.
+
+[Socket]
+ListenStream=vsock::22
+Accept=yes
+PollLimitIntervalSec=30s
+PollLimitBurst=50
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,7 @@
+mkosi.output/
+mkosi.cache/
+mkosi.builddir/
+mkosi.tools/
+mkosi.local.conf
+mkosi.local/
+authorized_keys
