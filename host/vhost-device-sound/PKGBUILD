@@ -1,0 +1,44 @@
+# Host-side virtio-snd backend for crosvm (`--vhost-user type=sound`).
+# Build and install with: makepkg -si
+# Only the PipeWire and ALSA backends are built; the GStreamer one (a default
+# feature upstream) is left out so gstreamer isn't needed.
+# no-capture.patch adds --no-capture: the guest gets no input stream, so it
+# can't record from the host's microphone.
+
+pkgname=vhost-device-sound
+pkgver=0.3.0
+pkgrel=2
+pkgdesc='virtio-sound device backend using the vhost-user protocol'
+arch=(x86_64)
+url='https://github.com/rust-vmm/vhost-device'
+license=('Apache-2.0 OR BSD-3-Clause')
+depends=(alsa-lib gcc-libs glibc libpipewire)
+# clang: bindgen for pipewire-sys/libspa-sys
+makedepends=(cargo clang pkgconf)
+source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate"
+        no-capture.patch)
+sha256sums=('d5066471ca6bc631f92b3cd265509d3134ff3483a8768e9f67676923878d7bce'
+            '98a7ebb99f5b6d7fcadde90c202bd49eb0534768afb94d513c11f92568cfeec5')
+
+_features=(--no-default-features --features pw-backend,alsa-backend)
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  patch -Np1 -i ../no-capture.patch
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release "${_features[@]}"
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 LICENSE-APACHE LICENSE-BSD-3-Clause -t "$pkgdir/usr/share/licenses/$pkgname/"
+}

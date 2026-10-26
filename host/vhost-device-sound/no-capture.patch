@@ -1,0 +1,112 @@
+diff --git a/src/args.rs b/src/args.rs
+index 5cda63c..d2bc9d9 100644
+--- a/src/args.rs
++++ b/src/args.rs
+@@ -15,6 +15,9 @@ pub struct SoundArgs {
+     #[clap(long)]
+     #[clap(value_enum)]
+     pub backend: BackendType,
++    /// Don't offer an input (capture) stream to the guest.
++    #[clap(long)]
++    pub no_capture: bool,
+ }
+ 
+ #[derive(ValueEnum, Clone, Copy, Default, Debug, Eq, PartialEq)]
+diff --git a/src/device.rs b/src/device.rs
+index db09388..2e5579b 100644
+--- a/src/device.rs
++++ b/src/device.rs
+@@ -492,18 +492,18 @@ pub struct VhostUserSoundBackend {
+ 
+ impl VhostUserSoundBackend {
+     pub fn new(config: SoundConfig) -> Result<Self> {
+-        let streams = vec![
+-            Stream {
+-                id: 0,
+-                direction: Direction::Output,
+-                ..Stream::default()
+-            },
+-            Stream {
++        let mut streams = vec![Stream {
++            id: 0,
++            direction: Direction::Output,
++            ..Stream::default()
++        }];
++        if config.get_capture() {
++            streams.push(Stream {
+                 id: 1,
+                 direction: Direction::Input,
+                 ..Stream::default()
+-            },
+-        ];
++            });
++        }
+         let streams_no = streams.len();
+         let streams = Arc::new(RwLock::new(streams));
+         let jacks: Arc<RwLock<Vec<VirtioSoundJackInfo>>> = Arc::new(RwLock::new(Vec::new()));
+diff --git a/src/lib.rs b/src/lib.rs
+index 8d21570..c5f1818 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -246,13 +246,19 @@ pub struct SoundConfig {
+     multi_thread: bool,
+     /// audio backend variant
+     audio_backend: BackendType,
++    /// offer an input (capture) stream to the guest
++    capture: bool,
+ }
+ 
+ impl From<args::SoundArgs> for SoundConfig {
+     fn from(cmd_args: args::SoundArgs) -> Self {
+-        let args::SoundArgs { socket, backend } = cmd_args;
++        let args::SoundArgs {
++            socket,
++            backend,
++            no_capture,
++        } = cmd_args;
+ 
+-        Self::new(socket, false, backend)
++        Self::new(socket, false, backend).with_capture(!no_capture)
+     }
+ }
+ 
+@@ -264,9 +270,16 @@ impl SoundConfig {
+             socket,
+             multi_thread,
+             audio_backend,
++            capture: true,
+         }
+     }
+ 
++    /// Set whether the guest gets an input (capture) stream.
++    pub const fn with_capture(mut self, capture: bool) -> Self {
++        self.capture = capture;
++        self
++    }
++
+     /// Return the path of the unix domain socket which is listening to
+     /// requests from the guest.
+     pub fn get_socket_path(&self) -> PathBuf {
+@@ -276,6 +289,10 @@ impl SoundConfig {
+     pub const fn get_audio_backend(&self) -> BackendType {
+         self.audio_backend
+     }
++
++    pub const fn get_capture(&self) -> bool {
++        self.capture
++    }
+ }
+ 
+ pub struct IOMessage {
+diff --git a/src/main.rs b/src/main.rs
+index 330e7ca..24065d6 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -36,6 +36,7 @@ mod tests {
+         let args = SoundArgs {
+             socket: PathBuf::from("/tmp/vhost-sound.socket"),
+             backend: BackendType::default(),
++            no_capture: false,
+         };
+         let config = SoundConfig::from(args);
+ 

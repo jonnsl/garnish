@@ -10,6 +10,7 @@ disk images for crosvm. Every image comes with:
 - `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
 - the Wayland environment variables in `/etc/profile.d/crosvm-wayland.sh` (Wayland only, no X11)
 - optionally, a host directory as the user's home over virtio-fs (no root needed)
+- PipeWire for an optional virtio-snd sound card that plays into the host's PipeWire
 - `video=Virtual-1:d` on the kernel command line
 - a static address (192.168.10.2/24) on a host tap device, using systemd-networkd and systemd-resolved
 
@@ -86,6 +87,7 @@ ssh jonnathan@vsock/3           # host systemd >= 256; otherwise:
 ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
 ssh jonnathan@192.168.10.2      # over the tap also works
 SHARE_HOME=~/vm/home ./run-crosvm.sh debian  # host directory as the guest home
+AUDIO=1 ./run-crosvm.sh debian  # sound, playback only (see Audio below)
 ./setup-host-net.sh down        # removes the tap and the NAT rule
 ```
 
@@ -126,6 +128,33 @@ If you changed `GUEST_USER` at build time, pass the same value to
 `run-crosvm.sh`. If the mount fails (`systemctl status home-<user>.mount`),
 the guest boots anyway with the home from the image.
 
+### Audio
+
+`AUDIO=1` adds a virtio-snd card. crosvm's own sound device has no PipeWire
+backend, so `run-crosvm.sh` starts
+[vhost-device-sound](https://github.com/rust-vmm/vhost-device) as your user and
+connects crosvm to it over vhost-user. It plays into your PipeWire and stops
+when crosvm exits. In the guest, PipeWire, WirePlumber and pipewire-pulse run
+in the user session, so apps see an ordinary sound card.
+
+The guest gets **no microphone** by default. `host/vhost-device-sound` builds
+the package with a patch that adds `--no-capture`, and `run-crosvm.sh` passes
+it unless you set `AUDIO_CAPTURE=1`. Then the guest can record from your default
+input. This is enforced on the host, so guest root can't turn it back on.
+
+```sh
+./check-host-audio.sh                          # host prerequisites (read-only)
+(cd host/vhost-device-sound && makepkg -si)    # Arch package, patched
+AUDIO=1 ./run-crosvm.sh debian
+ssh jonnathan@vsock/3 speaker-test -c 2 -t wav -l 1
+AUDIO=1 AUDIO_CAPTURE=1 ./run-crosvm.sh debian # with microphone
+```
+
+The host needs PipeWire with a session manager (WirePlumber) running.
+`check-host-audio.sh` checks that, and that crosvm accepts the device.
+The socket is `$XDG_RUNTIME_DIR/crosvm-snd-$CID.sock`, so VMs with different
+CIDs each get their own.
+
 crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
 `run-crosvm.sh`, not from `mkosi.conf`. If you change one, change the other.
 The image also has an ESP with a UKI, so UEFI boot (`--bios OVMF.fd`) works too.
@@ -148,6 +177,8 @@ partition at the next boot.
 | `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
 | `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `run-crosvm.sh`                        | boots an image with crosvm                           |
+| `check-host-audio.sh`                  | checks the host prerequisites for `AUDIO=1`          |
+| `host/vhost-device-sound/`             | Arch PKGBUILD for vhost-device-sound, plus the `--no-capture` patch |
 | `setup-host-net.sh`                    | creates/removes the host tap and the optional NAT    |
 
 ## Notes

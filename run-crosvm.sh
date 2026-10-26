@@ -4,6 +4,7 @@
 #   CID=4 MEM=8192 ./run-crosvm.sh fedora
 #   TAP= ./run-crosvm.sh arch         # no network
 #   SHARE_HOME=~/vm/home ./run-crosvm.sh debian   # host dir as the guest home
+#   AUDIO=1 ./run-crosvm.sh debian    # sound through vhost-device-sound
 # Then: ssh jonnathan@vsock/3   (needs systemd >= 256 on the host for the
 #       vsock/ ssh proxy; otherwise use ProxyCommand="socat - VSOCK-CONNECT:3:22")
 set -euo pipefail
@@ -24,6 +25,11 @@ SHARE_HOME="${SHARE_HOME:-}"
 GUEST_USER="${GUEST_USER:-jonnathan}"   # must match the build's GUEST_USER
 GUEST_UID="${GUEST_UID:-1000}"          # `id -u` in the guest
 GUEST_GID="${GUEST_GID:-$GUEST_UID}"
+# virtio-snd through vhost-device-sound (host/vhost-device-sound), which plays
+# into your PipeWire. Playback only unless AUDIO_CAPTURE=1: without it the
+# guest gets no input stream and can't record from your microphone.
+AUDIO="${AUDIO:-}"
+AUDIO_CAPTURE="${AUDIO_CAPTURE:-}"
 
 # Keep in sync with KernelCommandLine= in mkosi.conf.
 cmdline="root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual-1:d"
@@ -40,6 +46,24 @@ if [[ -n "$SHARE_HOME" ]]; then
     cmdline+=" systemd.mount-extra=home:/home/$GUEST_USER:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service"
 fi
 
+audio_args=()
+if [[ -n "$AUDIO" ]]; then
+    command -v vhost-device-sound >/dev/null || {
+        echo "AUDIO: vhost-device-sound not found (see host/vhost-device-sound)" >&2; exit 1; }
+    snd_sock="$XDG_RUNTIME_DIR/crosvm-snd-$CID.sock"
+    snd_args=(--socket "$snd_sock" --backend pipewire)
+    [[ -n "$AUDIO_CAPTURE" ]] || snd_args+=(--no-capture)
+    rm -f "$snd_sock"
+    vhost-device-sound "${snd_args[@]}" &
+    snd_pid=$!
+    # It serves crosvm again after each disconnect, so stop it when we exit.
+    trap 'kill "$snd_pid" 2>/dev/null' EXIT
+    # crosvm waits up to this long for the socket to appear. vhost-device-sound
+    # takes at most 64 entries per queue and exits on anything bigger, but
+    # crosvm offers the guest its own maximum unless told otherwise.
+    audio_args=(--vhost-user "type=sound,socket=$snd_sock,max-queue-size=64" --vhost-user-connect-timeout-ms 5000)
+fi
+
 net_args=()
 if [[ -n "$TAP" ]]; then
     if ip link show "$TAP" >/dev/null 2>&1; then
@@ -49,7 +73,8 @@ if [[ -n "$TAP" ]]; then
     fi
 fi
 
-exec crosvm run \
+# Not exec: the EXIT trap has to run to stop vhost-device-sound.
+crosvm run \
     --cpus "$CPUS" \
     --mem "$MEM" \
     --block "path=$out/$name.raw" \
@@ -60,5 +85,6 @@ exec crosvm run \
     --wayland-sock "$XDG_RUNTIME_DIR/${WAYLAND_DISPLAY:-wayland-0}" \
     "${net_args[@]}" \
     "${share_args[@]}" \
+    "${audio_args[@]}" \
     "$@" \
     "$out/$name.vmlinuz"

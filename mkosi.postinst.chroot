@@ -17,9 +17,11 @@ is_true() {
 }
 
 # --- groups -----------------------------------------------------------------
-# video/render are needed for /dev/dri access by sommelier. systemd-sysusers
-# normally creates them, but it only runs after this script.
-for g in video render; do
+# video/render are needed for /dev/dri access by sommelier, audio for
+# /dev/snd: logind only grants device ACLs to local seat sessions, and ssh
+# logins and the lingering user manager don't have a seat. systemd-sysusers
+# normally creates these groups, but it only runs after this script.
+for g in video render audio; do
     getent group "$g" >/dev/null || groupadd --system "$g"
 done
 
@@ -34,9 +36,9 @@ fi
 # --- user -------------------------------------------------------------------
 if ! id "$GUEST_USER" >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash --user-group \
-        --groups "video,render,$admin_group" "$GUEST_USER"
+        --groups "video,render,audio,$admin_group" "$GUEST_USER"
 else
-    usermod --append --groups "video,render,$admin_group" "$GUEST_USER"
+    usermod --append --groups "video,render,audio,$admin_group" "$GUEST_USER"
 fi
 
 if [[ -n "$GUEST_PASSWORD" ]]; then
@@ -147,6 +149,12 @@ WantedBy=default.target
 UNIT
 # Equivalent of `systemctl --global enable sommelier`.
 ln -sf ../sommelier.service "$unit_dir/default.target.wants/sommelier.service"
+
+# --- audio ------------------------------------------------------------------
+# PipeWire for the virtio-snd card (run-crosvm.sh AUDIO=1). Enabled
+# explicitly because not every distro presets these on. Without the device
+# it just finds no card.
+systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
 
 # Equivalent of `loginctl enable-linger $GUEST_USER`: start the user manager
 # (and thus sommelier) at boot without needing a login.
