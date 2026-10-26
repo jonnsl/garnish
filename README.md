@@ -1,4 +1,10 @@
-# mkosi images for crosvm
+# garnish
+
+Experimental crosvm guest images built with mkosi. This is an experiment, not
+production-ready: expect breakage.
+
+The name continues ChromeOS's food names: this is roughly Crostini (crosvm,
+sommelier) on a regular Linux desktop.
 
 Builds Arch Linux, Debian (trixie), Ubuntu (26.04 "resolute") and Fedora (44)
 disk images for crosvm. Every image comes with:
