@@ -1,5 +1,6 @@
 #!/bin/bash
-# Creates the guest user and wires up sommelier, sudo and sshd-vsock.
+# Creates the guest user and wires up sommelier, garnish-agent, sudo and
+# sshd-vsock.
 set -euo pipefail
 
 : "${GUEST_USER:=jonnathan}"
@@ -8,6 +9,13 @@ set -euo pipefail
 : "${GUEST_ADDRESS:=192.168.10.2/24}"
 : "${GUEST_GATEWAY:=192.168.10.1}"
 : "${GUEST_DNS:=1.1.1.1,9.9.9.9}"
+: "${VM_NAME:=$DISTRIBUTION}"
+
+# The host names its files garnish-<VM_NAME>-<app>.desktop, so no '-'.
+if [[ ! "$VM_NAME" =~ ^[A-Za-z0-9_][A-Za-z0-9_.]{0,63}$ ]]; then
+    echo "VM_NAME: '$VM_NAME' must be letters, digits, '_' and '.'" >&2
+    exit 1
+fi
 
 is_true() {
     case "${1,,}" in
@@ -150,6 +158,27 @@ UNIT
 # Equivalent of `systemctl --global enable sommelier`.
 ln -sf ../sommelier.service "$unit_dir/default.target.wants/sommelier.service"
 
+# --- garnish-agent ----------------------------------------------------------
+# Shows the guest's applications in the host's application menu (see
+# garnish/). sommelier puts the VM name in every window's app_id
+# (org.chromium.guest_os.<name>.wayland.<app_id>), and the agent tells the
+# host the same name, so the host can match windows to its menu entries.
+install -d /etc/environment.d
+echo "SOMMELIER_VM_IDENTIFIER=$VM_NAME" > /etc/environment.d/60-garnish.conf
+cat > "$unit_dir/garnish-agent.service" <<'UNIT'
+[Unit]
+Description=garnish agent: shares applications with the host
+
+[Service]
+ExecStart=/usr/local/bin/garnish-agent
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+UNIT
+ln -sf ../garnish-agent.service "$unit_dir/default.target.wants/garnish-agent.service"
+
 # --- audio ------------------------------------------------------------------
 # PipeWire for the virtio-snd card (run-crosvm.sh AUDIO=1). Enabled
 # explicitly because not every distro presets these on. Without the device
@@ -162,16 +191,21 @@ install -d /var/lib/systemd/linger
 touch "/var/lib/systemd/linger/$GUEST_USER"
 
 # --- shell environment ------------------------------------------------------
+wayland_env=(
+    WAYLAND_DISPLAY=wayland-0
+    MOZ_ENABLE_WAYLAND=1
+    GDK_BACKEND=wayland
+    QT_QPA_PLATFORM=wayland
+    # Electron/Chromium (VS Code, ...) pick their backend from this. logind sets
+    # it to "tty" for ssh logins, so they try X11, find no $DISPLAY and quit.
+    XDG_SESSION_TYPE=wayland
+)
 # /etc/profile sources this for login shells on all four distros.
-cat > /etc/profile.d/crosvm-wayland.sh <<'PROFILE'
-export WAYLAND_DISPLAY=wayland-0
-export MOZ_ENABLE_WAYLAND=1
-export GDK_BACKEND=wayland
-export QT_QPA_PLATFORM=wayland
-# Electron/Chromium (VS Code, ...) pick their backend from this. logind sets
-# it to "tty" for ssh logins, so they try X11, find no $DISPLAY and quit.
-export XDG_SESSION_TYPE=wayland
-PROFILE
+printf 'export %s\n' "${wayland_env[@]}" > /etc/profile.d/crosvm-wayland.sh
+# The same for the user manager, so the applications garnish-agent starts
+# get it too.
+install -d /etc/environment.d
+printf '%s\n' "${wayland_env[@]}" > /etc/environment.d/50-crosvm-wayland.conf
 
 # --- home ownership ---------------------------------------------------------
 # Rootless mkosi maps only a single user (root) into the build, so chown to

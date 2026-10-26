@@ -14,6 +14,7 @@ disk images for crosvm. Every image comes with:
 - a user (`jonnathan` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
 - `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
+- `garnish-agent`, which puts the guest's applications in the host's application menu
 - the Wayland environment variables in `/etc/profile.d/crosvm-wayland.sh` (Wayland only, no X11)
 - optionally, a host directory as the user's home over virtio-fs (no root needed)
 - PipeWire for an optional virtio-snd sound card that plays into the host's PipeWire
@@ -68,6 +69,7 @@ These are set with `Environment=` in `mkosi.conf`. Override them per build with
 | `GUEST_ADDRESS`     | `192.168.10.2/24`| guest address on the tap network                 |
 | `GUEST_GATEWAY`     | `192.168.10.1`   | default gateway (the host end of the tap)        |
 | `GUEST_DNS`         | `1.1.1.1,9.9.9.9`| comma-separated DNS servers                      |
+| `VM_NAME`           | the distribution | name in the host's app menu and window app_ids   |
 
 ```sh
 mkosi -d debian -E PASSWORDLESS_SUDO=no -E GUEST_PASSWORD=hunter2 build
@@ -94,6 +96,7 @@ ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
 ssh jonnathan@192.168.10.2      # over the tap also works
 SHARE_HOME=~/vm/home ./run-crosvm.sh debian  # host directory as the guest home
 AUDIO=1 ./run-crosvm.sh debian  # sound, playback only (see Audio below)
+GARNISH=0 ./run-crosvm.sh debian  # don't put the guest's apps in the app menu
 ./setup-host-net.sh down        # removes the tap and the NAT rule
 ```
 
@@ -141,6 +144,45 @@ If you changed `GUEST_USER` at build time, pass the same value to
 `run-crosvm.sh`. If the mount fails (`systemctl status home-<user>.mount`),
 the guest boots anyway with the home from the image.
 
+### Application menu
+
+`garnish/` is a small Rust take on ChromeOS's garcon. `garnish-agent` runs in
+the guest's user session (`garnish-agent.service`). It reads the guest's
+`.desktop` files and sends the list and the icons to the host over vsock
+(port 8890). When the host asks, it starts an application. On the host,
+`garnish sync` writes a launcher for each application to
+`~/.local/share/applications/garnish-<vm>-<id>.desktop`, with icons in
+`~/.local/share/garnish/icons/<vm>/`. GNOME shows them right away, and
+updates them when you install or remove software in the guest. A launcher runs
+`garnish launch <vm> <id>`.
+
+```sh
+cargo install --locked --path garnish --bin garnish  # once, to ~/.cargo/bin
+./run-crosvm.sh debian      # runs `garnish sync --cid 3` while the VM is up
+garnish remove debian       # removes debian's launchers and icons
+```
+
+- Launchers stay when the VM stops, so apps pinned to the dash stay too.
+  Starting one while the VM is off shows a notification.
+- The VM name is `VM_NAME`, by default the distribution (`arch`, `debian`,
+  `ubuntu`, `fedora`). It's appended to the application names. It is also
+  sommelier's VM identifier (`SOMMELIER_VM_IDENTIFIER`): sommelier changes
+  every window's app_id to `org.chromium.guest_os.<vm>.wayland.<app_id>`, and
+  the launchers set `StartupWMClass` to the same, so GNOME shows windows under
+  their launcher instead of with a generic icon.
+- The entries are filtered like garcon does: no `NoDisplay`, `Hidden`,
+  `Settings` category, entries that `OnlyShowIn`/`NotShowIn` hide from GNOME,
+  or with a `TryExec` that isn't installed. `Terminal=true` applications are
+  left out too, since there is no terminal to run them in.
+- Applications start in their own systemd scope in the guest
+  (`app-garnish-<id>-<n>.scope`) with the user manager's environment. That's
+  why the Wayland variables are also in
+  `/etc/environment.d/50-crosvm-wayland.conf`.
+- Only the host (CID 2) can connect to the agent.
+- Not done yet: opening host files with guest applications (no MIME types are
+  passed on), desktop actions, and garcon's client side (opening URLs in the
+  host browser, opening a terminal).
+
 ### Audio
 
 `AUDIO=1` adds a virtio-snd card. crosvm's own sound device has no PipeWire
@@ -185,14 +227,15 @@ partition at the next boot.
 | `mkosi.conf.d/10-<distro>.conf`        | release, packages and build packages for each distro |
 | `mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common     |
 | `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
-| `mkosi.build.chroot`                   | clones and builds sommelier inside the target distro |
-| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier unit, linger and Wayland variables |
+| `mkosi.build.chroot`                   | builds sommelier and garnish-agent inside the target distro |
+| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier and garnish-agent units, linger and Wayland variables |
 | `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
 | `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `run-crosvm.sh`                        | boots an image with crosvm                           |
 | `check-host-audio.sh`                  | checks the host prerequisites for `AUDIO=1`          |
 | `host/vhost-device-sound/`             | Arch PKGBUILD for vhost-device-sound, plus the `--no-capture` patch |
 | `setup-host-net.sh`                    | creates/removes the host tap and the optional NAT    |
+| `garnish/`                             | `garnish-agent` (guest) and `garnish` (host): guest applications in the host's app menu |
 
 ## Notes
 

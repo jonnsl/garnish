@@ -6,6 +6,7 @@
 #   SHARE_HOME=~/vm/home ./run-crosvm.sh debian   # host dir as the guest home
 #   AUDIO=1 ./run-crosvm.sh debian    # sound through vhost-device-sound
 #   LOG_DIR= ./run-crosvm.sh debian   # crosvm's log on the terminal, not a file
+#   GARNISH=0 ./run-crosvm.sh debian  # don't add the guest's apps to the app menu
 # Then: ssh jonnathan@vsock/3   (needs systemd >= 256 on the host for the
 #       vsock/ ssh proxy; otherwise use ProxyCommand="socat - VSOCK-CONNECT:3:22")
 set -euo pipefail
@@ -31,6 +32,9 @@ GUEST_GID="${GUEST_GID:-$GUEST_UID}"
 # guest gets no input stream and can't record from your microphone.
 AUDIO="${AUDIO:-}"
 AUDIO_CAPTURE="${AUDIO_CAPTURE:-}"
+# Run `garnish sync` (garnish/) while the VM is up: it puts the guest's
+# applications in your application menu. Skipped if garnish isn't installed.
+GARNISH="${GARNISH:-1}"
 # crosvm's own log (its stderr) and vhost-device-sound's output go to files
 # here, so the terminal only shows the serial console (crosvm's stdout).
 # Overwritten on every run. LOG_DIR= leaves them on the terminal.
@@ -51,8 +55,8 @@ if [[ -n "$SHARE_HOME" ]]; then
     cmdline+=" systemd.mount-extra=home:/home/$GUEST_USER:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service"
 fi
 
-# fd 3: crosvm's log, fd 4: vhost-device-sound's.
-exec 3>&2 4>&2
+# fd 3: crosvm's log, fd 4: vhost-device-sound's, fd 5: garnish's.
+exec 3>&2 4>&2 5>&2
 logs=()
 if [[ -n "$LOG_DIR" ]]; then
     mkdir -p "$LOG_DIR"
@@ -60,6 +64,10 @@ if [[ -n "$LOG_DIR" ]]; then
     exec 3>"$crosvm_log"
     logs+=("$crosvm_log")
 fi
+
+# Helpers that run next to crosvm, stopped when we exit.
+helper_pids=()
+trap 'kill "${helper_pids[@]}" 2>/dev/null' EXIT
 
 audio_args=()
 if [[ -n "$AUDIO" ]]; then
@@ -73,14 +81,27 @@ if [[ -n "$AUDIO" ]]; then
         exec 4>"$LOG_DIR/vhost-device-sound-$CID.log"
         logs+=("$LOG_DIR/vhost-device-sound-$CID.log")
     fi
-    vhost-device-sound "${snd_args[@]}" >&4 2>&4 &
-    snd_pid=$!
     # It serves crosvm again after each disconnect, so stop it when we exit.
-    trap 'kill "$snd_pid" 2>/dev/null' EXIT
+    vhost-device-sound "${snd_args[@]}" >&4 2>&4 &
+    helper_pids+=($!)
     # crosvm waits up to this long for the socket to appear. vhost-device-sound
     # takes at most 64 entries per queue and exits on anything bigger, but
     # crosvm offers the guest its own maximum unless told otherwise.
     audio_args=(--vhost-user "type=sound,socket=$snd_sock,max-queue-size=64" --vhost-user-connect-timeout-ms 5000)
+fi
+
+if [[ "$GARNISH" != 0 ]]; then
+    if command -v garnish >/dev/null; then
+        if [[ -n "$LOG_DIR" ]]; then
+            exec 5>"$LOG_DIR/garnish-$CID.log"
+            logs+=("$LOG_DIR/garnish-$CID.log")
+        fi
+        # Waits for the guest's garnish-agent, and reconnects if it restarts.
+        garnish sync --cid "$CID" >&5 2>&5 &
+        helper_pids+=($!)
+    else
+        echo "note: garnish not found, the guest's applications won't be in the app menu (see garnish/)" >&2
+    fi
 fi
 
 net_args=()
@@ -94,7 +115,7 @@ fi
 
 (( ${#logs[@]} )) && echo "logs: ${logs[*]}" >&2
 
-# Not exec: the EXIT trap has to run to stop vhost-device-sound.
+# Not exec: the EXIT trap has to run to stop the helpers.
 status=0
 crosvm run \
     --cpus "$CPUS" \

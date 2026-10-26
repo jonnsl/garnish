@@ -1,0 +1,17 @@
+[package]
+name = "garnish"
+version = "0.1.0"
+edition = "2021"
+# Debian trixie's rustc. resolver 3 keeps the lockfile on crates that build with it.
+rust-version = "1.85"
+resolver = "3"
+description = "Shows the applications of crosvm guests in the host's application menu"
+publish = false
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+strip = true

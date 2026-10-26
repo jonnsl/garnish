@@ -9,3 +9,6 @@ authorized_keys
 # run-crosvm.sh logs (LOG_DIR defaults to the current directory)
 /crosvm-*.log
 /vhost-device-sound-*.log
+/garnish-*.log
+
+/garnish/target/
