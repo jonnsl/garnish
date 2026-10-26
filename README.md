@@ -91,6 +91,13 @@ AUDIO=1 ./run-crosvm.sh debian  # sound, playback only (see Audio below)
 ./setup-host-net.sh down        # removes the tap and the NAT rule
 ```
 
+The terminal only shows the serial console. crosvm's own log goes to
+`crosvm-<CID>.log` in the current directory, and with `AUDIO=1`
+vhost-device-sound's goes to `vhost-device-sound-<CID>.log` next to it. Both
+are overwritten on every run. If crosvm exits with an error, the last lines of
+its log are printed. Set `LOG_DIR=<dir>` to put them somewhere else, or
+`LOG_DIR=` to keep them on the terminal.
+
 `setup-host-net.sh` runs the commands below through sudo. The tap belongs to your
 user, so crosvm doesn't need root.
 

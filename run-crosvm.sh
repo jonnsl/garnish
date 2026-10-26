@@ -5,6 +5,7 @@
 #   TAP= ./run-crosvm.sh arch         # no network
 #   SHARE_HOME=~/vm/home ./run-crosvm.sh debian   # host dir as the guest home
 #   AUDIO=1 ./run-crosvm.sh debian    # sound through vhost-device-sound
+#   LOG_DIR= ./run-crosvm.sh debian   # crosvm's log on the terminal, not a file
 # Then: ssh jonnathan@vsock/3   (needs systemd >= 256 on the host for the
 #       vsock/ ssh proxy; otherwise use ProxyCommand="socat - VSOCK-CONNECT:3:22")
 set -euo pipefail
@@ -30,6 +31,10 @@ GUEST_GID="${GUEST_GID:-$GUEST_UID}"
 # guest gets no input stream and can't record from your microphone.
 AUDIO="${AUDIO:-}"
 AUDIO_CAPTURE="${AUDIO_CAPTURE:-}"
+# crosvm's own log (its stderr) and vhost-device-sound's output go to files
+# here, so the terminal only shows the serial console (crosvm's stdout).
+# Overwritten on every run. LOG_DIR= leaves them on the terminal.
+LOG_DIR="${LOG_DIR-$PWD}"
 
 # Keep in sync with KernelCommandLine= in mkosi.conf.
 cmdline="root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual-1:d"
@@ -46,6 +51,16 @@ if [[ -n "$SHARE_HOME" ]]; then
     cmdline+=" systemd.mount-extra=home:/home/$GUEST_USER:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service"
 fi
 
+# fd 3: crosvm's log, fd 4: vhost-device-sound's.
+exec 3>&2 4>&2
+logs=()
+if [[ -n "$LOG_DIR" ]]; then
+    mkdir -p "$LOG_DIR"
+    crosvm_log="$LOG_DIR/crosvm-$CID.log"
+    exec 3>"$crosvm_log"
+    logs+=("$crosvm_log")
+fi
+
 audio_args=()
 if [[ -n "$AUDIO" ]]; then
     command -v vhost-device-sound >/dev/null || {
@@ -54,7 +69,11 @@ if [[ -n "$AUDIO" ]]; then
     snd_args=(--socket "$snd_sock" --backend pipewire)
     [[ -n "$AUDIO_CAPTURE" ]] || snd_args+=(--no-capture)
     rm -f "$snd_sock"
-    vhost-device-sound "${snd_args[@]}" &
+    if [[ -n "$LOG_DIR" ]]; then
+        exec 4>"$LOG_DIR/vhost-device-sound-$CID.log"
+        logs+=("$LOG_DIR/vhost-device-sound-$CID.log")
+    fi
+    vhost-device-sound "${snd_args[@]}" >&4 2>&4 &
     snd_pid=$!
     # It serves crosvm again after each disconnect, so stop it when we exit.
     trap 'kill "$snd_pid" 2>/dev/null' EXIT
@@ -73,7 +92,10 @@ if [[ -n "$TAP" ]]; then
     fi
 fi
 
+(( ${#logs[@]} )) && echo "logs: ${logs[*]}" >&2
+
 # Not exec: the EXIT trap has to run to stop vhost-device-sound.
+status=0
 crosvm run \
     --cpus "$CPUS" \
     --mem "$MEM" \
@@ -87,4 +109,11 @@ crosvm run \
     "${share_args[@]}" \
     "${audio_args[@]}" \
     "$@" \
-    "$out/$name.vmlinuz"
+    "$out/$name.vmlinuz" 2>&3 || status=$?
+
+# Errors that stop crosvm from starting would otherwise only be in the log.
+if (( status )) && [[ -n "$LOG_DIR" ]]; then
+    echo "crosvm exited with status $status, end of $crosvm_log:" >&2
+    tail -n 5 "$crosvm_log" >&2
+fi
+exit "$status"
