@@ -1,5 +1,5 @@
 [package]
-name = "garnish"
+name = "carte"
 version = "0.1.0"
 edition = "2021"
 # Debian trixie's rustc. resolver 3 keeps the lockfile on crates that build with it.

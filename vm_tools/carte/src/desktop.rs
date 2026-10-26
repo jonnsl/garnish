@@ -305,7 +305,7 @@ pub fn scan(data_dirs: &[PathBuf]) -> Vec<DesktopEntry> {
             }
             match DesktopEntry::load(&file, id) {
                 Ok(entry) => entries.push(entry),
-                Err(e) => eprintln!("garnish-agent: {}: {e}", file.display()),
+                Err(e) => eprintln!("carte-agent: {}: {e}", file.display()),
             }
         }
     }
@@ -366,7 +366,7 @@ Exec=gnome-calculator --show-shortcuts
             "Categories=Settings;",
             "OnlyShowIn=KDE;",
             "NotShowIn=GNOME;",
-            "TryExec=/nonexistent/garnish-test",
+            "TryExec=/nonexistent/carte-test",
         ] {
             assert!(!parse(&format!("{base}{extra}\n")).should_export(), "{extra}");
         }

@@ -1,4 +1,4 @@
-//! garnish: the host side of garnish-agent.
+//! carte: the host side of carte-agent.
 
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -8,14 +8,14 @@ use std::process::{Command, ExitCode};
 use std::thread;
 use std::time::Duration;
 
-use garnish::proto::{self, App, AppList, Reply, Request};
-use garnish::{menu, vsock, xdg};
+use carte::proto::{self, App, AppList, Reply, Request};
+use carte::{menu, vsock, xdg};
 
 const USAGE: &str = "\
-usage: garnish sync --cid <cid>      put the applications of the VM at <cid> in the
-                                    application menu and keep them up to date
-       garnish launch <vm> <app-id>  start an application in a running VM
-       garnish remove <vm>           remove a VM's applications from the menu";
+usage: carte sync --cid <cid>      put the applications of the VM at <cid> in the
+                                  application menu and keep them up to date
+       carte launch <vm> <app-id>  start an application in a running VM
+       carte remove <vm>           remove a VM's applications from the menu";
 
 const RETRY: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,7 +40,7 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("garnish: {e}");
+            eprintln!("carte: {e}");
             ExitCode::FAILURE
         }
     }
@@ -56,11 +56,11 @@ fn check_vm(vm: &str) -> Result<(), String> {
 
 /// Where `sync` records the CID of a running VM, for `launch`.
 fn cid_file(vm: &str) -> PathBuf {
-    xdg::runtime_dir().join("garnish").join(format!("{vm}.cid"))
+    xdg::runtime_dir().join("carte").join(format!("{vm}.cid"))
 }
 
 fn icon_dir(vm: &str) -> PathBuf {
-    xdg::data_home().join("garnish/icons").join(vm)
+    xdg::data_home().join("carte/icons").join(vm)
 }
 
 fn applications_dir() -> PathBuf {
@@ -68,14 +68,14 @@ fn applications_dir() -> PathBuf {
 }
 
 fn sync(cid: u32) -> Result<(), String> {
-    let exe = std::env::current_exe().map_err(|e| format!("finding the garnish binary: {e}"))?;
+    let exe = std::env::current_exe().map_err(|e| format!("finding the carte binary: {e}"))?;
     let mut waiting = false;
     loop {
         let conn = match vsock::connect(cid, proto::AGENT_PORT) {
             Ok(conn) => conn,
             Err(e) => {
                 if !waiting {
-                    eprintln!("garnish: waiting for garnish-agent on CID {cid} ({e})");
+                    eprintln!("carte: waiting for carte-agent on CID {cid} ({e})");
                     waiting = true;
                 }
                 thread::sleep(RETRY);
@@ -83,15 +83,15 @@ fn sync(cid: u32) -> Result<(), String> {
             }
         };
         waiting = false;
-        eprintln!("garnish: connected to CID {cid}");
+        eprintln!("carte: connected to CID {cid}");
         let mut vm = None;
         let result = follow(&conn, cid, &exe, &mut vm);
         if let Some(vm) = vm {
             let _ = fs::remove_file(cid_file(&vm));
         }
         match result {
-            Ok(()) => eprintln!("garnish: CID {cid} closed the connection"),
-            Err(e) => eprintln!("garnish: connection to CID {cid}: {e}"),
+            Ok(()) => eprintln!("carte: CID {cid} closed the connection"),
+            Err(e) => eprintln!("carte: connection to CID {cid}: {e}"),
         }
         thread::sleep(RETRY);
     }
@@ -127,7 +127,7 @@ fn export(cid: u32, list: &AppList, exe: &Path) {
         .filter(|app| {
             let ok = proto::is_valid_id(&app.id) && app.name.contains_key("");
             if !ok {
-                eprintln!("garnish: {vm}: skipping invalid application {:?}", app.id);
+                eprintln!("carte: {vm}: skipping invalid application {:?}", app.id);
             }
             ok
         })
@@ -137,7 +137,7 @@ fn export(cid: u32, list: &AppList, exe: &Path) {
     let apps_dir = applications_dir();
     for dir in [&icons, &apps_dir] {
         if let Err(e) = fs::create_dir_all(dir) {
-            eprintln!("garnish: creating {}: {e}", dir.display());
+            eprintln!("carte: creating {}: {e}", dir.display());
             return;
         }
     }
@@ -154,7 +154,7 @@ fn export(cid: u32, list: &AppList, exe: &Path) {
         let name = menu::file_name(vm, &app.id);
         let text = menu::render(vm, app, icon.as_deref(), exe);
         if let Err(e) = write_if_changed(&apps_dir.join(&name), text.as_bytes()) {
-            eprintln!("garnish: writing {name}: {e}");
+            eprintln!("carte: writing {name}: {e}");
         }
         desktop_files.insert(name);
     }
@@ -162,7 +162,7 @@ fn export(cid: u32, list: &AppList, exe: &Path) {
     let prefix = menu::file_prefix(vm);
     remove_others(&apps_dir, |name| name.starts_with(&prefix) && name.ends_with(".desktop"), &desktop_files);
     remove_others(&icons, |_| true, &icon_files);
-    eprintln!("garnish: {vm}: {} applications", desktop_files.len());
+    eprintln!("carte: {vm}: {} applications", desktop_files.len());
 }
 
 /// Fetches the icon of `id` into `dir` and returns its path. Keeps the
@@ -173,14 +173,14 @@ fn update_icon(fetcher: &mut IconFetcher, dir: &Path, id: &str) -> Option<PathBu
         Ok(Some((format, data))) => {
             let path = dir.join(format!("{id}.{format}"));
             if let Err(e) = write_if_changed(&path, &data) {
-                eprintln!("garnish: writing {}: {e}", path.display());
+                eprintln!("carte: writing {}: {e}", path.display());
                 return existing();
             }
             Some(path)
         }
         Ok(None) => None,
         Err(e) => {
-            eprintln!("garnish: icon for {id}: {e}");
+            eprintln!("carte: icon for {id}: {e}");
             existing()
         }
     }
@@ -247,7 +247,7 @@ fn remove_others(dir: &Path, ours: impl Fn(&str) -> bool, keep: &HashSet<impl As
         let name = entry.file_name();
         if name.to_str().is_some_and(&ours) && !keep.contains(name.as_os_str()) {
             if let Err(e) = fs::remove_file(entry.path()) {
-                eprintln!("garnish: removing {}: {e}", entry.path().display());
+                eprintln!("carte: removing {}: {e}", entry.path().display());
             }
         }
     }
@@ -258,7 +258,7 @@ fn launch(vm: &str, id: &str) -> Result<(), String> {
     // Started from the application menu, nobody sees stderr.
     if let Err(e) = &result {
         let _ = Command::new("notify-send")
-            .args(["--app-name=garnish", &format!("Could not start {id}"), e])
+            .args(["--app-name=carte", &format!("Could not start {id}"), e])
             .status();
     }
     result

@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn lookup_order() {
-        let root = std::env::temp_dir().join(format!("garnish-icons-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("carte-icons-{}", std::process::id()));
         let share = root.join("share");
         let touch = |rel: &str| {
             let p = share.join(rel);

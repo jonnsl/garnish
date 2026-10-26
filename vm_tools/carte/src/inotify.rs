@@ -49,7 +49,7 @@ impl Watcher {
     fn add(&self, dir: &Path, mask: u32) {
         let Ok(path) = CString::new(dir.as_os_str().as_bytes()) else { return };
         if unsafe { libc::inotify_add_watch(self.0.as_raw_fd(), path.as_ptr(), mask) } < 0 {
-            eprintln!("garnish-agent: watching {}: {}", dir.display(), io::Error::last_os_error());
+            eprintln!("carte-agent: watching {}: {}", dir.display(), io::Error::last_os_error());
         }
     }
 

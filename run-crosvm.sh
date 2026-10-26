@@ -1,19 +1,19 @@
 #!/bin/bash
 # Boot an image built by this project with crosvm (direct kernel boot).
-#   ./run-crosvm.sh debian            # uses mkosi.output/debian.{raw,vmlinuz,initrd}
+#   ./run-crosvm.sh debian            # uses mkosi/mkosi.output/debian.{raw,vmlinuz,initrd}
 #   CID=4 MEM=8192 ./run-crosvm.sh fedora
 #   TAP= ./run-crosvm.sh arch         # no network
 #   SHARE_HOME=~/vm/home ./run-crosvm.sh debian   # host dir as the guest home
 #   AUDIO=1 ./run-crosvm.sh debian    # sound through vhost-device-sound
 #   LOG_DIR= ./run-crosvm.sh debian   # crosvm's log on the terminal, not a file
-#   GARNISH=0 ./run-crosvm.sh debian  # don't add the guest's apps to the app menu
+#   CARTE=0 ./run-crosvm.sh debian    # don't add the guest's apps to the app menu
 # Then: ssh jonnathan@vsock/3   (needs systemd >= 256 on the host for the
 #       vsock/ ssh proxy; otherwise use ProxyCommand="socat - VSOCK-CONNECT:3:22")
 set -euo pipefail
 
 name="${1:?usage: $0 <archlinux|debian|ubuntu|fedora> [extra crosvm args...]}"
 shift
-out="${OUTPUT_DIR:-$(dirname "$0")/mkosi.output}"
+out="${OUTPUT_DIR:-$(dirname "$0")/mkosi/mkosi.output}"
 CID="${CID:-3}"
 CPUS="${CPUS:-4}"
 MEM="${MEM:-4096}"
@@ -32,15 +32,15 @@ GUEST_GID="${GUEST_GID:-$GUEST_UID}"
 # guest gets no input stream and can't record from your microphone.
 AUDIO="${AUDIO:-}"
 AUDIO_CAPTURE="${AUDIO_CAPTURE:-}"
-# Run `garnish sync` (garnish/) while the VM is up: it puts the guest's
-# applications in your application menu. Skipped if garnish isn't installed.
-GARNISH="${GARNISH:-1}"
+# Run `carte sync` (vm_tools/carte/) while the VM is up: it puts the guest's
+# applications in your application menu. Skipped if carte isn't installed.
+CARTE="${CARTE:-1}"
 # crosvm's own log (its stderr) and vhost-device-sound's output go to files
 # here, so the terminal only shows the serial console (crosvm's stdout).
 # Overwritten on every run. LOG_DIR= leaves them on the terminal.
 LOG_DIR="${LOG_DIR-$PWD}"
 
-# Keep in sync with KernelCommandLine= in mkosi.conf.
+# Keep in sync with KernelCommandLine= in mkosi/mkosi.conf.
 cmdline="root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual-1:d"
 
 share_args=()
@@ -55,7 +55,7 @@ if [[ -n "$SHARE_HOME" ]]; then
     cmdline+=" systemd.mount-extra=home:/home/$GUEST_USER:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service"
 fi
 
-# fd 3: crosvm's log, fd 4: vhost-device-sound's, fd 5: garnish's.
+# fd 3: crosvm's log, fd 4: vhost-device-sound's, fd 5: carte's.
 exec 3>&2 4>&2 5>&2
 logs=()
 if [[ -n "$LOG_DIR" ]]; then
@@ -90,17 +90,17 @@ if [[ -n "$AUDIO" ]]; then
     audio_args=(--vhost-user "type=sound,socket=$snd_sock,max-queue-size=64" --vhost-user-connect-timeout-ms 5000)
 fi
 
-if [[ "$GARNISH" != 0 ]]; then
-    if command -v garnish >/dev/null; then
+if [[ "$CARTE" != 0 ]]; then
+    if command -v carte >/dev/null; then
         if [[ -n "$LOG_DIR" ]]; then
-            exec 5>"$LOG_DIR/garnish-$CID.log"
-            logs+=("$LOG_DIR/garnish-$CID.log")
+            exec 5>"$LOG_DIR/carte-$CID.log"
+            logs+=("$LOG_DIR/carte-$CID.log")
         fi
-        # Waits for the guest's garnish-agent, and reconnects if it restarts.
-        garnish sync --cid "$CID" >&5 2>&5 &
+        # Waits for the guest's carte-agent, and reconnects if it restarts.
+        carte sync --cid "$CID" >&5 2>&5 &
         helper_pids+=($!)
     else
-        echo "note: garnish not found, the guest's applications won't be in the app menu (see garnish/)" >&2
+        echo "note: carte not found, the guest's applications won't be in the app menu (see vm_tools/carte/)" >&2
     fi
 fi
 

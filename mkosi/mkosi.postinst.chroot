@@ -1,5 +1,5 @@
 #!/bin/bash
-# Creates the guest user and wires up sommelier, garnish-agent, sudo and
+# Creates the guest user and wires up sommelier, carte-agent, sudo and
 # sshd-vsock.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ set -euo pipefail
 : "${GUEST_DNS:=1.1.1.1,9.9.9.9}"
 : "${VM_NAME:=$DISTRIBUTION}"
 
-# The host names its files garnish-<VM_NAME>-<app>.desktop, so no '-'.
+# The host names its files carte-<VM_NAME>-<app>.desktop, so no '-'.
 if [[ ! "$VM_NAME" =~ ^[A-Za-z0-9_][A-Za-z0-9_.]{0,63}$ ]]; then
     echo "VM_NAME: '$VM_NAME' must be letters, digits, '_' and '.'" >&2
     exit 1
@@ -72,12 +72,12 @@ chmod 0440 /etc/sudoers.d/10-guest-user
 
 # --- ssh --------------------------------------------------------------------
 # Outside $home so a shared home directory doesn't hide it (see 10-crosvm.conf).
-if [[ -f "$SRCDIR/authorized_keys" ]]; then
+if [[ -f "$SRCDIR/mkosi/authorized_keys" ]]; then
     install -d -m 0755 /etc/ssh/authorized_keys.d
-    install -m 0644 "$SRCDIR/authorized_keys" "/etc/ssh/authorized_keys.d/$GUEST_USER"
+    install -m 0644 "$SRCDIR/mkosi/authorized_keys" "/etc/ssh/authorized_keys.d/$GUEST_USER"
 else
     # sshd only accepts keys (mkosi.extra/etc/ssh/sshd_config.d/10-crosvm.conf).
-    echo "WARNING: no authorized_keys in the project directory, ssh login will be impossible" >&2
+    echo "WARNING: no mkosi/authorized_keys, ssh login will be impossible" >&2
 fi
 
 # Don't bake host keys into the image (Debian/Ubuntu generate them at
@@ -158,26 +158,26 @@ UNIT
 # Equivalent of `systemctl --global enable sommelier`.
 ln -sf ../sommelier.service "$unit_dir/default.target.wants/sommelier.service"
 
-# --- garnish-agent ----------------------------------------------------------
+# --- carte-agent ------------------------------------------------------------
 # Shows the guest's applications in the host's application menu (see
-# garnish/). sommelier puts the VM name in every window's app_id
+# vm_tools/carte/). sommelier puts the VM name in every window's app_id
 # (org.chromium.guest_os.<name>.wayland.<app_id>), and the agent tells the
 # host the same name, so the host can match windows to its menu entries.
 install -d /etc/environment.d
-echo "SOMMELIER_VM_IDENTIFIER=$VM_NAME" > /etc/environment.d/60-garnish.conf
-cat > "$unit_dir/garnish-agent.service" <<'UNIT'
+echo "SOMMELIER_VM_IDENTIFIER=$VM_NAME" > /etc/environment.d/60-carte.conf
+cat > "$unit_dir/carte-agent.service" <<'UNIT'
 [Unit]
-Description=garnish agent: shares applications with the host
+Description=carte agent: shares applications with the host
 
 [Service]
-ExecStart=/usr/local/bin/garnish-agent
+ExecStart=/usr/local/bin/carte-agent
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=default.target
 UNIT
-ln -sf ../garnish-agent.service "$unit_dir/default.target.wants/garnish-agent.service"
+ln -sf ../carte-agent.service "$unit_dir/default.target.wants/carte-agent.service"
 
 # --- audio ------------------------------------------------------------------
 # PipeWire for the virtio-snd card (run-crosvm.sh AUDIO=1). Enabled
@@ -202,7 +202,7 @@ wayland_env=(
 )
 # /etc/profile sources this for login shells on all four distros.
 printf 'export %s\n' "${wayland_env[@]}" > /etc/profile.d/crosvm-wayland.sh
-# The same for the user manager, so the applications garnish-agent starts
+# The same for the user manager, so the applications carte-agent starts
 # get it too.
 install -d /etc/environment.d
 printf '%s\n' "${wayland_env[@]}" > /etc/environment.d/50-crosvm-wayland.conf

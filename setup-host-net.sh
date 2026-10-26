@@ -2,7 +2,7 @@
 # Host side of the guest network: a tap device for crosvm, plus optional NAT.
 #   ./setup-host-net.sh up [--nat]
 #   ./setup-host-net.sh down
-# Keep the addresses in sync with GUEST_ADDRESS/GUEST_GATEWAY in mkosi.conf.
+# Keep the addresses in sync with GUEST_ADDRESS/GUEST_GATEWAY in mkosi/mkosi.conf.
 set -euo pipefail
 
 TAP="${TAP:-crosvm_tap}"

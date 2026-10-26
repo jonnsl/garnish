@@ -1,4 +1,4 @@
-//! The protocol between `garnish` (host) and `garnish-agent` (guest).
+//! The protocol between `carte` (host) and `carte-agent` (guest).
 //!
 //! The host connects to the agent on vsock port [`AGENT_PORT`]. Every message
 //! is one line of JSON. The host sends a [`Request`] and the agent answers:
@@ -114,7 +114,7 @@ pub fn is_valid_id(id: &str) -> bool {
 }
 
 /// Like [`is_valid_id`] but without '-': the host names files
-/// garnish-<vm>-<id>.desktop, and a '-' in <vm> would make that ambiguous.
+/// carte-<vm>-<id>.desktop, and a '-' in <vm> would make that ambiguous.
 pub fn is_valid_vm(vm: &str) -> bool {
     !vm.is_empty()
         && vm.len() <= 64

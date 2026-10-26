@@ -5,10 +5,10 @@ mkosi.tools/
 mkosi.local.conf
 mkosi.local/
 authorized_keys
-/mkosi.tools.manifest
+mkosi.tools.manifest
 # run-crosvm.sh logs (LOG_DIR defaults to the current directory)
 /crosvm-*.log
 /vhost-device-sound-*.log
-/garnish-*.log
+/carte-*.log
 
-/garnish/target/
+/vm_tools/carte/target/

@@ -14,7 +14,7 @@ disk images for crosvm. Every image comes with:
 - a user (`jonnathan` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
 - `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
-- `garnish-agent`, which puts the guest's applications in the host's application menu
+- `carte-agent`, which puts the guest's applications in the host's application menu
 - the Wayland environment variables in `/etc/profile.d/crosvm-wayland.sh` (Wayland only, no X11)
 - optionally, a host directory as the user's home over virtio-fs (no root needed)
 - PipeWire for an optional virtio-snd sound card that plays into the host's PipeWire
@@ -39,9 +39,12 @@ Requires mkosi v26 or newer. Tested with mkosi v27.1 on an Arch Linux host
 vsock and the tap network, the distro package manager, and GTK apps through
 sommelier.
 
+The mkosi configuration is in `mkosi/`. mkosi finds `mkosi/mkosi.conf` by
+itself, so run it from the repository root:
+
 ```sh
 # required for ssh: password and root logins are disabled
-cp ~/.ssh/id_ed25519.pub authorized_keys
+cp ~/.ssh/id_ed25519.pub mkosi/authorized_keys
 
 mkosi -d arch   build
 mkosi -d debian build
@@ -49,15 +52,15 @@ mkosi -d ubuntu build
 mkosi -d fedora build
 ```
 
-Output in `mkosi.output/`: `<name>.raw`, `<name>.vmlinuz`, `<name>.initrd`
+Output in `mkosi/mkosi.output/`: `<name>.raw`, `<name>.vmlinuz`, `<name>.initrd`
 where `<name>` is `archlinux`, `debian`, `ubuntu` or `fedora`.
 
 Add `-f` to rebuild an existing image (`-ff` also drops the cached image).
 
 ### Build options
 
-These are set with `Environment=` in `mkosi.conf`. Override them per build with
-`-E`, or permanently in a `mkosi.local.conf` (ignored by git):
+These are set with `Environment=` in `mkosi/mkosi.conf`. Override them per build with
+`-E`, or permanently in `mkosi/mkosi.local.conf` (ignored by git):
 
 | Variable            | Default          | Meaning                                          |
 |---------------------|------------------|--------------------------------------------------|
@@ -76,12 +79,12 @@ mkosi -d debian -E PASSWORDLESS_SUDO=no -E GUEST_PASSWORD=hunter2 build
 ```
 
 ```ini
-# mkosi.local.conf
+# mkosi/mkosi.local.conf
 [Build]
 Environment=PASSWORDLESS_SUDO=no GUEST_PASSWORD=hunter2
 ```
 
-To keep the platform2 checkout and meson build between builds, run `mkdir mkosi.builddir`.
+To keep the platform2 checkout and meson build between builds, run `mkdir mkosi/mkosi.builddir`.
 
 ## Run
 
@@ -96,14 +99,14 @@ ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
 ssh jonnathan@192.168.10.2      # over the tap also works
 SHARE_HOME=~/vm/home ./run-crosvm.sh debian  # host directory as the guest home
 AUDIO=1 ./run-crosvm.sh debian  # sound, playback only (see Audio below)
-GARNISH=0 ./run-crosvm.sh debian  # don't put the guest's apps in the app menu
+CARTE=0 ./run-crosvm.sh debian    # don't put the guest's apps in the app menu
 ./setup-host-net.sh down        # removes the tap and the NAT rule
 ```
 
 The terminal only shows the serial console. crosvm's own log goes to
 `crosvm-<CID>.log` in the current directory, and with `AUDIO=1`
-vhost-device-sound's goes to `vhost-device-sound-<CID>.log` next to it. Both
-are overwritten on every run. If crosvm exits with an error, the last lines of
+vhost-device-sound's goes to `vhost-device-sound-<CID>.log` next to it, and
+`carte sync`'s to `carte-<CID>.log`. They are overwritten on every run. If crosvm exits with an error, the last lines of
 its log are printed. Set `LOG_DIR=<dir>` to put them somewhere else, or
 `LOG_DIR=` to keep them on the terminal.
 
@@ -146,42 +149,23 @@ the guest boots anyway with the home from the image.
 
 ### Application menu
 
-`garnish/` is a small Rust take on ChromeOS's garcon. `garnish-agent` runs in
-the guest's user session (`garnish-agent.service`). It reads the guest's
-`.desktop` files and sends the list and the icons to the host over vsock
-(port 8890). When the host asks, it starts an application. On the host,
-`garnish sync` writes a launcher for each application to
-`~/.local/share/applications/garnish-<vm>-<id>.desktop`, with icons in
-`~/.local/share/garnish/icons/<vm>/`. GNOME shows them right away, and
-updates them when you install or remove software in the guest. A launcher runs
-`garnish launch <vm> <id>`.
+[`vm_tools/carte`](vm_tools/carte/README.md) is a small Rust take on
+ChromeOS's garcon. `carte-agent` runs in the guest's user session
+(`carte-agent.service`) and sends the guest's applications and their icons to
+the host over vsock. On the host, `carte sync` turns them into launchers in
+`~/.local/share/applications`, which start the application in the guest.
 
 ```sh
-cargo install --locked --path garnish --bin garnish  # once, to ~/.cargo/bin
-./run-crosvm.sh debian      # runs `garnish sync --cid 3` while the VM is up
-garnish remove debian       # removes debian's launchers and icons
+cargo install --locked --path vm_tools/carte --bin carte  # once, to ~/.cargo/bin
+./run-crosvm.sh debian      # runs `carte sync --cid 3` while the VM is up
+carte remove debian         # removes debian's launchers and icons
 ```
 
-- Launchers stay when the VM stops, so apps pinned to the dash stay too.
-  Starting one while the VM is off shows a notification.
-- The VM name is `VM_NAME`, by default the distribution (`arch`, `debian`,
-  `ubuntu`, `fedora`). It's appended to the application names. It is also
-  sommelier's VM identifier (`SOMMELIER_VM_IDENTIFIER`): sommelier changes
-  every window's app_id to `org.chromium.guest_os.<vm>.wayland.<app_id>`, and
-  the launchers set `StartupWMClass` to the same, so GNOME shows windows under
-  their launcher instead of with a generic icon.
-- The entries are filtered like garcon does: no `NoDisplay`, `Hidden`,
-  `Settings` category, entries that `OnlyShowIn`/`NotShowIn` hide from GNOME,
-  or with a `TryExec` that isn't installed. `Terminal=true` applications are
-  left out too, since there is no terminal to run them in.
-- Applications start in their own systemd scope in the guest
-  (`app-garnish-<id>-<n>.scope`) with the user manager's environment. That's
-  why the Wayland variables are also in
-  `/etc/environment.d/50-crosvm-wayland.conf`.
-- Only the host (CID 2) can connect to the agent.
-- Not done yet: opening host files with guest applications (no MIME types are
-  passed on), desktop actions, and garcon's client side (opening URLs in the
-  host browser, opening a terminal).
+The VM name is `VM_NAME`, by default the distribution (`arch`, `debian`,
+`ubuntu`, `fedora`). It's appended to the application names, and it's also
+sommelier's VM identifier, so GNOME can match windows to their launcher. The
+applications start with the user manager's environment, which is why the
+Wayland variables are also in `/etc/environment.d/50-crosvm-wayland.conf`.
 
 ### Audio
 
@@ -211,31 +195,35 @@ The socket is `$XDG_RUNTIME_DIR/crosvm-snd-$CID.sock`, so VMs with different
 CIDs each get their own.
 
 crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
-`run-crosvm.sh`, not from `mkosi.conf`. If you change one, change the other.
+`run-crosvm.sh`, not from `mkosi/mkosi.conf`. If you change one, change the other.
 The image also has an ESP with a UKI, so UEFI boot (`--bios OVMF.fd`) works too.
-That path uses `KernelCommandLine=` from `mkosi.conf`.
+That path uses `KernelCommandLine=` from `mkosi/mkosi.conf`.
 
 The root filesystem is 16 GiB but the file is sparse. To make it bigger, run
-`truncate -s +10G mkosi.output/debian.raw`. systemd-growfs then grows the
+`truncate -s +10G mkosi/mkosi.output/debian.raw`. systemd-growfs then grows the
 partition at the next boot.
 
 ## Layout
 
 | Path                                   | Purpose                                              |
 |----------------------------------------|------------------------------------------------------|
-| `mkosi.conf`                           | shared settings, build options, kernel command line  |
-| `mkosi.conf.d/10-<distro>.conf`        | release, packages and build packages for each distro |
-| `mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common     |
-| `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
-| `mkosi.build.chroot`                   | builds sommelier and garnish-agent inside the target distro |
-| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier and garnish-agent units, linger and Wayland variables |
-| `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
-| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
+| `mkosi/mkosi.conf`                     | shared settings, build options, kernel command line  |
+| `mkosi/mkosi.conf.d/10-<distro>.conf`  | release, packages and build packages for each distro |
+| `mkosi/mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common |
+| `mkosi/mkosi.repart/`                  | ESP plus an ext4 root labelled `root`                |
+| `mkosi/mkosi.build.chroot`             | builds sommelier and carte-agent inside the target distro |
+| `mkosi/mkosi.postinst.chroot`          | sets up the user, sudo, ssh, network, sommelier and carte-agent units, linger and Wayland variables |
+| `mkosi/mkosi.finalize`                 | points `/etc/resolv.conf` at the systemd-resolved stub |
+| `mkosi/mkosi.extra/`                   | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
+| `mkosi/authorized_keys`                | your ssh public key (not in git)                     |
 | `run-crosvm.sh`                        | boots an image with crosvm                           |
 | `check-host-audio.sh`                  | checks the host prerequisites for `AUDIO=1`          |
 | `host/vhost-device-sound/`             | Arch PKGBUILD for vhost-device-sound, plus the `--no-capture` patch |
 | `setup-host-net.sh`                    | creates/removes the host tap and the optional NAT    |
-| `garnish/`                             | `garnish-agent` (guest) and `garnish` (host): guest applications in the host's app menu |
+| `vm_tools/carte/`                      | `carte-agent` (guest) and `carte` (host): guest applications in the host's app menu |
+
+The build mounts the whole repository at `$SRCDIR` (`BuildSources=..`), so
+the build scripts can reach `vm_tools/`.
 
 ## Notes
 
@@ -269,7 +257,7 @@ partition at the next boot.
 - The guest network config is written to
   `/etc/systemd/network/80-crosvm-tap.network`. It matches any Ethernet
   interface, which in practice is the virtio-net device.
-- `KernelInitrdModules=` in `mkosi.conf` limits the initrd to the modules
+- `KernelInitrdModules=` in `mkosi/mkosi.conf` limits the initrd to the modules
   needed to mount the root filesystem: `virtio_pci`, `virtio_blk`, `ext4` and
   `crc32c*`, plus their dependencies. Kernels older than 6.14 (Debian) load
   crc32c for ext4 as a soft dependency, which mkosi doesn't add by itself. Without it, mkosi puts every module in the initrd,

@@ -17,17 +17,17 @@ pub fn window_app_id(vm: &str, app_id: &str) -> String {
 }
 
 /// File name in ~/.local/share/applications. VM names have no '-', so the
-/// prefix garnish-<vm>- belongs to exactly one VM.
+/// prefix carte-<vm>- belongs to exactly one VM.
 pub fn file_name(vm: &str, id: &str) -> String {
     format!("{}{id}.desktop", file_prefix(vm))
 }
 
 pub fn file_prefix(vm: &str) -> String {
-    format!("garnish-{vm}-")
+    format!("carte-{vm}-")
 }
 
-/// The .desktop file for `app`. `exe` is the garnish binary, which Exec= runs
-/// as `garnish launch <vm> <id>`.
+/// The .desktop file for `app`. `exe` is the carte binary, which Exec= runs
+/// as `carte launch <vm> <id>`.
 pub fn render(vm: &str, app: &App, icon: Option<&Path>, exe: &Path) -> String {
     debug_assert!(proto::is_valid_vm(vm) && proto::is_valid_id(&app.id));
     let mut s = String::from("[Desktop Entry]\nType=Application\n");
@@ -58,8 +58,8 @@ pub fn render(vm: &str, app: &App, icon: Option<&Path>, exe: &Path) -> String {
     // theirs to the desktop file ID, or to StartupWMClass when that differs.
     let app_id = app.startup_wm_class.as_deref().unwrap_or(&app.id);
     entry(&mut s, "StartupWMClass", "", &escape(&window_app_id(vm, app_id)));
-    entry(&mut s, "X-Garnish-VM", "", vm);
-    entry(&mut s, "X-Garnish-Id", "", &app.id);
+    entry(&mut s, "X-Carte-VM", "", vm);
+    entry(&mut s, "X-Carte-Id", "", &app.id);
     s
 }
 
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn renders() {
-        let text = render("debian", &app(), Some(Path::new("/i/calc.svg")), Path::new("/usr/bin/garnish"));
+        let text = render("debian", &app(), Some(Path::new("/i/calc.svg")), Path::new("/usr/bin/carte"));
         assert_eq!(
             text,
             "[Desktop Entry]\nType=Application\n\
@@ -146,16 +146,16 @@ mod tests {
              Keywords=a\\;b;c;debian;\n\
              Categories=Utility;\n\
              Icon=/i/calc.svg\n\
-             Exec=/usr/bin/garnish launch debian org.gnome.Calculator\n\
+             Exec=/usr/bin/carte launch debian org.gnome.Calculator\n\
              StartupWMClass=org.chromium.guest_os.debian.wayland.org.gnome.Calculator\n\
-             X-Garnish-VM=debian\nX-Garnish-Id=org.gnome.Calculator\n"
+             X-Carte-VM=debian\nX-Carte-Id=org.gnome.Calculator\n"
         );
     }
 
     #[test]
     fn exec_round_trip() {
         // What we write parses back to the same command with our own parser.
-        let exe = Path::new("/home/me/my bin/$garnish\\x");
+        let exe = Path::new("/home/me/my bin/$carte\\x");
         let text = render("debian", &app(), None, exe);
         let entry = DesktopEntry::parse(&text, "/x.desktop".into(), "x".into());
         assert_eq!(

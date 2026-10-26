@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds sommelier from ChromiumOS platform2 and garnish-agent from garnish/,
+# Builds sommelier from ChromiumOS platform2 and carte-agent from vm_tools/carte/,
 # and installs them to /usr/local/bin in the final image.
 # Runs inside the image (with BuildPackages= overlaid), so it is compiled
 # against the target distribution's own libraries.
@@ -28,10 +28,10 @@ meson setup "$work/build" "$src/vm_tools/sommelier" \
 meson compile -C "$work/build"
 meson install -C "$work/build" --destdir "$DESTDIR"
 
-# garnish-agent. Cargo downloads the crates in Cargo.lock; with mkosi.builddir
+# carte-agent. Cargo downloads the crates in Cargo.lock; with mkosi.builddir
 # they and the build are kept between builds.
 CARGO_HOME="$work/cargo" cargo build --release --locked \
-    --manifest-path "$SRCDIR/garnish/Cargo.toml" \
-    --target-dir "$work/garnish-target" \
-    --bin garnish-agent
-install -D -m 0755 "$work/garnish-target/release/garnish-agent" "$DESTDIR/usr/local/bin/garnish-agent"
+    --manifest-path "$SRCDIR/vm_tools/carte/Cargo.toml" \
+    --target-dir "$work/carte-target" \
+    --bin carte-agent
+install -D -m 0755 "$work/carte-target/release/carte-agent" "$DESTDIR/usr/local/bin/carte-agent"

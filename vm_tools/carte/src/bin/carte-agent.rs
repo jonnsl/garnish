@@ -1,4 +1,4 @@
-//! garnish-agent: runs in the guest's user session. Sends the host the list
+//! carte-agent: runs in the guest's user session. Sends the host the list
 //! of installed applications, and their icons, and launches them when the
 //! host asks. Only the host (CID 2) may connect.
 
@@ -12,10 +12,10 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use garnish::desktop::{self, DesktopEntry};
-use garnish::inotify::Watcher;
-use garnish::proto::{self, App, AppList, Reply, Request};
-use garnish::{icons, vsock, xdg};
+use carte::desktop::{self, DesktopEntry};
+use carte::inotify::Watcher;
+use carte::proto::{self, App, AppList, Reply, Request};
+use carte::{icons, vsock, xdg};
 
 /// How long the applications directories must be quiet before a rescan.
 const SETTLE: Duration = Duration::from_secs(1);
@@ -56,7 +56,7 @@ fn main() {
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| "termina".into());
     if !proto::is_valid_vm(&vm) {
-        eprintln!("garnish-agent: invalid VM name {vm:?}: use letters, digits, '_' and '.'");
+        eprintln!("carte-agent: invalid VM name {vm:?}: use letters, digits, '_' and '.'");
         process::exit(1);
     }
     let vm: &'static str = vm.leak();
@@ -65,26 +65,26 @@ fn main() {
     thread::spawn(|| watch_apps(shared));
 
     let listener = vsock::Listener::bind(proto::AGENT_PORT).unwrap_or_else(|e| {
-        eprintln!("garnish-agent: listening on vsock port {}: {e}", proto::AGENT_PORT);
+        eprintln!("carte-agent: listening on vsock port {}: {e}", proto::AGENT_PORT);
         process::exit(1);
     });
-    eprintln!("garnish-agent: VM {vm}, listening on vsock port {}", proto::AGENT_PORT);
+    eprintln!("carte-agent: VM {vm}, listening on vsock port {}", proto::AGENT_PORT);
     loop {
         let (conn, cid) = match listener.accept() {
             Ok(accepted) => accepted,
             Err(e) => {
-                eprintln!("garnish-agent: accept: {e}");
+                eprintln!("carte-agent: accept: {e}");
                 thread::sleep(Duration::from_secs(1));
                 continue;
             }
         };
         if cid != vsock::HOST_CID {
-            eprintln!("garnish-agent: refused connection from CID {cid}");
+            eprintln!("carte-agent: refused connection from CID {cid}");
             continue;
         }
         thread::spawn(move || {
             if let Err(e) = serve(&conn, vm, shared) {
-                eprintln!("garnish-agent: connection closed: {e}");
+                eprintln!("carte-agent: connection closed: {e}");
             }
         });
     }
@@ -98,7 +98,7 @@ fn watch_apps(shared: &Shared) {
         let watcher = match Watcher::new() {
             Ok(w) => Some(w),
             Err(e) => {
-                eprintln!("garnish-agent: inotify: {e}, rescanning every minute");
+                eprintln!("carte-agent: inotify: {e}, rescanning every minute");
                 None
             }
         };
@@ -113,7 +113,7 @@ fn watch_apps(shared: &Shared) {
         match watcher.map(|w| w.wait(SETTLE)) {
             Some(Ok(())) => {}
             Some(Err(e)) => {
-                eprintln!("garnish-agent: inotify: {e}");
+                eprintln!("carte-agent: inotify: {e}");
                 thread::sleep(Duration::from_secs(5));
             }
             None => thread::sleep(Duration::from_secs(60)),
@@ -133,7 +133,7 @@ fn serve(conn: &File, vm: &str, shared: &Shared) -> io::Result<()> {
                 let reply = match result {
                     Ok(()) => Reply::default(),
                     Err(e) => {
-                        eprintln!("garnish-agent: launching {id}: {e}");
+                        eprintln!("carte-agent: launching {id}: {e}");
                         Reply::error(e)
                     }
                 };
@@ -181,7 +181,7 @@ fn send_icon(mut writer: &File, id: &str, size: u32, shared: &Shared) -> io::Res
 }
 
 /// Starts the application in its own systemd scope, like GNOME does, so it
-/// outlives the agent and shows up as app-garnish-<id>-<n>.scope.
+/// outlives the agent and shows up as app-carte-<id>-<n>.scope.
 fn launch(id: &str) -> Result<(), String> {
     // Read the file again rather than trusting the last scan: it may have
     // changed in the last second.
@@ -197,7 +197,7 @@ fn launch(id: &str) -> Result<(), String> {
 
     static LAUNCHES: AtomicU64 = AtomicU64::new(0);
     let unit = format!(
-        "app-garnish-{}-{}{}.scope",
+        "app-carte-{}-{}{}.scope",
         id.replace('-', "\\x2d"),
         process::id(),
         LAUNCHES.fetch_add(1, Ordering::Relaxed)
@@ -219,7 +219,7 @@ fn launch(id: &str) -> Result<(), String> {
         });
     }
     let mut child = command.spawn().map_err(|e| format!("running systemd-run: {e}"))?;
-    eprintln!("garnish-agent: launched {id} as {unit}: {argv:?}");
+    eprintln!("carte-agent: launched {id} as {unit}: {argv:?}");
     // systemd-run execs the application, so this waits for it to exit.
     thread::spawn(move || child.wait());
     Ok(())
