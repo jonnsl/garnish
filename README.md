@@ -101,6 +101,8 @@ install -Dm644 vm_tools/maitre/data/maitred.service ~/.config/systemd/user/maitr
 install -Dm644 vm_tools/maitre/data/org.garnish.Maitre.service \
     ~/.local/share/dbus-1/services/org.garnish.Maitre.service
 systemctl --user daemon-reload
+# dbus-broker only reads service files when it starts or reloads
+busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
 # once per VM: point Image= at mkosi/mkosi.output/debian.raw
 mkdir -p ~/.config/garnish/vms

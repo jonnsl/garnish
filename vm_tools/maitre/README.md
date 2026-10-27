@@ -16,6 +16,8 @@ cargo install --locked --path .        # maitred and maitre to ~/.cargo/bin
 install -Dm644 data/maitred.service ~/.config/systemd/user/maitred.service
 install -Dm644 data/org.garnish.Maitre.service ~/.local/share/dbus-1/services/org.garnish.Maitre.service
 systemctl --user daemon-reload
+# dbus-broker only reads service files when it starts or reloads
+busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 ```
 
 Nothing has to be started: the first call over D-Bus starts `maitred.service`

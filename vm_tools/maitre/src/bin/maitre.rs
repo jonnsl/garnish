@@ -42,6 +42,14 @@ async fn main() -> ExitCode {
 /// The message of a D-Bus error, without the error name when there is one.
 fn message(e: zbus::Error) -> String {
     match e {
+        // The bus couldn't start maitred.
+        zbus::Error::MethodError(name, Some(msg), _) if name.as_str() == "org.freedesktop.DBus.Error.ServiceUnknown" => {
+            format!(
+                "{msg}\nInstall data/org.garnish.Maitre.service to ~/.local/share/dbus-1/services/ and \
+                 data/maitred.service to ~/.config/systemd/user/, then run `systemctl --user daemon-reload` and \
+                 `busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig`"
+            )
+        }
         zbus::Error::MethodError(_, Some(msg), _) => msg,
         e => e.to_string(),
     }
