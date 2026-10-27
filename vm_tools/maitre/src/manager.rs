@@ -503,8 +503,10 @@ pub struct Maitre(pub Arc<Manager>);
 
 #[interface(name = "org.garnish.Maitre1")]
 impl Maitre {
-    async fn start_vm(&self, name: String) -> Result<VmInfo, Error> {
-        self.0.start(&name).await
+    // A one-element tuple, so the reply is the struct the introspection
+    // data promises, `(ssusssus)`; a bare struct would go out as its fields.
+    async fn start_vm(&self, name: String) -> Result<(VmInfo,), Error> {
+        self.0.start(&name).await.map(|info| (info,))
     }
 
     async fn stop_vm(&self, name: String) -> Result<(), Error> {
