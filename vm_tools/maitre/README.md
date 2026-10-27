@@ -21,7 +21,18 @@ busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DB
 ```
 
 On Arch, `makepkg -si` in `host/maitre` installs the same files to `/usr`
-instead; then reload the bus as above.
+instead, with the shell completions; then reload the bus as above.
+
+Shell completions for `maitre` complete subcommands and VM names (from the
+configuration files) and, after `maitre ssh <name>`, a command. Without the
+package:
+
+```sh
+install -Dm644 completions/maitre.bash ~/.local/share/bash-completion/completions/maitre
+# zsh: a directory in $fpath, added before compinit in ~/.zshrc, e.g.
+# fpath=(~/.local/share/zsh/site-functions $fpath)
+install -Dm644 completions/_maitre ~/.local/share/zsh/site-functions/_maitre
+```
 
 Nothing has to be started: the first call over D-Bus starts `maitred.service`
 (D-Bus activation). It logs to the journal (`journalctl --user -u maitred`).
@@ -228,6 +239,7 @@ Anything running as your user can call these, just as it could run crosvm.
 | `src/bin/maitred.rs` | the daemon |
 | `src/bin/maitre.rs` | the client |
 | `data/` | systemd user unit and D-Bus service file |
+| `completions/` | bash and zsh completions for `maitre` |
 | `examples/` | a VM configuration and the pool defaults |
 
 `cargo test` runs the unit tests.

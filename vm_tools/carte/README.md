@@ -33,7 +33,18 @@ On the host:
 cargo install --locked --path . --bin carte   # to ~/.cargo/bin
 ```
 
-or, on Arch, `makepkg -si` in `host/carte` (to `/usr/bin`).
+or, on Arch, `makepkg -si` in `host/carte` (to `/usr/bin`, with the shell
+completions).
+
+Shell completions for `carte` complete subcommands, the VMs that have
+launchers, and their application IDs for `carte launch`. Without the package:
+
+```sh
+install -Dm644 completions/carte.bash ~/.local/share/bash-completion/completions/carte
+# zsh: a directory in $fpath, added before compinit in ~/.zshrc, e.g.
+# fpath=(~/.local/share/zsh/site-functions $fpath)
+install -Dm644 completions/_carte ~/.local/share/zsh/site-functions/_carte
+```
 
 [maitred](../maitre/README.md) runs `carte sync` for every VM it starts if
 `carte` is in its `PATH` (`AppMenu=no` turns it off) and logs to
@@ -166,6 +177,7 @@ and only accepts requests from the host.
 | `src/inotify.rs`        | recursive directory watching |
 | `src/menu.rs`           | the host's `.desktop` files |
 | `src/xdg.rs`            | XDG base directories |
+| `completions/`          | bash and zsh completions for `carte` |
 | `src/bin/carte-agent.rs`| the guest agent |
 | `src/bin/carte.rs`      | the host tool |
 

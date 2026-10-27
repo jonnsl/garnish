@@ -1,0 +1,52 @@
+#compdef carte
+
+# The VMs with launchers: ~/.local/share/applications/carte-<vm>-<id>.desktop
+_carte_vms() {
+  local -a files vms
+  files=(${XDG_DATA_HOME:-$HOME/.local/share}/applications/carte-*-*.desktop(N.:t))
+  files=(${files#carte-})
+  vms=(${(u)files%%-*})
+  _describe -t vms 'VM' vms
+}
+
+# The applications of a VM, by ID
+_carte_apps() {
+  local -a apps
+  apps=(${XDG_DATA_HOME:-$HOME/.local/share}/applications/carte-$1-*.desktop(N.:t:r))
+  apps=(${apps#carte-$1-})
+  _describe -t apps 'application' apps
+}
+
+_carte() {
+  local -a subcommands
+  subcommands=(
+    'sync:put the applications of a VM in the menu and keep them up to date'
+    'launch:start an application in a running VM'
+    'remove:remove the applications of a VM from the menu'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'carte command' subcommands
+    return
+  fi
+
+  case $words[2] in
+    sync)
+      case $CURRENT in
+        3) compadd -- --cid ;;
+        4) _message 'vsock CID' ;;
+      esac
+      ;;
+    launch)
+      case $CURRENT in
+        3) _carte_vms ;;
+        4) _carte_apps $words[3] ;;
+      esac
+      ;;
+    remove)
+      (( CURRENT == 3 )) && _carte_vms
+      ;;
+  esac
+}
+
+_carte "$@"

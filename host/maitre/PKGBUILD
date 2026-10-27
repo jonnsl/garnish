@@ -53,6 +53,8 @@ package() {
   install -Dm644 "$_src/data/maitred.service" "$pkgdir/usr/lib/systemd/user/maitred.service"
   sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/maitred|' "$pkgdir/usr/lib/systemd/user/maitred.service"
   install -Dm644 "$_src/data/org.garnish.Maitre.service" -t "$pkgdir/usr/share/dbus-1/services/"
+  install -Dm644 "$_src/completions/maitre.bash" "$pkgdir/usr/share/bash-completion/completions/maitre"
+  install -Dm644 "$_src/completions/_maitre" -t "$pkgdir/usr/share/zsh/site-functions/"
   install -Dm644 "$_src/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 "$_src"/examples/*.conf -t "$pkgdir/usr/share/doc/$pkgname/examples/"
 }
