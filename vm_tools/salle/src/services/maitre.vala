@@ -43,8 +43,8 @@ namespace Salle {
         public abstract async void kill_vm (string name) throws Error;
         public abstract async VmInfo[] list_vms () throws Error;
 
-        public signal void vm_started (VmInfo info);
         public signal void vm_stopped (string name, string reason);
+        public signal void vm_state_changed (VmInfo info);
     }
 
     /**
@@ -121,7 +121,7 @@ namespace Salle {
                 bus = yield Bus.get_proxy<MaitreBus> (BusType.SESSION, BUS_NAME, OBJECT_PATH,
                                                      DBusProxyFlags.DO_NOT_LOAD_PROPERTIES
                                                      | DBusProxyFlags.DO_NOT_AUTO_START_AT_CONSTRUCTION);
-                bus.vm_started.connect ((info) => {
+                bus.vm_state_changed.connect ((info) => {
                     var vm = find (info.name);
                     if (vm != null) {
                         vm.update (info);
@@ -132,7 +132,6 @@ namespace Salle {
                 bus.vm_stopped.connect ((name, reason) => {
                     var vm = find (name);
                     if (vm != null) {
-                        vm.set_stopped ();
                         vm_stopped (vm, reason);
                     }
                     // Its configuration may have gone while it ran
@@ -263,8 +262,6 @@ namespace Salle {
                 } else {
                     yield b.stop_vm (vm.name);
                 }
-                // maitred tells when it's off, not that it's stopping
-                vm.state = VmState.STOPPING;
             } catch (MaitreError.NOT_RUNNING e) {
                 vm.set_stopped ();
             } catch (Error e) {
