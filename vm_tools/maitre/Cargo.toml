@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Starts and stops crosvm guests on behalf of the user, over D-Bus"
 rust-version = "1.88"
+license = "GPL-3.0-or-later"
 publish = false
 
 [dependencies]

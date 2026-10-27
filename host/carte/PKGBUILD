@@ -10,7 +10,7 @@ pkgrel=1
 pkgdesc="Shows the applications of crosvm guests in the host's application menu"
 arch=(x86_64)
 url='https://github.com/jonnsl/garnish'
-license=(unknown)
+license=(GPL-3.0-or-later)
 depends=(gcc-libs glibc)
 makedepends=(cargo)
 # Cargo.toml strips the release binaries, so a debug package would be empty.

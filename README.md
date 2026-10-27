@@ -289,3 +289,13 @@ the build scripts can reach `vm_tools/`.
   120 to 400 MiB depending on the distribution. If the root partition isn't
   found at boot (the initrd drops into an emergency shell), a module is missing
   from this list.
+
+## License
+
+garnish is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE).
+
+`host/vhost-device-sound/no-capture.patch` is a patch to vhost-device-sound and
+is under that project's license (Apache-2.0 OR BSD-3-Clause).
