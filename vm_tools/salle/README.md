@@ -40,9 +40,9 @@ build-aux/check-style.sh --fix   # reformat in place
 ## What it does
 
 - **List**: every VM with a configuration file, with its state (stopped,
-  starting, running, shutting down) and a start or shut down button. The
-  state follows maitred's `VmStateChanged`, so VMs started or stopped
-  elsewhere (`maitre start`) show up too, as do files added, changed or
+  starting, booting, running, shutting down) and a start or shut down
+  button. The state follows maitred's `VmStateChanged`, so VMs started or
+  stopped elsewhere (`maitre start`) show up too, as do files added, changed or
   removed in the directory.
 - **Start**: `StartVm`. If it fails, maitred's message (with the end of
   crosvm's log) is shown, with a way to the logs and, for a configuration

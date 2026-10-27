@@ -10,6 +10,7 @@ use zbus::fdo::{RequestNameFlags, RequestNameReply};
 use maitre::config::DaemonConfig;
 use maitre::dbus::{BUS_NAME, OBJECT_PATH};
 use maitre::manager::{Maitre, Manager};
+use maitre::ready::{self, READY_PORT};
 use maitre::{ini, xdg};
 
 const USAGE: &str = "\
@@ -46,7 +47,20 @@ async fn main() -> ExitCode {
 async fn run() -> Result<(), String> {
     let config = load_config()?;
     let conn = Connection::session().await.map_err(|e| format!("connecting to the session bus: {e}"))?;
-    let manager = Manager::new(conn.clone(), config);
+    // Guests say when they have booted. Without the listener (vsock ports
+    // are shared by all users: another maitred may have it) VMs are shown
+    // as running once crosvm runs.
+    let listener = match ready::Listener::bind(READY_PORT) {
+        Ok(listener) => Some(listener),
+        Err(e) => {
+            eprintln!("maitred: can't listen on vsock port {READY_PORT} ({e}), VMs will be running as soon as crosvm is");
+            None
+        }
+    };
+    let manager = Manager::new(conn.clone(), config, listener.is_some());
+    if let Some(listener) = listener {
+        tokio::spawn(ready::serve(listener, manager.clone()));
+    }
     conn.object_server()
         .at(OBJECT_PATH, Maitre(manager.clone()))
         .await

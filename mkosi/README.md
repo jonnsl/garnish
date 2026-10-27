@@ -11,6 +11,9 @@ Every image comes with:
 - passwordless sudo, which you can turn off
 - `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
 - `carte-agent`, which puts the guest's applications in the host's application menu
+- `maitre-ready.service`, which tells maitred on the host when the guest has
+  booted (`systemd-notify --ready` to vsock port 8891), so it can show the VM
+  as running
 - the Wayland environment variables in `/etc/profile.d/crosvm-wayland.sh` (Wayland only, no X11)
 - PipeWire for an optional virtio-snd sound card that plays into the host's PipeWire
 - `video=Virtual-1:d` on the kernel command line
@@ -95,7 +98,7 @@ partition at the next boot.
 | `mkosi.build.chroot`                   | builds sommelier and carte-agent inside the target distro |
 | `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier and carte-agent units, linger and Wayland variables |
 | `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
-| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
+| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, `maitre-ready.service`, preset, sshd drop-in |
 | `authorized_keys`                      | your ssh public key (not in git)                     |
 
 The build mounts the whole repository at `$SRCDIR` (`BuildSources=..`), so

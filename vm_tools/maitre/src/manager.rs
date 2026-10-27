@@ -31,6 +31,9 @@ const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
 /// A guest that reboots more often than this is stopped instead.
 const MAX_RESETS: usize = 5;
 const RESET_WINDOW: Duration = Duration::from_secs(60);
+/// A guest that hasn't said it booted by then (an image without
+/// maitre-ready.service) is shown as running anyway.
+const BOOT_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug)]
 enum Command {
@@ -57,6 +60,9 @@ pub struct Manager {
     conn: Connection,
     config_dir: PathBuf,
     stop_timeout: Duration,
+    /// Whether guests can tell us they booted (see `ready`). Without it,
+    /// VMs are running as soon as crosvm runs.
+    boot_notifications: bool,
     inner: Mutex<Inner>,
     /// Signalled whenever a VM is removed.
     removed: Notify,
@@ -120,11 +126,12 @@ async fn stop_helpers(name: &str, helpers: &mut Vec<(&'static str, Child)>) {
 }
 
 impl Manager {
-    pub fn new(conn: Connection, config: DaemonConfig) -> Arc<Manager> {
+    pub fn new(conn: Connection, config: DaemonConfig, boot_notifications: bool) -> Arc<Manager> {
         Arc::new(Manager {
             conn,
             config_dir: xdg::config_dir(),
             stop_timeout: Duration::from_secs(config.stop_timeout_secs),
+            boot_notifications,
             inner: Mutex::new(Inner { pool: Pool::new(config), vms: BTreeMap::new(), shutting_down: false }),
             removed: Notify::new(),
         })
@@ -182,6 +189,41 @@ impl Manager {
         };
         if let Some(info) = changed {
             self.state_changed(info).await;
+        }
+    }
+
+    /// The state once crosvm runs.
+    fn booting_state(&self) -> &'static str {
+        if self.boot_notifications { "booting" } else { "running" }
+    }
+
+    /// Moves a booting VM to running. Returns false if it wasn't booting.
+    async fn finish_boot(&self, name: &str) -> bool {
+        let info = {
+            let mut inner = self.inner.lock().unwrap();
+            match inner.vms.get_mut(name) {
+                Some(vm) if vm.info.state == "booting" => {
+                    vm.info.state = "running".to_owned();
+                    vm.info.clone()
+                }
+                _ => return false,
+            }
+        };
+        self.state_changed(info).await;
+        true
+    }
+
+    /// The guest with this CID says it has booted.
+    pub async fn guest_ready(&self, cid: u32) {
+        let name = {
+            let inner = self.inner.lock().unwrap();
+            inner.vms.iter().find(|(_, vm)| vm.res.cid == cid).map(|(name, _)| name.clone())
+        };
+        // Not ours, or already running (the service was started again).
+        if let Some(name) = name
+            && self.finish_boot(&name).await
+        {
+            log(format!("{name}: the guest has booted"));
         }
     }
 
@@ -249,10 +291,10 @@ impl Manager {
                 return Err(e);
             }
         };
-        self.set_state(name, "running", launched.crosvm.id()).await;
+        self.set_state(name, self.booting_state(), launched.crosvm.id()).await;
         let info = self.info(name).unwrap();
         let net = res.net.as_ref().map_or("no network".to_owned(), |n| format!("{} on {}", n.guest, n.tap));
-        log(format!("{name}: running, CID {}, {net}, logs in {}", res.cid, paths.logs.display()));
+        log(format!("{name}: started, CID {}, {net}, logs in {}", res.cid, paths.logs.display()));
         if let Ok(emitter) = self.emitter() {
             let _ = Maitre::vm_started(&emitter, info.clone()).await;
         }
@@ -372,10 +414,17 @@ impl Manager {
         // `crosvm stop`.
         let mut stopped_crosvm = false;
         let mut resets: Vec<Instant> = Vec::new();
+        let mut boot_deadline = self.boot_notifications.then(|| Instant::now() + BOOT_TIMEOUT);
         let reason = loop {
             let timer = async {
                 match &deadline {
                     Some((at, _)) => sleep_until(*at).await,
+                    None => std::future::pending().await,
+                }
+            };
+            let boot_timer = async {
+                match boot_deadline {
+                    Some(at) => sleep_until(at).await,
                     None => std::future::pending().await,
                 }
             };
@@ -401,7 +450,8 @@ impl Manager {
                     match vm::spawn("crosvm", &launched.args, &paths.log("console"), &paths.log("crosvm")) {
                         Ok(child) => {
                             launched.crosvm = child;
-                            self.set_state(&name, "running", launched.crosvm.id()).await;
+                            self.set_state(&name, self.booting_state(), launched.crosvm.id()).await;
+                            boot_deadline = self.boot_notifications.then(|| Instant::now() + BOOT_TIMEOUT);
                         }
                         Err(e) => break format!("the guest rebooted, but {e}"),
                     }
@@ -436,6 +486,16 @@ impl Manager {
                     }
                     None => {}
                 },
+                () = boot_timer => {
+                    boot_deadline = None;
+                    if self.finish_boot(&name).await {
+                        log(format!(
+                            "{name}: the guest didn't say it booted in {}s (no maitre-ready.service?), \
+                             showing it as running",
+                            BOOT_TIMEOUT.as_secs()
+                        ));
+                    }
+                }
             }
         };
         stop_helpers(&name, &mut launched.helpers).await;

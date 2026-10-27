@@ -11,7 +11,8 @@ pub const INTERFACE: &str = "org.garnish.Maitre1";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 pub struct VmInfo {
     pub name: String,
-    /// "stopped", "starting", "running" or "stopping".
+    /// "stopped", "starting", "booting", "running" or "stopping". Booting:
+    /// crosvm runs, but the guest hasn't said it has booted yet.
     pub state: String,
     pub cid: u32,
     /// The tap device and the guest's address on it.
@@ -66,7 +67,7 @@ pub enum Error {
 )]
 pub trait Maitre {
     /// Starts the VM configured in `<config dir>/vms/<name>.conf` and
-    /// returns once crosvm runs.
+    /// returns once crosvm runs, with the VM booting.
     fn start_vm(&self, name: &str) -> zbus::Result<VmInfo>;
     /// Asks the guest to shut down (ACPI power button). If it is still
     /// running after the daemon's StopTimeoutSec=, crosvm is stopped.
@@ -82,7 +83,7 @@ pub trait Maitre {
     /// `reason` is a human-readable description of how crosvm exited.
     #[zbus(signal)]
     fn vm_stopped(&self, name: &str, reason: &str) -> zbus::Result<()>;
-    /// A VM's state changed: starting, running, stopping or stopped (sent
+    /// A VM's state changed: starting, booting, running, stopping or stopped (sent
     /// before VmStarted and VmStopped). Also sent with the new PID when
     /// crosvm is started again after a guest reboot.
     #[zbus(signal)]

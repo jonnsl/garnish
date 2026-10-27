@@ -2,7 +2,7 @@ namespace Salle {
     /* A VM and what it was given; see vm_tools/maitre/README.md (D-Bus API) */
     public struct VmInfo {
         public string name;
-        /* "stopped", "starting", "running" or "stopping" */
+        /* "stopped", "starting", "booting", "running" or "stopping" */
         public string state;
         public uint32 cid;
         public string tap;

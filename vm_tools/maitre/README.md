@@ -151,11 +151,21 @@ To start a VM, maitred
    (with `AppMenu=yes`, if `carte` is installed),
 4. starts `crosvm run` and waits for its control socket.
 
-`StartVm` returns after step 4. If crosvm exits before that, the call fails
-with the end of crosvm's log.
+`StartVm` returns after step 4, with the VM `booting`. If crosvm exits
+before that, the call fails with the end of crosvm's log.
+
+The VM is `running` once the guest says it has booted: `maitre-ready.service`
+in the image (see `mkosi/`) runs `systemd-notify --ready` after
+`multi-user.target`, with `NOTIFY_SOCKET=vsock-stream:2:8891`. maitred listens
+on vsock port 8891 and finds the VM by the guest's CID. Only messages from
+root in the guest count (systemd-notify sends from port 1023 as root). An image
+without the service shows as `running` after 120 seconds. vsock ports are
+shared by all users of the host: if maitred can't listen on 8891 (another
+user's maitred has it), it says so at startup and VMs are `running` as soon as
+crosvm runs.
 
 When the guest reboots, crosvm exits with status 32 (`--extended-status`) and
-maitred starts it again with the same resources. A guest that reboots more
+maitred starts it again with the same resources; the VM is `booting` again. A guest that reboots more
 than 5 times in 60 seconds is stopped instead.
 
 `StopVm` presses the ACPI power button (`crosvm powerbtn`), so systemd in the
@@ -190,7 +200,7 @@ Bus name `org.garnish.Maitre` on the session bus, object
 
 | Member | Signature | |
 |---|---|---|
-| `StartVm(s name) → VmInfo` | `s` → `(ssusssus)` | starts the VM, returns once crosvm runs |
+| `StartVm(s name) → VmInfo` | `s` → `(ssusssus)` | starts the VM, returns once crosvm runs (`booting`) |
 | `StopVm(s name)` | `s` | power button, then `crosvm stop`; returns right away |
 | `KillVm(s name)` | `s` | `crosvm stop`; returns right away |
 | `ListVms() → a(VmInfo)` | → `a(ssusssus)` | configured VMs, running or not |
@@ -199,11 +209,13 @@ Bus name `org.garnish.Maitre` on the session bus, object
 | signal `VmStateChanged(VmInfo)` | `(ssusssus)` | the state changed; also the new `pid` after a guest reboot |
 
 `VmInfo` is `(name, state, cid, tap, address, user, pid, log_dir)`. `state` is
-`stopped`, `starting`, `running` or `stopping`; for a stopped VM the other
-fields are empty or 0.
+`stopped`, `starting`, `booting`, `running` or `stopping`; for a stopped VM the
+other fields are empty or 0.
 
 `VmStateChanged` follows a VM through every state: `starting` when a start
-begins, `running` once crosvm runs, `stopping` after `StopVm` or `KillVm`
+begins, `booting` once crosvm runs, `running` once the guest says it has
+booted (see [Starting and stopping](#starting-and-stopping)), `stopping`
+after `StopVm` or `KillVm`
 (or a shutdown of maitred), and `stopped` when it's gone, also after a start
 that failed. It comes before `VmStarted` and `VmStopped`, which are still
 sent.
@@ -236,6 +248,7 @@ Anything running as your user can call these, just as it could run crosvm.
 | `src/pool.rs` | CIDs and taps |
 | `src/vm.rs` | crosvm's command line, kernel command line, starting processes |
 | `src/manager.rs` | the daemon's state, starting, supervising and stopping VMs, the D-Bus object |
+| `src/ready.rs` | the vsock listener for the guests' boot notifications |
 | `src/dbus.rs` | names, `VmInfo`, errors and the client proxy |
 | `src/bin/maitred.rs` | the daemon |
 | `src/bin/maitre.rs` | the client |

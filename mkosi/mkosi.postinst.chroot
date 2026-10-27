@@ -86,6 +86,10 @@ rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 
 systemctl enable sshd-vsock.socket
 
+# --- boot notification -------------------------------------------------------
+# Tells maitred the guest has booted (mkosi.extra/.../maitre-ready.service).
+systemctl enable maitre-ready.service
+
 # --- package manager ----------------------------------------------------------
 # pacman-mirrorlist ships with every server commented out, and mkosi only
 # configures its mirror for the build itself. Use the same mirror mkosi uses

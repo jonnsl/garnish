@@ -2,6 +2,8 @@ namespace Salle {
     public enum VmState {
         STOPPED,
         STARTING,
+        /* crosvm runs, the guest hasn't finished booting */
+        BOOTING,
         RUNNING,
         STOPPING;
 
@@ -9,6 +11,8 @@ namespace Salle {
             switch (s) {
             case "starting":
                 return STARTING;
+            case "booting":
+                return BOOTING;
             case "running":
                 return RUNNING;
             case "stopping":
@@ -22,6 +26,8 @@ namespace Salle {
             switch (this) {
             case STARTING:
                 return _("Starting");
+            case BOOTING:
+                return _("Booting");
             case RUNNING:
                 return _("Running");
             case STOPPING:
@@ -35,6 +41,7 @@ namespace Salle {
         public string to_css_class () {
             switch (this) {
             case STARTING:
+            case BOOTING:
             case STOPPING:
                 return "busy";
             case RUNNING:

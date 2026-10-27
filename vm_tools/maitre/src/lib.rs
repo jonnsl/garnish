@@ -5,5 +5,6 @@ pub mod dbus;
 pub mod ini;
 pub mod manager;
 pub mod pool;
+pub mod ready;
 pub mod vm;
 pub mod xdg;

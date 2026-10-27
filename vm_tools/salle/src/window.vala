@@ -164,7 +164,8 @@ namespace Salle {
                     enabled = enabled && state == VmState.RUNNING;
                     break;
                 case "force-off":
-                    enabled = enabled && (state == VmState.RUNNING || state == VmState.STOPPING);
+                    enabled = enabled && (state == VmState.BOOTING || state == VmState.RUNNING
+                                          || state == VmState.STOPPING);
                     break;
                 default:
                     break;

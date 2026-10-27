@@ -11,7 +11,7 @@ publish = false
 futures-util = { version = "0.3", default-features = false }
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = ["macros", "process", "rt", "signal", "sync", "time"] }
+tokio = { version = "1", features = ["macros", "net", "process", "rt", "signal", "sync", "time"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 zvariant = "5"
 

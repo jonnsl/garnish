@@ -69,10 +69,21 @@ namespace Salle {
             status_dot.add_css_class (state.to_css_class ());
 
             start_button.visible = state == VmState.STOPPED;
-            busy_button.visible = state == VmState.STARTING || state == VmState.STOPPING;
-            busy_label.label = state == VmState.STARTING ? _("Starting…") : _("Shutting Down…");
+            busy_button.visible = state == VmState.STARTING || state == VmState.BOOTING || state == VmState.STOPPING;
+            switch (state) {
+            case VmState.STARTING:
+                busy_label.label = _("Starting…");
+                break;
+            case VmState.BOOTING:
+                busy_label.label = _("Booting…");
+                break;
+            default:
+                busy_label.label = _("Shutting Down…");
+                break;
+            }
             shut_down_button.visible = state == VmState.RUNNING;
-            force_off_button.visible = state == VmState.RUNNING || state == VmState.STOPPING;
+            force_off_button.visible = state == VmState.BOOTING || state == VmState.RUNNING
+                                       || state == VmState.STOPPING;
 
             connection_group.visible = state == VmState.RUNNING;
             ssh_row.subtitle = "ssh " + vm.ssh_target;

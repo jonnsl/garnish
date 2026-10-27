@@ -391,6 +391,10 @@ msgstr "A pasta pessoal compartilhada %s não existe"
 msgid "Starting"
 msgstr "Iniciando"
 
+#: src/models/vm.vala:30
+msgid "Booting"
+msgstr "Inicializando o sistema"
+
 #: src/models/vm.vala:26
 msgid "Running"
 msgstr "Executando"
@@ -506,6 +510,10 @@ msgstr "_Excluir…"
 #: src/pages/vm-page.vala:68
 msgid "Starting…"
 msgstr "Iniciando…"
+
+#: src/pages/vm-page.vala:78
+msgid "Booting…"
+msgstr "Inicializando o sistema…"
 
 #: src/pages/vm-page.vala:68
 msgid "Shutting Down…"
