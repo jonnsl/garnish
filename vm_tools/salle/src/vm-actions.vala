@@ -24,7 +24,7 @@ namespace Salle.VmActions {
     }
 
     private void show_start_error (Gtk.Widget widget, Vm vm, Error e) {
-        var dialog = new Adw.AlertDialog (_("Can’t Start “%s”").printf (vm.name), null);
+        var dialog = new Adw.AlertDialog (_("Can’t Start “%s”").printf (vm.display_name), null);
         // crosvm's own messages come with it, a line each
         var lines = e.message.split ("\n", 2);
         if (lines.length > 1) {
@@ -72,7 +72,7 @@ namespace Salle.VmActions {
             try {
                 maitre.shut_down.end (res);
             } catch (Error e) {
-                toast (parent, _("Can’t shut down %s: %s").printf (vm.name, e.message));
+                toast (parent, _("Can’t shut down %s: %s").printf (vm.display_name, e.message));
             }
         });
     }
@@ -83,7 +83,7 @@ namespace Salle.VmActions {
         }
         // The guest gets no chance to save anything, so ask first
         var dialog = new Adw.AlertDialog (
-            _("Force Off “%s”?").printf (vm.name),
+            _("Force Off “%s”?").printf (vm.display_name),
             _("The virtual machine stops right away, as if its power were cut. Unsaved work in it is lost."));
         dialog.add_response ("cancel", _("_Cancel"));
         dialog.add_response ("force-off", _("_Force Off"));
@@ -99,7 +99,7 @@ namespace Salle.VmActions {
                 try {
                     maitre.force_off.end (res);
                 } catch (Error e) {
-                    toast (widget, _("Can’t force off %s: %s").printf (vm.name, e.message));
+                    toast (widget, _("Can’t force off %s: %s").printf (vm.display_name, e.message));
                 }
             });
         });
@@ -114,7 +114,7 @@ namespace Salle.VmActions {
         try {
             config = VmConfig.load (vm.name);
         } catch (Error e) {
-            var alert = new Adw.AlertDialog (_("Can’t Read the Settings of “%s”").printf (vm.name), e.message);
+            var alert = new Adw.AlertDialog (_("Can’t Read the Settings of “%s”").printf (vm.display_name), e.message);
             alert.add_response ("close", _("_Close"));
             alert.add_response ("open", _("_Open Configuration File"));
             alert.response.connect ((response) => {
@@ -128,7 +128,7 @@ namespace Salle.VmActions {
         var dialog = new VmDialog (config);
         dialog.saved.connect (() => {
             if (!vm.is_stopped) {
-                toast (widget, _("Settings saved. They apply the next time %s starts.").printf (vm.name));
+                toast (widget, _("Settings saved. They apply the next time %s starts.").printf (vm.display_name));
             }
         });
         dialog.present (widget);
@@ -139,7 +139,7 @@ namespace Salle.VmActions {
             return;
         }
         var dialog = new Adw.AlertDialog (
-            _("Delete “%s”?").printf (vm.name),
+            _("Delete “%s”?").printf (vm.display_name),
             _("Its settings are removed. The disk image and the logs are kept."));
         dialog.add_response ("cancel", _("_Cancel"));
         dialog.add_response ("delete", _("_Delete"));
@@ -153,7 +153,7 @@ namespace Salle.VmActions {
             try {
                 Maitre.get_default ().delete (vm);
             } catch (Error e) {
-                toast (widget, _("Can’t delete %s: %s").printf (vm.name, e.message));
+                toast (widget, _("Can’t delete %s: %s").printf (vm.display_name, e.message));
             }
         });
         dialog.present (widget);

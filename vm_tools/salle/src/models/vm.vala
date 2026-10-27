@@ -57,6 +57,13 @@ namespace Salle {
         public string user { get; set; default = ""; }
         /* crosvm's process ID */
         public uint pid { get; set; }
+        /* [Machine] Title= from the configuration */
+        public string? title { get; set; }
+
+        /* What people see: the title, or the name without one */
+        public string display_name {
+            owned get { return title ?? name; }
+        }
 
         public bool is_running {
             get { return state == VmState.RUNNING; }
@@ -75,6 +82,7 @@ namespace Salle {
                 notify_property ("is-running");
                 notify_property ("is-stopped");
             });
+            notify["title"].connect (() => notify_property ("display-name"));
         }
 
         public void update (VmInfo info) {

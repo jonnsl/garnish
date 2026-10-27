@@ -4,6 +4,7 @@ namespace Salle {
     public class VmPage : Adw.NavigationPage {
         [GtkChild] private unowned Gtk.Box status_dot;
         [GtkChild] private unowned Gtk.Label name_label;
+        [GtkChild] private unowned Gtk.Label vm_name_label;
         [GtkChild] private unowned Gtk.Label state_label;
         [GtkChild] private unowned Gtk.Button start_button;
         [GtkChild] private unowned Gtk.Button busy_button;
@@ -33,8 +34,6 @@ namespace Salle {
         }
 
         construct {
-            title = vm.name;
-            name_label.label = vm.name;
             terminal_button.visible = VmActions.terminal_available ();
             vm.notify.connect (update_state);
             Maitre.get_default ().config_changed.connect (on_config_changed);
@@ -56,6 +55,12 @@ namespace Salle {
         }
 
         private void update_state () {
+            title = vm.display_name;
+            name_label.label = vm.display_name;
+            // The name is what maitre and the files go by
+            vm_name_label.label = vm.name;
+            vm_name_label.visible = vm.title != null;
+
             var state = vm.state;
             state_label.label = state.to_label ();
             foreach (var c in new string[] { "running", "busy", "stopped" }) {

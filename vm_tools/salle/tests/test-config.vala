@@ -113,8 +113,8 @@ void test_helpers () {
 
 void test_load () {
     write_vm ("load", "[Boot]\nImage=images/debian.raw\nKernelCommandLineExtra=a\nKernelCommandLineExtra=\n"
-              + "KernelCommandLineExtra=b \"c d\"\n[Machine]\nCPUs=2\nMemory=8G\nNetwork=no\nAudio=yes\n"
-              + "SharedHome=~/share\n[Guest]\nUser=guest\nGID=5\n");
+              + "KernelCommandLineExtra=b \"c d\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\nNetwork=no\n"
+              + "Audio=yes\nSharedHome=~/share\n[Guest]\nUser=guest\nGID=5\n");
     DirUtils.create_with_parents (VmConfig.path_for ("load") + ".d", 0755);
     try {
         FileUtils.set_contents (VmConfig.path_for ("load") + ".d/10-more.conf", "[Machine]\nCPUs=3\n");
@@ -125,6 +125,7 @@ void test_load () {
     assert (c.image == Path.build_filename (VmConfig.vm_dir (), "images/debian.raw"));
     assert (c.effective_kernel == Path.build_filename (VmConfig.vm_dir (), "images/debian.vmlinuz"));
     assert (c.cmdline_extra == "b \"c d\"");
+    assert (c.title == "Débian (work)" && c.display_name == "Débian (work)");
     assert (c.cpus == 3 && c.memory_mib == 8192 && !c.network && c.audio && !c.microphone && c.wayland);
     assert (c.shared_home == "/home/me/share");
     assert (c.user == "guest" && c.uid == 1000 && c.app_menu);
@@ -138,11 +139,13 @@ void test_save_new () {
     assert (c.problem () != null);
     c.image = "/home/me/images/debian.raw";
     c.memory_mib = 2048;
+    assert (c.display_name == "new");
+    c.title = "New VM";
     assert (c.problem () == null);
     save_vm (c);
     assert (read_vm ("new") == "# Created by Salle. All settings: see the maitre README (VM configuration).\n\n"
             + "[Boot]\nImage=~/images/debian.raw\n\n"
-            + "[Machine]\nCPUs=4\nMemory=2G\nNetwork=yes\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
+            + "[Machine]\nTitle=New VM\nCPUs=4\nMemory=2G\nNetwork=yes\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
             + "[Guest]\nUID=1000\nAppMenu=yes\n");
 
     // Saving a new VM over an existing one fails
@@ -165,14 +168,18 @@ void test_save_changes () {
     c.audio = false;
     c.shared_home = "/srv/home";
     c.extra_args = "--x";
+    c.title = "Work";
     save_vm (c);
     assert (read_vm ("edit") == "[Boot]\n# the image\nImage=images/debian.raw\nKernelCommandLine=root=/dev/vda\n"
-            + "[Machine]\nCPUs=8\n  # an indented comment\nAudio=no\nSharedHome=/srv/home\nExtraArguments=--x\n");
+            + "[Machine]\nCPUs=8\n  # an indented comment\nAudio=no\nTitle=Work\nSharedHome=/srv/home\n"
+            + "ExtraArguments=--x\n");
 
     // A second save starts from what the first wrote
     c.shared_home = null;
+    c.title = null;
     save_vm (c);
     var again = load_vm ("edit");
+    assert (again.title == null && !read_vm ("edit").contains ("Title="));
     assert (again.shared_home == null && again.cpus == 8 && again.extra_args == "--x");
 }
 

@@ -18,6 +18,9 @@ pub struct VmConfig {
     pub cmdline: String,
     pub cmdline_extra: Vec<String>,
 
+    /// A name for people, e.g. "Debian (work)"; UIs show it instead of the
+    /// VM's name.
+    pub title: Option<String>,
     pub cpus: u32,
     pub memory_mib: u64,
     pub network: bool,
@@ -67,6 +70,7 @@ impl VmConfig {
         let mut initrd = None;
         let mut cmdline = None;
         let mut cmdline_extra = Vec::new();
+        let mut title = None;
         let mut cpus = 4;
         let mut memory = 4u64 << 30;
         let mut network = true;
@@ -92,6 +96,7 @@ impl VmConfig {
                 ("Boot", "KernelCommandLineExtra") if empty => cmdline_extra.clear(),
                 ("Boot", "KernelCommandLineExtra") => cmdline_extra.extend(words(e)?),
 
+                ("Machine", "Title") => title = (!empty).then(|| e.value.clone()),
                 ("Machine", "CPUs") => {
                     cpus = if empty { 4 } else { number(e)? };
                     if cpus == 0 {
@@ -143,6 +148,7 @@ impl VmConfig {
             initrd,
             cmdline: cmdline.unwrap_or_else(|| DEFAULT_CMDLINE.to_owned()),
             cmdline_extra,
+            title,
             cpus,
             memory_mib: memory >> 20,
             network,
@@ -291,6 +297,7 @@ mod tests {
         assert_eq!(c.kernel, Path::new("/cfg/vms/../images/debian.vmlinuz"));
         assert_eq!(c.initrd, None);
         assert_eq!(c.cmdline, DEFAULT_CMDLINE);
+        assert_eq!(c.title, None);
         assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, true, false, true));
         assert_eq!((c.user.as_str(), c.uid, c.gid), ("me", 1000, 1000));
         assert_eq!(c.gpu_context_types, ["cross-domain"]);
@@ -299,13 +306,14 @@ mod tests {
     #[test]
     fn settings() {
         let c = vm("[Boot]\nImage=~/d.raw\nKernel=/k\nKernelCommandLineExtra=a b\nKernelCommandLineExtra=\n\
-                    KernelCommandLineExtra=c \"d e\"\n[Machine]\nCPUs=2\nMemory=8G\nNetwork=no\nAudio=yes\n\
+                    KernelCommandLineExtra=c \"d e\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\nNetwork=no\nAudio=yes\n\
                     SharedHome=~/vm/home\nGpuContextTypes=cross-domain virgl2\nExtraArguments=--x\n\
                     [Guest]\nUser=alice\nUID=1001\nAppMenu=off\n")
         .unwrap();
         assert_eq!(c.image, Path::new("/home/me/d.raw"));
         assert_eq!(c.kernel, Path::new("/k"));
         assert_eq!(c.cmdline_extra, ["c", "d e"]);
+        assert_eq!(c.title.as_deref(), Some("Débian (work)"));
         assert_eq!((c.cpus, c.memory_mib, c.network, c.audio), (2, 8192, false, true));
         assert_eq!(c.shared_home.as_deref(), Some(Path::new("/home/me/vm/home")));
         assert_eq!(c.gpu_context_types, ["cross-domain", "virgl2"]);

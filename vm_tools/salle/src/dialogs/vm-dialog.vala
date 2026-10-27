@@ -6,6 +6,7 @@ namespace Salle {
         [GtkChild] private unowned Gtk.Button save_button;
         [GtkChild] private unowned Adw.Banner banner;
         [GtkChild] private unowned Adw.EntryRow name_row;
+        [GtkChild] private unowned Adw.EntryRow title_row;
         [GtkChild] private unowned Adw.ActionRow image_row;
         [GtkChild] private unowned Adw.SpinRow cpus_row;
         [GtkChild] private unowned Adw.SpinRow memory_row;
@@ -55,8 +56,9 @@ namespace Salle {
         }
 
         private void load () {
-            title = is_new ? _("New Virtual Machine") : _("Edit “%s”").printf (config.name);
+            title = is_new ? _("New Virtual Machine") : _("Edit “%s”").printf (config.display_name);
             save_button.label = is_new ? _("_Create") : _("_Save");
+            title_row.text = config.title ?? "";
             name_row.text = config.name;
             name_row.visible = is_new;
             focus_widget = is_new ? (Gtk.Widget) name_row : null;
@@ -122,6 +124,8 @@ namespace Salle {
                 c.initrd = config.initrd;
                 c.shared_home = config.shared_home;
             }
+            var vm_title = title_row.text.strip ();
+            c.title = vm_title != "" ? vm_title : null;
             c.cpus = (int) cpus_row.value;
             c.memory_mib = int64.max ((int64) (memory_row.value * 1024 + 0.5), VmConfig.MIN_MEMORY_MIB);
             c.network = network_row.active;

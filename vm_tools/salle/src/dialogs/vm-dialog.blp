@@ -37,6 +37,13 @@ template $SalleVmDialog: Adw.Dialog {
         Adw.PreferencesGroup {
           Adw.EntryRow name_row {
             title: _("Name");
+            tooltip-text: _("For files and the maitre command");
+            changed => $on_changed();
+          }
+
+          Adw.EntryRow title_row {
+            title: _("Title");
+            tooltip-text: _("Shown instead of the name. Any text, e.g. “Debian (work)”.");
             changed => $on_changed();
           }
 

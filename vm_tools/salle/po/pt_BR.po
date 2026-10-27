@@ -134,6 +134,18 @@ msgstr "_Cancelar"
 msgid "Name"
 msgstr "Nome"
 
+#: src/dialogs/vm-dialog.blp:40
+msgid "For files and the maitre command"
+msgstr "Para os arquivos e o comando maitre"
+
+#: src/dialogs/vm-dialog.blp:45
+msgid "Title"
+msgstr "Título"
+
+#: src/dialogs/vm-dialog.blp:46
+msgid "Shown instead of the name. Any text, e.g. “Debian (work)”."
+msgstr "Mostrado no lugar do nome. Qualquer texto, por exemplo “Debian (trabalho)”."
+
 #: src/dialogs/vm-dialog.blp:44 src/pages/vm-page.blp:266
 msgid "Disk Image"
 msgstr "Imagem de disco"

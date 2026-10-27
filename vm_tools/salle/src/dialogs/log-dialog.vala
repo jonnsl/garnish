@@ -41,7 +41,7 @@ namespace Salle {
         }
 
         construct {
-            title = _("Logs of %s").printf (vm.name);
+            title = _("Logs of %s").printf (vm.display_name);
             var adj = scrolled.vadjustment;
             adj.changed.connect (() => {
                 if (follow) {

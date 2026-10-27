@@ -88,6 +88,7 @@ one systemd and mkosi use:
 | `[Boot] Initrd=` | `Image` with `.initrd`, if it exists | initrd |
 | `[Boot] KernelCommandLine=` | see below | replaces the default command line |
 | `[Boot] KernelCommandLineExtra=` | | list, added to the command line |
+| `[Machine] Title=` | | a name for people, e.g. `Debian (work)`; Salle shows it instead of the VM's name |
 | `[Machine] CPUs=` | `4` | |
 | `[Machine] Memory=` | `4G` | with a `K`, `M`, `G` or `T` suffix; a plain number is bytes |
 | `[Machine] Network=` | `yes` | a tap and an address from the pool |

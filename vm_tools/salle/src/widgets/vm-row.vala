@@ -14,7 +14,6 @@ namespace Salle {
         }
 
         construct {
-            name_label.label = vm.name;
             vm.notify.connect (update);
             update ();
         }
@@ -26,6 +25,7 @@ namespace Salle {
         }
 
         private void update () {
+            name_label.label = vm.display_name;
             status_label.label = vm.describe ();
             foreach (var c in new string[] { "running", "busy", "stopped" }) {
                 status_dot.remove_css_class (c);
@@ -42,7 +42,7 @@ namespace Salle {
                 action_stack.visible_child_name = "busy";
                 break;
             }
-            update_property (Gtk.AccessibleProperty.LABEL, "%s, %s".printf (vm.name, vm.state.to_label ()), -1);
+            update_property (Gtk.AccessibleProperty.LABEL, "%s, %s".printf (vm.display_name, vm.state.to_label ()), -1);
         }
 
         [GtkCallback]

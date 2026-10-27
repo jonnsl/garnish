@@ -190,11 +190,21 @@ namespace Salle {
                     vms.insert_sorted (vm, (a, b) => strcmp (((Vm) a).name, ((Vm) b).name));
                 }
                 vm.update (info);
+                vm.title = read_title (info.name);
             }
             for (var i = (int) vms.get_n_items () - 1; i >= 0; i--) {
                 if (!seen.contains (((Vm) vms.get_item (i)).name)) {
                     vms.remove (i);
                 }
+            }
+        }
+
+        /* Without a readable configuration there's no title, only the name */
+        private static string? read_title (string name) {
+            try {
+                return VmConfig.load (name).title;
+            } catch (Error e) {
+                return null;
             }
         }
 

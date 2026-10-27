@@ -23,6 +23,8 @@ namespace Salle {
         /* List settings are kept as written, e.g. `quiet "a b"` */
         public string cmdline_extra { get; set; default = ""; }
 
+        /* A name for people, shown instead of the VM's name */
+        public string? title { get; set; }
         public int cpus { get; set; default = DEFAULT_CPUS; }
         public int64 memory_mib { get; set; default = DEFAULT_MEMORY_MIB; }
         public bool network { get; set; default = true; }
@@ -115,6 +117,9 @@ namespace Salle {
             case "Boot/KernelCommandLineExtra":
                 cmdline_extra = append_words (cmdline_extra, v);
                 break;
+            case "Machine/Title":
+                title = empty ? null : v;
+                break;
             case "Machine/CPUs":
                 int64 n;
                 cpus = empty ? DEFAULT_CPUS : (int64.try_parse (v, out n) && n > 0 && n < int.MAX ? (int) n : cpus);
@@ -200,6 +205,10 @@ namespace Salle {
             }
         }
 
+        public string display_name {
+            owned get { return title ?? name; }
+        }
+
         public string effective_user {
             owned get { return user ?? Environment.get_user_name (); }
         }
@@ -280,6 +289,7 @@ namespace Salle {
             put (file, false, "Boot", "KernelCommandLineExtra", list_value (cmdline_extra),
                  cmdline_extra != old.cmdline_extra);
 
+            put (file, false, "Machine", "Title", title, title != old.title);
             put (file, is_new, "Machine", "CPUs", cpus.to_string (), cpus != old.cpus);
             put (file, is_new, "Machine", "Memory", format_memory (memory_mib), memory_mib != old.memory_mib);
             put (file, is_new, "Machine", "Network", bool_value (network), network != old.network);

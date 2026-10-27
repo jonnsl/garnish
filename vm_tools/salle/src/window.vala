@@ -176,7 +176,7 @@ namespace Salle {
         }
 
         private void on_vm_stopped (Vm vm, string reason) {
-            add_toast (new Adw.Toast (_("%s: %s").printf (vm.name, reason)) { timeout = 5 });
+            add_toast (new Adw.Toast (_("%s: %s").printf (vm.display_name, reason)) { timeout = 5 });
         }
 
         private void on_new_vm () {
