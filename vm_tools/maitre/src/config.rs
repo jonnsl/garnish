@@ -301,7 +301,7 @@ mod tests {
         let c = vm("[Boot]\nImage=~/d.raw\nKernel=/k\nKernelCommandLineExtra=a b\nKernelCommandLineExtra=\n\
                     KernelCommandLineExtra=c \"d e\"\n[Machine]\nCPUs=2\nMemory=8G\nNetwork=no\nAudio=yes\n\
                     SharedHome=~/vm/home\nGpuContextTypes=cross-domain virgl2\nExtraArguments=--x\n\
-                    [Guest]\nUser=jonnathan\nUID=1001\nAppMenu=off\n")
+                    [Guest]\nUser=alice\nUID=1001\nAppMenu=off\n")
         .unwrap();
         assert_eq!(c.image, Path::new("/home/me/d.raw"));
         assert_eq!(c.kernel, Path::new("/k"));
@@ -310,7 +310,7 @@ mod tests {
         assert_eq!(c.shared_home.as_deref(), Some(Path::new("/home/me/vm/home")));
         assert_eq!(c.gpu_context_types, ["cross-domain", "virgl2"]);
         assert_eq!(c.extra_args, ["--x"]);
-        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu), ("jonnathan", 1001, 1001, false));
+        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu), ("alice", 1001, 1001, false));
     }
 
     #[test]

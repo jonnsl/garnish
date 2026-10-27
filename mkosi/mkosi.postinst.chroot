@@ -3,7 +3,7 @@
 # sshd-vsock.
 set -euo pipefail
 
-: "${GUEST_USER:=jonnathan}"
+: "${GUEST_USER:=user}"
 : "${GUEST_PASSWORD:=}"
 : "${PASSWORDLESS_SUDO:=yes}"
 : "${GUEST_ADDRESS:=192.168.10.2/24}"

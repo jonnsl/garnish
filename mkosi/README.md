@@ -7,7 +7,7 @@ Every image comes with:
 
 - sshd on AF_VSOCK port 22 (`sshd-vsock.socket`); public-key login only, root login disabled
 - sommelier built from ChromiumOS platform2, installed to `/usr/local/bin/sommelier`
-- a user (`jonnathan` by default) in `video`, `render` and `sudo`/`wheel`
+- a user (`user` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
 - `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
 - `carte-agent`, which puts the guest's applications in the host's application menu
@@ -49,7 +49,7 @@ These are set with `Environment=` in `mkosi/mkosi.conf`. Override them per build
 | Variable            | Default          | Meaning                                          |
 |---------------------|------------------|--------------------------------------------------|
 | `PASSWORDLESS_SUDO` | `yes`            | `no` makes sudo ask for the password             |
-| `GUEST_USER`        | `jonnathan`      | name of the user that gets created               |
+| `GUEST_USER`        | `user`           | name of the user that gets created               |
 | `GUEST_PASSWORD`    | `changeme`       | password for sudo and the serial console (not ssh) |
 | `SOMMELIER_REF`     | `main`           | platform2 branch, tag or commit to build         |
 | `SOMMELIER_REPO`    | platform2 URL    | git repository to clone sommelier from           |
