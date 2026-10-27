@@ -124,10 +124,12 @@ fi
 # line. systemd-network-generator turns that into
 # /run/systemd/network/70-eth0.network, which wins over the static fallback
 # below (80-), used when nothing is passed.
+# Match the virtio-net driver, not Type=ether: veths (Docker, Podman, nspawn)
+# are Ethernet too and would get the VM's address and gateway.
 install -d /etc/systemd/network
 {
     echo "[Match]"
-    echo "Type=ether"
+    echo "Driver=virtio_net"
     echo
     echo "[Network]"
     echo "Address=$GUEST_ADDRESS"

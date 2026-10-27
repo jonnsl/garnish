@@ -137,8 +137,9 @@ the build scripts can reach `vm_tools/`.
   `pacman-init.service` creates the pacman keyring at first boot.
   Creating it at build time would give every image the same local signing key.
 - The guest network config is written to
-  `/etc/systemd/network/80-crosvm-tap.network`. It matches any Ethernet
-  interface, which in practice is the virtio-net device. maitred passes the
+  `/etc/systemd/network/80-crosvm-tap.network`. It matches the virtio-net
+  driver rather than any Ethernet interface, so veths created by Docker or
+  Podman inside the guest are left alone. maitred passes the
   guest its address on the kernel command line (`ip=`), and
   `systemd-network-generator` in the guest configures it.
 - `KernelInitrdModules=` in `mkosi.conf` limits the initrd to the modules
