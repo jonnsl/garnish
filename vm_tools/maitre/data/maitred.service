@@ -9,5 +9,7 @@ ExecStart=%h/.cargo/bin/maitred
 # usually installed with cargo.
 Environment=PATH=%h/.cargo/bin:%h/.local/bin:/usr/local/bin:/usr/bin
 # maitred shuts the guests down itself: power button, then crosvm stop after
-# StopTimeoutSec= (30s by default).
+# StopTimeoutSec= (30s by default). KillMode=mixed sends SIGTERM to maitred
+# alone; with the default, crosvm would get it too and die on the spot.
+KillMode=mixed
 TimeoutStopSec=60
