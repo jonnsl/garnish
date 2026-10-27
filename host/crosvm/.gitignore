@@ -1,0 +1,7 @@
+/src/
+/pkg/
+/crosvm/
+/minijail/
+/depot_tools/
+/perfetto/
+/*.pkg.tar.*

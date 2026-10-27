@@ -1,9 +1,21 @@
 # Host setup
 
-Details on the host side that the component READMEs don't cover: the tap
-network, the shared home directory and audio. For installing maitred and
+Details on the host side that the component READMEs don't cover: crosvm, the
+tap network, the shared home directory and audio. For installing maitred and
 writing VM files, see the [maitre README](../vm_tools/maitre/README.md); for
 the application menu, the [carte README](../vm_tools/carte/README.md).
+
+## crosvm
+
+On x86_64, crosvm's GPU sandbox kills the device when a guest app pastes
+something copied on the host, and the VM stops with status 33: the clipboard
+code calls `pipe`, which the GPU's seccomp policy doesn't allow.
+`host/crosvm` builds the AUR's `crosvm-git` with that one call allowed; it
+replaces `crosvm-git`. `host/crosvm/upstream-bug.md` has the details.
+
+```sh
+(cd host/crosvm && makepkg -si)                # Arch package, patched
+```
 
 ## Network
 

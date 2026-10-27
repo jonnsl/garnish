@@ -1,0 +1,11 @@
+diff --git a/jail/seccomp/x86_64/gpu_common.policy b/jail/seccomp/x86_64/gpu_common.policy
+--- a/jail/seccomp/x86_64/gpu_common.policy
++++ b/jail/seccomp/x86_64/gpu_common.policy
+@@ -39,6 +39,7 @@
+ nanosleep: 1
+ clock_nanosleep: 1
+ pipe2: 1
++pipe: 1
+ poll: 1
+ ppoll: 1
+ read: 1

@@ -1,0 +1,62 @@
+# crosvm with its GPU device allowed to call pipe(2).
+# Build and install with: makepkg -si
+# Based on the AUR's crosvm-git, pinned to the commit it last built. It
+# replaces crosvm-git; the different name keeps AUR helpers from updating
+# it to the unpatched package.
+#
+# allow-pipe.patch: when the host pastes into a guest, the cross-domain
+# context opens a pipe with rustix::pipe::pipe, which is pipe(2) on x86_64.
+# The GPU device's seccomp policy only allows pipe2(2), so the device is
+# killed (SIGSYS) and crosvm stops the VM with exit status 33. The policy is
+# compiled into the binary, so it has to be patched before building.
+# upstream-bug.md has the report for upstream.
+
+pkgname=crosvm-git
+pkgver=r12092.6321356dee
+pkgrel=1
+pkgdesc="The Chrome OS Virtual Machine Monitor"
+url="https://chromium.googlesource.com/crosvm/crosvm"
+depends=('glibc' 'libgcc' 'libcap' 'wayland')
+makedepends=('git' 'rustup' 'rust-bindgen' 'wayland-protocols' 'dtc' 'python')
+conflicts=('crosvm')
+provides=('crosvm')
+options=(!lto !debug)
+arch=('x86_64')
+license=('LicenseRef-chromiumos')
+source=("git+https://chromium.googlesource.com/crosvm/crosvm"
+        "git+https://chromium.googlesource.com/chromiumos/platform/minijail"
+        "git+https://chromium.googlesource.com/chromium/tools/depot_tools"
+        "git+https://chromium.googlesource.com/crosvm/perfetto"
+        allow-pipe.patch
+        )
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' '0d3222c2f9c00b9c2b5e664496370079a257bc1758a45ecdb6c1868e9f720323')
+
+prepare() {
+  cd crosvm
+  git submodule init
+  git config submodule."third_party/minijail".url "$srcdir/minijail"
+  git config submodule."third_party/depot_tools".url "$srcdir/depot_tools"
+  git config submodule."third_party/perfetto".url "$srcdir/perfetto"
+  git -c protocol.file.allow=always submodule update
+  patch -Np1 -i ../allow-pipe.patch
+}
+
+pkgver() {
+  cd crosvm
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd crosvm
+  cargo build --release --features gpu
+}
+
+package() {
+  cd crosvm
+  install -Dm755 target/release/crosvm "$pkgdir/usr/bin/crosvm"
+  install -d "$pkgdir/usr/share/policy/crosvm/"
+  cp -r jail/seccomp/$CARCH/* "$pkgdir/usr/share/policy/crosvm/"
+  install -m644 -D LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+  install -m644 -D README.md "$pkgdir"/usr/share/licenses/$pkgname/README.md
+}
+
