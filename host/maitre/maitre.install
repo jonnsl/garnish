@@ -1,0 +1,15 @@
+_reload_note() {
+  echo '>>> The session bus only reads D-Bus service files when it starts or reloads.'
+  echo '>>> Log out and back in, or run as your user:'
+  echo '>>>   busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig'
+}
+
+post_install() {
+  _reload_note
+  echo '>>> Example VM configuration: /usr/share/doc/maitre/examples/debian.conf'
+}
+
+post_upgrade() {
+  echo '>>> Restart maitred to use the new version: systemctl --user restart maitred'
+  echo '>>> (this shuts down running VMs)'
+}

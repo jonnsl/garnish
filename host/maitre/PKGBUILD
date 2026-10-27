@@ -1,0 +1,58 @@
+# maitred, the D-Bus VM manager, and maitre, its client.
+# Build and install with: makepkg -si
+# Built from the working tree in vm_tools/maitre, not from a download, so it
+# picks up uncommitted changes. The user unit is installed with
+# ExecStart=/usr/bin/maitred; its PATH still has ~/.cargo/bin and
+# ~/.local/bin for crosvm.
+
+pkgname=maitre
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Starts and stops crosvm guests on behalf of the user, over D-Bus'
+arch=(x86_64)
+url='https://github.com/jonnsl/garnish'
+license=(unknown)
+depends=(gcc-libs glibc)
+makedepends=(cargo)
+# Cargo.toml strips the release binaries, so a debug package would be empty.
+options=(!debug)
+optdepends=('crosvm: runs the VMs (needed, but often built by hand)'
+            'vhost-device-sound: Audio=yes (host/vhost-device-sound, with --no-capture)'
+            'carte: AppMenu=yes, guest applications in the app menu'
+            'openssh: maitre ssh')
+install=maitre.install
+
+_src="$startdir/../../vm_tools/$pkgname"
+
+prepare() {
+  local version
+  version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$_src/Cargo.toml")
+  if [[ $version != "$pkgver" ]]; then
+    error "pkgver is $pkgver, but Cargo.toml says $version"
+    return 1
+  fi
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --manifest-path "$_src/Cargo.toml" \
+    --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --frozen --release --manifest-path "$_src/Cargo.toml"
+}
+
+check() {
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo test --frozen --manifest-path "$_src/Cargo.toml"
+}
+
+package() {
+  install -Dm755 "$srcdir"/target/release/{maitred,maitre} -t "$pkgdir/usr/bin/"
+  install -Dm644 "$_src/data/maitred.service" "$pkgdir/usr/lib/systemd/user/maitred.service"
+  sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/maitred|' "$pkgdir/usr/lib/systemd/user/maitred.service"
+  install -Dm644 "$_src/data/org.garnish.Maitre.service" -t "$pkgdir/usr/share/dbus-1/services/"
+  install -Dm644 "$_src/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 "$_src"/examples/*.conf -t "$pkgdir/usr/share/doc/$pkgname/examples/"
+}

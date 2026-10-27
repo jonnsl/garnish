@@ -33,6 +33,8 @@ On the host:
 cargo install --locked --path . --bin carte   # to ~/.cargo/bin
 ```
 
+or, on Arch, `makepkg -si` in `host/carte` (to `/usr/bin`).
+
 [maitred](../maitre/README.md) runs `carte sync` for every VM it starts if
 `carte` is in its `PATH` (`AppMenu=no` turns it off) and logs to
 `~/.local/state/garnish/<name>/carte.log`.

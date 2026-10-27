@@ -20,6 +20,9 @@ systemctl --user daemon-reload
 busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 ```
 
+On Arch, `makepkg -si` in `host/maitre` installs the same files to `/usr`
+instead; then reload the bus as above.
+
 Nothing has to be started: the first call over D-Bus starts `maitred.service`
 (D-Bus activation). It logs to the journal (`journalctl --user -u maitred`).
 You can also run `maitred` in a terminal instead; it then logs to stderr.

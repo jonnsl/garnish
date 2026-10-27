@@ -242,6 +242,7 @@ partition at the next boot.
 | `mkosi/authorized_keys`                | your ssh public key (not in git)                     |
 | `check-host-audio.sh`                  | checks the host prerequisites for `Audio=yes`        |
 | `host/vhost-device-sound/`             | Arch PKGBUILD for vhost-device-sound, plus the `--no-capture` patch |
+| `host/carte/`, `host/maitre/`          | Arch PKGBUILDs for `carte` and `maitred`/`maitre`, built from `vm_tools/` |
 | `setup-host-net.sh`                    | creates/removes the host taps and the optional NAT   |
 | `vm_tools/carte/`                      | `carte-agent` (guest) and `carte` (host): guest applications in the host's app menu |
 | `vm_tools/maitre/`                     | `maitred` and `maitre`: start, stop and hand out resources to VMs over D-Bus |
