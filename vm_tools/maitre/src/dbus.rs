@@ -82,4 +82,9 @@ pub trait Maitre {
     /// `reason` is a human-readable description of how crosvm exited.
     #[zbus(signal)]
     fn vm_stopped(&self, name: &str, reason: &str) -> zbus::Result<()>;
+    /// A VM's state changed: starting, running, stopping or stopped (sent
+    /// before VmStarted and VmStopped). Also sent with the new PID when
+    /// crosvm is started again after a guest reboot.
+    #[zbus(signal)]
+    fn vm_state_changed(&self, info: VmInfo) -> zbus::Result<()>;
 }

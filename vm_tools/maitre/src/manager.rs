@@ -160,12 +160,28 @@ impl Manager {
         self.inner.lock().unwrap().vms.get(name).map(|vm| vm.info.clone())
     }
 
-    fn set_state(&self, name: &str, state: &str, pid: Option<u32>) {
-        if let Some(vm) = self.inner.lock().unwrap().vms.get_mut(name) {
+    /// Sends VmStateChanged.
+    async fn state_changed(&self, info: VmInfo) {
+        if let Ok(emitter) = self.emitter() {
+            let _ = Maitre::vm_state_changed(&emitter, info).await;
+        }
+    }
+
+    /// Records a running VM's new state, or crosvm's new PID after a guest
+    /// reboot, and tells the clients.
+    async fn set_state(&self, name: &str, state: &str, pid: Option<u32>) {
+        let changed = {
+            let mut inner = self.inner.lock().unwrap();
+            let Some(vm) = inner.vms.get_mut(name) else { return };
+            let old = vm.info.clone();
             vm.info.state = state.to_owned();
             if let Some(pid) = pid {
                 vm.info.pid = pid;
             }
+            (vm.info != old).then(|| vm.info.clone())
+        };
+        if let Some(info) = changed {
+            self.state_changed(info).await;
         }
     }
 
@@ -188,7 +204,7 @@ impl Manager {
         }
 
         let (tx, rx) = mpsc::unbounded_channel();
-        let res = {
+        let (res, info) = {
             let mut inner = self.inner.lock().unwrap();
             if inner.shutting_down {
                 return Err(Error::ShuttingDown("maitred is shutting down".into()));
@@ -218,20 +234,22 @@ impl Manager {
                 log_dir: paths.logs.display().to_string(),
                 ..VmInfo::stopped(name)
             };
-            let vm = RunningVm { info, res: res.clone(), paths: paths.clone(), commands: tx };
+            let vm = RunningVm { info: info.clone(), res: res.clone(), paths: paths.clone(), commands: tx };
             inner.vms.insert(name.to_owned(), vm);
-            res
+            (res, info)
         };
+        self.state_changed(info).await;
 
         let launched = match self.launch(name, &config, &res, &paths).await {
             Ok(launched) => launched,
             Err(e) => {
                 log(format!("{name}: {e}"));
                 self.release(name);
+                self.state_changed(VmInfo::stopped(name)).await;
                 return Err(e);
             }
         };
-        self.set_state(name, "running", launched.crosvm.id());
+        self.set_state(name, "running", launched.crosvm.id()).await;
         let info = self.info(name).unwrap();
         let net = res.net.as_ref().map_or("no network".to_owned(), |n| format!("{} on {}", n.guest, n.tap));
         log(format!("{name}: running, CID {}, {net}, logs in {}", res.cid, paths.logs.display()));
@@ -383,7 +401,7 @@ impl Manager {
                     match vm::spawn("crosvm", &launched.args, &paths.log("console"), &paths.log("crosvm")) {
                         Ok(child) => {
                             launched.crosvm = child;
-                            self.set_state(&name, "running", launched.crosvm.id());
+                            self.set_state(&name, "running", launched.crosvm.id()).await;
                         }
                         Err(e) => break format!("the guest rebooted, but {e}"),
                     }
@@ -391,7 +409,7 @@ impl Manager {
                 Some(command) = commands.recv() => match command {
                     Command::Stop if !stopping => {
                         stopping = true;
-                        self.set_state(&name, "stopping", None);
+                        self.set_state(&name, "stopping", None).await;
                         log(format!("{name}: pressing the power button"));
                         control(&name, "powerbtn", &paths).await;
                         deadline = Some((Instant::now() + self.stop_timeout, Next::CrosvmStop));
@@ -400,7 +418,7 @@ impl Manager {
                     Command::Kill => {
                         stopping = true;
                         stopped_crosvm = true;
-                        self.set_state(&name, "stopping", None);
+                        self.set_state(&name, "stopping", None).await;
                         control(&name, "stop", &paths).await;
                         deadline = Some((Instant::now() + EXIT_TIMEOUT, Next::Kill));
                     }
@@ -423,6 +441,7 @@ impl Manager {
         stop_helpers(&name, &mut launched.helpers).await;
         log(format!("{name}: stopped: {reason}"));
         self.release(&name);
+        self.state_changed(VmInfo::stopped(&name)).await;
         if let Ok(emitter) = self.emitter() {
             let _ = Maitre::vm_stopped(&emitter, &name, &reason).await;
         }
@@ -526,4 +545,7 @@ impl Maitre {
 
     #[zbus(signal)]
     async fn vm_stopped(emitter: &SignalEmitter<'_>, name: &str, reason: &str) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    async fn vm_state_changed(emitter: &SignalEmitter<'_>, info: VmInfo) -> zbus::Result<()>;
 }

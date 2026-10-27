@@ -184,10 +184,17 @@ Bus name `org.garnish.Maitre` on the session bus, object
 | `ListVms() → a(VmInfo)` | → `a(ssusssus)` | configured VMs, running or not |
 | signal `VmStarted(VmInfo)` | `(ssusssus)` | |
 | signal `VmStopped(s name, s reason)` | `ss` | `reason` is for people, e.g. "the guest shut down" |
+| signal `VmStateChanged(VmInfo)` | `(ssusssus)` | the state changed; also the new `pid` after a guest reboot |
 
 `VmInfo` is `(name, state, cid, tap, address, user, pid, log_dir)`. `state` is
 `stopped`, `starting`, `running` or `stopping`; for a stopped VM the other
 fields are empty or 0.
+
+`VmStateChanged` follows a VM through every state: `starting` when a start
+begins, `running` once crosvm runs, `stopping` after `StopVm` or `KillVm`
+(or a shutdown of maitred), and `stopped` when it's gone, also after a start
+that failed. It comes before `VmStarted` and `VmStopped`, which are still
+sent.
 
 Errors are `org.garnish.Maitre1.Error.<name>` with a message: `NoSuchVm`,
 `InvalidConfig`, `AlreadyRunning`, `NotRunning`, `NoResources` (out of CIDs or
