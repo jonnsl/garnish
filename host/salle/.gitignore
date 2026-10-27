@@ -1,0 +1,5 @@
+/src/
+/pkg/
+/*.crate
+/*.tar.gz
+/*.pkg.tar.*

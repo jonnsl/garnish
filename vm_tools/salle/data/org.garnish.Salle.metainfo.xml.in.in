@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>@APP_ID@</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Salle</name>
+  <summary>Run and manage your virtual machines</summary>
+  <description>
+    <p>Salle lets you create, configure, start and stop crosvm virtual machines, see how they are doing, and connect to them.</p>
+    <p>It is a front end for maitred, which runs the virtual machines.</p>
+  </description>
+  <developer id="io.github.jonnsl">
+    <name>Jonnathan Soares</name>
+  </developer>
+  <launchable type="desktop-id">@APP_ID@.desktop</launchable>
+  <url type="homepage">https://github.com/jonnsl/garnish</url>
+  <url type="bugtracker">https://github.com/jonnsl/garnish/issues</url>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <control>touch</control>
+  </supports>
+  <releases>
+    <release version="0.1.0" date="2026-10-26">
+      <description>
+        <p>Initial development release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

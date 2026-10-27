@@ -1,0 +1,745 @@
+# Brazilian Portuguese translation for Salle.
+# Copyright (C) 2026 Jonnathan Soares
+# This file is distributed under the same license as the salle package.
+# Jonnathan Soares <jonnsl@hotmail.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: salle\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-26 22:00-0300\n"
+"PO-Revision-Date: 2026-10-26 22:00-0300\n"
+"Last-Translator: Jonnathan Soares <jonnsl@hotmail.com>\n"
+"Language-Team: Brazilian Portuguese\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: data/org.garnish.Salle.desktop.in.in:2
+#: data/org.garnish.Salle.metainfo.xml.in.in:6 src/application.vala:42
+#: src/window.blp:5 src/window.blp:22
+msgid "Salle"
+msgstr "Salle"
+
+#: data/org.garnish.Salle.desktop.in.in:3
+#: data/org.garnish.Salle.metainfo.xml.in.in:7
+msgid "Run and manage your virtual machines"
+msgstr "Execute e gerencie suas máquinas virtuais"
+
+#. Translators: Search terms to find this application. Do NOT translate or localize the semicolons! The list MUST also end with a semicolon!
+#: data/org.garnish.Salle.desktop.in.in:10
+msgid "vm;virtual;machine;crosvm;guest;linux;"
+msgstr "vm;virtual;máquina;crosvm;convidado;linux;"
+
+#: data/org.garnish.Salle.gschema.xml.in:6
+msgid "Window width"
+msgstr "Largura da janela"
+
+#: data/org.garnish.Salle.gschema.xml.in:10
+msgid "Window height"
+msgstr "Altura da janela"
+
+#: data/org.garnish.Salle.gschema.xml.in:14
+msgid "Window maximized state"
+msgstr "Estado maximizado da janela"
+
+#: data/org.garnish.Salle.gschema.xml.in:18
+msgid "Name of the virtual machine selected when the window was last closed"
+msgstr "Nome da máquina virtual selecionada quando a janela foi fechada pela última vez"
+
+#: data/org.garnish.Salle.gschema.xml.in:22
+msgid "Folder the last disk image was chosen from"
+msgstr "Pasta de onde a última imagem de disco foi escolhida"
+
+#: data/org.garnish.Salle.gschema.xml.in:23
+msgid "Where the file chooser for a new virtual machine’s image opens"
+msgstr "Onde o seletor de arquivos da imagem de uma nova máquina virtual abre"
+
+#: data/org.garnish.Salle.metainfo.xml.in.in:9
+msgid ""
+"Salle lets you create, configure, start and stop crosvm virtual machines, "
+"see how they are doing, and connect to them."
+msgstr "O Salle permite criar, configurar, iniciar e parar máquinas virtuais crosvm, ver como elas estão e se conectar a elas."
+
+#: data/org.garnish.Salle.metainfo.xml.in.in:10
+msgid "It is a front end for maitred, which runs the virtual machines."
+msgstr "Ele é uma interface para o maitred, que executa as máquinas virtuais."
+
+#: data/org.garnish.Salle.metainfo.xml.in.in:13
+msgid "Jonnathan Soares"
+msgstr "Jonnathan Soares"
+
+#: data/org.garnish.Salle.metainfo.xml.in.in:30
+msgid "Initial development release."
+msgstr "Versão inicial de desenvolvimento."
+
+#. Translators: Replace "translator-credits" with your name/username, and optionally an email or URL.
+#: src/application.vala:48
+msgid "translator-credits"
+msgstr "Jonnathan Soares <jonnsl@hotmail.com>"
+
+#: src/application.vala:51
+msgid "A front end for maitred, which runs crosvm virtual machines."
+msgstr "Uma interface para o maitred, que executa máquinas virtuais crosvm."
+
+#: src/dialogs/log-dialog.blp:14 src/pages/vm-page.blp:313
+msgid "Console"
+msgstr "Console"
+
+#: src/dialogs/log-dialog.blp:19 src/pages/vm-page.blp:326
+msgid "crosvm"
+msgstr "crosvm"
+
+#: src/dialogs/log-dialog.blp:24 src/dialogs/vm-dialog.blp:112
+#: src/pages/vm-page.vala:116
+msgid "Sound"
+msgstr "Som"
+
+#: src/dialogs/log-dialog.blp:29 src/pages/vm-page.vala:113
+msgid "App Menu"
+msgstr "Menu de aplicativos"
+
+#: src/dialogs/log-dialog.blp:36
+msgid "Open Log Folder"
+msgstr "Abrir pasta de logs"
+
+#: src/dialogs/log-dialog.blp:43
+msgid "Open in Text Editor"
+msgstr "Abrir no editor de texto"
+
+#: src/dialogs/log-dialog.blp:73 src/dialogs/log-dialog.vala:138
+msgid "No Log Yet"
+msgstr "Nenhum log ainda"
+
+#: src/dialogs/log-dialog.vala:44
+#, c-format
+msgid "Logs of %s"
+msgstr "Logs de %s"
+
+#: src/dialogs/log-dialog.vala:119
+msgid "Can’t Read the Log"
+msgstr "Não foi possível ler o log"
+
+#: src/dialogs/log-dialog.vala:139
+msgid "It’s written when the virtual machine starts"
+msgstr "Ele é escrito quando a máquina virtual inicia"
+
+#: src/dialogs/vm-dialog.blp:17 src/vm-actions.vala:88 src/vm-actions.vala:144
+msgid "_Cancel"
+msgstr "_Cancelar"
+
+#: src/dialogs/vm-dialog.blp:39
+msgid "Name"
+msgstr "Nome"
+
+#: src/dialogs/vm-dialog.blp:44 src/pages/vm-page.blp:266
+msgid "Disk Image"
+msgstr "Imagem de disco"
+
+#: src/dialogs/vm-dialog.blp:51 src/dialogs/vm-dialog.vala:235
+msgid "Choose Disk Image"
+msgstr "Escolher imagem de disco"
+
+#: src/dialogs/vm-dialog.blp:63 src/pages/vm-page.blp:275
+msgid "Hardware"
+msgstr "Hardware"
+
+#: src/dialogs/vm-dialog.blp:66
+msgid "Processors"
+msgstr "Processadores"
+
+#: src/dialogs/vm-dialog.blp:78
+msgid "Memory"
+msgstr "Memória"
+
+#: src/dialogs/vm-dialog.blp:79
+msgid "In GB"
+msgstr "Em GB"
+
+#: src/dialogs/vm-dialog.blp:93 src/pages/vm-page.blp:283
+msgid "Features"
+msgstr "Recursos"
+
+#: src/dialogs/vm-dialog.blp:96 src/pages/vm-page.vala:107
+msgid "Network"
+msgstr "Rede"
+
+#: src/dialogs/vm-dialog.blp:97
+msgid "Internet access through a network device from maitred’s pool"
+msgstr "Acesso à internet por um dispositivo de rede do pool do maitred"
+
+#: src/dialogs/vm-dialog.blp:101 src/pages/vm-page.vala:110
+msgid "Graphical Apps"
+msgstr "Aplicativos gráficos"
+
+#: src/dialogs/vm-dialog.blp:102
+msgid "Show the guest’s app windows on your desktop"
+msgstr "Mostra as janelas dos aplicativos do convidado na sua área de trabalho"
+
+#: src/dialogs/vm-dialog.blp:106
+msgid "Add Apps to the App Menu"
+msgstr "Adicionar aplicativos ao menu de aplicativos"
+
+#: src/dialogs/vm-dialog.blp:107
+msgid "Launch the guest’s apps from your desktop while it runs"
+msgstr "Abra os aplicativos do convidado pela sua área de trabalho enquanto ele executa"
+
+#: src/dialogs/vm-dialog.blp:116
+msgid "Microphone"
+msgstr "Microfone"
+
+#: src/dialogs/vm-dialog.blp:117
+msgid "Let the guest record from your default input"
+msgstr "Permite que o convidado grave da sua entrada padrão"
+
+#: src/dialogs/vm-dialog.blp:122 src/pages/vm-page.blp:292
+msgid "Shared Home Folder"
+msgstr "Pasta pessoal compartilhada"
+
+#: src/dialogs/vm-dialog.blp:129
+msgid "Don’t Share a Folder"
+msgstr "Não compartilhar uma pasta"
+
+#: src/dialogs/vm-dialog.blp:141
+msgid "Choose Folder"
+msgstr "Escolher pasta"
+
+#: src/dialogs/vm-dialog.blp:153 src/pages/vm-page.blp:301
+msgid "Guest User"
+msgstr "Usuário convidado"
+
+#: src/dialogs/vm-dialog.blp:154
+msgid "The user the image was built with"
+msgstr "O usuário com que a imagem foi criada"
+
+#: src/dialogs/vm-dialog.blp:157
+msgid "User Name"
+msgstr "Nome de usuário"
+
+#: src/dialogs/vm-dialog.blp:162
+msgid "User ID"
+msgstr "ID do usuário"
+
+#: src/dialogs/vm-dialog.blp:176
+msgid "Advanced"
+msgstr "Avançado"
+
+#: src/dialogs/vm-dialog.blp:179
+msgid "Kernel"
+msgstr "Kernel"
+
+#: src/dialogs/vm-dialog.blp:186
+msgid "Use the Kernel Next to the Image"
+msgstr "Usar o kernel ao lado da imagem"
+
+#: src/dialogs/vm-dialog.blp:198 src/dialogs/vm-dialog.vala:273
+msgid "Choose Kernel"
+msgstr "Escolher kernel"
+
+#: src/dialogs/vm-dialog.blp:209
+msgid "Initrd"
+msgstr "Initrd"
+
+#: src/dialogs/vm-dialog.blp:216
+msgid "Use the Initrd Next to the Image"
+msgstr "Usar o initrd ao lado da imagem"
+
+#: src/dialogs/vm-dialog.blp:228 src/dialogs/vm-dialog.vala:273
+msgid "Choose Initrd"
+msgstr "Escolher initrd"
+
+#: src/dialogs/vm-dialog.blp:239
+msgid "Extra Kernel Parameters"
+msgstr "Parâmetros extras do kernel"
+
+#: src/dialogs/vm-dialog.blp:244
+msgid "GPU Context Types"
+msgstr "Tipos de contexto da GPU"
+
+#: src/dialogs/vm-dialog.blp:245
+msgid "Add virgl2 only if crosvm was built with virglrenderer"
+msgstr "Adicione virgl2 apenas se o crosvm foi compilado com virglrenderer"
+
+#: src/dialogs/vm-dialog.blp:250
+msgid "Extra crosvm Arguments"
+msgstr "Argumentos extras do crosvm"
+
+#: src/dialogs/vm-dialog.vala:58 src/shortcuts-dialog.blp:9 src/window.blp:31
+msgid "New Virtual Machine"
+msgstr "Nova máquina virtual"
+
+#: src/dialogs/vm-dialog.vala:58
+#, c-format
+msgid "Edit “%s”"
+msgstr "Editar “%s”"
+
+#: src/dialogs/vm-dialog.vala:59
+msgid "_Create"
+msgstr "_Criar"
+
+#: src/dialogs/vm-dialog.vala:59
+msgid "_Save"
+msgstr "_Salvar"
+
+#: src/dialogs/vm-dialog.vala:87 src/dialogs/vm-dialog.vala:109
+#: src/pages/vm-page.vala:100 src/pages/vm-page.vala:118
+msgid "None"
+msgstr "Nenhum"
+
+#: src/dialogs/vm-dialog.vala:90
+msgid "None: the guest has its own home"
+msgstr "Nenhuma: o convidado tem sua própria pasta pessoal"
+
+#: src/dialogs/vm-dialog.vala:97 src/dialogs/vm-dialog.vala:107
+#, c-format
+msgid "Next to the image: %s"
+msgstr "Ao lado da imagem: %s"
+
+#: src/dialogs/vm-dialog.vala:99
+msgid "Next to the image"
+msgstr "Ao lado da imagem"
+
+#: src/dialogs/vm-dialog.vala:152
+msgid "Give the virtual machine a name"
+msgstr "Dê um nome à máquina virtual"
+
+#: src/dialogs/vm-dialog.vala:155
+msgid ""
+"Names can have letters, digits, “_”, “.” and “-”, and at most 32 characters"
+msgstr "Nomes podem ter letras, dígitos, “_”, “.” e “-”, e no máximo 32 caracteres"
+
+#: src/dialogs/vm-dialog.vala:158 src/models/vm-config.vala:268
+#, c-format
+msgid "There already is a virtual machine named “%s”"
+msgstr "Já existe uma máquina virtual chamada “%s”"
+
+#: src/dialogs/vm-dialog.vala:210
+#, c-format
+msgid "Can’t save: %s"
+msgstr "Não foi possível salvar: %s"
+
+#: src/dialogs/vm-dialog.vala:224
+msgid "Disk Images"
+msgstr "Imagens de disco"
+
+#: src/dialogs/vm-dialog.vala:229
+msgid "All Files"
+msgstr "Todos os arquivos"
+
+#: src/dialogs/vm-dialog.vala:310
+msgid "Choose Shared Home Folder"
+msgstr "Escolher pasta pessoal compartilhada"
+
+#: src/dialogs/vm-dialog.vala:333
+msgid "Choose a local file"
+msgstr "Escolha um arquivo local"
+
+#: src/models/vm-config.vala:221
+msgid "Choose a disk image"
+msgstr "Escolha uma imagem de disco"
+
+#: src/models/vm-config.vala:224
+#, c-format
+msgid "“%s” isn’t a valid user name"
+msgstr "“%s” não é um nome de usuário válido"
+
+#: src/models/vm-config.vala:230
+#, c-format
+msgid "“%s”: %s"
+msgstr "“%s”: %s"
+
+#: src/models/vm-config.vala:239
+#, c-format
+msgid "The disk image %s doesn’t exist"
+msgstr "A imagem de disco %s não existe"
+
+#: src/models/vm-config.vala:244
+#, c-format
+msgid "The kernel %s doesn’t exist"
+msgstr "O kernel %s não existe"
+
+#: src/models/vm-config.vala:246
+#, c-format
+msgid "There’s no kernel next to the image (%s); choose one in Advanced"
+msgstr "Não há kernel ao lado da imagem (%s); escolha um em Avançado"
+
+#: src/models/vm-config.vala:250
+#, c-format
+msgid "The initrd %s doesn’t exist"
+msgstr "O initrd %s não existe"
+
+#: src/models/vm-config.vala:253
+#, c-format
+msgid "The shared home folder %s doesn’t exist"
+msgstr "A pasta pessoal compartilhada %s não existe"
+
+#: src/models/vm.vala:24
+msgid "Starting"
+msgstr "Iniciando"
+
+#: src/models/vm.vala:26
+msgid "Running"
+msgstr "Executando"
+
+#: src/models/vm.vala:28
+msgid "Shutting Down"
+msgstr "Desligando"
+
+#: src/models/vm.vala:30
+msgid "Stopped"
+msgstr "Parada"
+
+#: src/pages/vm-page.blp:13
+msgid "More"
+msgstr "Mais"
+
+#: src/pages/vm-page.blp:20 src/shortcuts-dialog.blp:33
+msgid "Edit Settings"
+msgstr "Editar configurações"
+
+#: src/pages/vm-page.blp:93
+msgid "_Start"
+msgstr "_Iniciar"
+
+#: src/pages/vm-page.blp:120
+msgid "Shut _Down"
+msgstr "_Desligar"
+
+#: src/pages/vm-page.blp:130 src/vm-actions.vala:89
+msgid "_Force Off"
+msgstr "_Forçar desligamento"
+
+#: src/pages/vm-page.blp:132
+msgid "Stop the virtual machine without letting the guest shut down"
+msgstr "Para a máquina virtual sem deixar o convidado desligar"
+
+#: src/pages/vm-page.blp:145
+msgid "Can’t Start"
+msgstr "Não é possível iniciar"
+
+#: src/pages/vm-page.blp:159 src/pages/vm-page.blp:256
+msgid "_Edit"
+msgstr "_Editar"
+
+#: src/pages/vm-page.blp:168
+msgid "Connection"
+msgstr "Conexão"
+
+#: src/pages/vm-page.blp:171
+msgid "SSH"
+msgstr "SSH"
+
+#: src/pages/vm-page.blp:181 src/shortcuts-dialog.blp:43
+msgid "Open Terminal"
+msgstr "Abrir terminal"
+
+#: src/pages/vm-page.blp:193
+msgid "Copy SSH Command"
+msgstr "Copiar comando SSH"
+
+#: src/pages/vm-page.blp:204
+msgid "IP Address"
+msgstr "Endereço IP"
+
+#: src/pages/vm-page.blp:214
+msgid "Copy IP Address"
+msgstr "Copiar endereço IP"
+
+#: src/pages/vm-page.blp:225
+msgid "Network Device"
+msgstr "Dispositivo de rede"
+
+#: src/pages/vm-page.blp:234
+msgid "vsock CID"
+msgstr "CID vsock"
+
+#: src/pages/vm-page.blp:243
+msgid "Process ID"
+msgstr "ID do processo"
+
+#: src/pages/vm-page.blp:253
+msgid "Settings"
+msgstr "Configurações"
+
+#: src/pages/vm-page.blp:310
+msgid "Logs"
+msgstr "Logs"
+
+#: src/pages/vm-page.blp:314
+msgid "The guest’s boot messages"
+msgstr "As mensagens de inicialização do convidado"
+
+#: src/pages/vm-page.blp:327
+msgid "Messages from the virtual machine monitor"
+msgstr "Mensagens do monitor de máquina virtual"
+
+#: src/pages/vm-page.blp:347
+msgid "_Edit Settings…"
+msgstr "_Editar configurações…"
+
+#: src/pages/vm-page.blp:352 src/vm-actions.vala:49
+msgid "Show _Logs"
+msgstr "Mostrar _logs"
+
+#: src/pages/vm-page.blp:357
+msgid "Open _Configuration File"
+msgstr "Abrir arquivo de _configuração"
+
+#: src/pages/vm-page.blp:364
+msgid "_Delete…"
+msgstr "_Excluir…"
+
+#: src/pages/vm-page.vala:68
+msgid "Starting…"
+msgstr "Iniciando…"
+
+#: src/pages/vm-page.vala:68
+msgid "Shutting Down…"
+msgstr "Desligando…"
+
+#: src/pages/vm-page.vala:83
+msgid "Changes apply the next time the virtual machine starts"
+msgstr "As alterações valem na próxima vez que a máquina virtual iniciar"
+
+#: src/pages/vm-page.vala:102
+#, c-format
+msgid "%d Processor"
+msgid_plural "%d Processors"
+msgstr[0] "%d processador"
+msgstr[1] "%d processadores"
+
+#: src/pages/vm-page.vala:103
+#, c-format
+msgid "%s Memory"
+msgstr "%s de memória"
+
+#: src/pages/vm-page.vala:116
+msgid "Sound and Microphone"
+msgstr "Som e microfone"
+
+#: src/pages/vm-page.vala:134
+msgid "IP address copied"
+msgstr "Endereço IP copiado"
+
+#: src/services/ini-file.vala:189
+msgid "missing “]”"
+msgstr "falta “]”"
+
+#: src/services/ini-file.vala:193
+msgid "empty section name"
+msgstr "nome de seção vazio"
+
+#: src/services/ini-file.vala:201
+#, c-format
+msgid "expected Key=Value, got “%s”"
+msgstr "esperava Chave=Valor, veio “%s”"
+
+#: src/services/ini-file.vala:204
+msgid "setting outside of a section"
+msgstr "configuração fora de uma seção"
+
+#: src/services/ini-file.vala:208
+msgid "empty key"
+msgstr "chave vazia"
+
+#: src/services/ini-file.vala:287
+msgid "trailing backslash"
+msgstr "barra invertida no final"
+
+#: src/services/ini-file.vala:290
+msgid "unterminated quote"
+msgstr "aspas não fechadas"
+
+#: src/services/maitre.vala:280
+#, c-format
+msgid "Can’t remove %s"
+msgstr "Não foi possível remover %s"
+
+#: src/services/maitre.vala:291
+msgid ""
+"maitred isn’t installed, or the session bus hasn’t noticed it yet. See the "
+"maitre README (Install)."
+msgstr "O maitred não está instalado, ou o barramento de sessão ainda não o percebeu. Veja o README do maitre (Install)."
+
+#: src/services/maitre.vala:296
+msgid "maitred didn’t start. See “journalctl --user -u maitred”."
+msgstr "O maitred não iniciou. Veja “journalctl --user -u maitred”."
+
+#: src/services/maitre.vala:299
+msgid "maitred didn’t answer in time"
+msgstr "O maitred não respondeu a tempo"
+
+#: src/shortcuts-dialog.blp:6
+msgid "General"
+msgstr "Geral"
+
+#: src/shortcuts-dialog.blp:14
+msgid "Refresh"
+msgstr "Atualizar"
+
+#: src/shortcuts-dialog.blp:19
+msgid "Keyboard Shortcuts"
+msgstr "Atalhos de teclado"
+
+#: src/shortcuts-dialog.blp:24
+msgid "Quit"
+msgstr "Sair"
+
+#: src/shortcuts-dialog.blp:30
+msgid "Virtual Machine"
+msgstr "Máquina virtual"
+
+#: src/shortcuts-dialog.blp:38
+msgid "Show Logs"
+msgstr "Mostrar logs"
+
+#: src/utils.vala:19
+#, c-format
+msgid "%lld MB"
+msgstr "%lld MB"
+
+#: src/utils.vala:22
+#, c-format
+msgid "%lld GB"
+msgstr "%lld GB"
+
+#: src/utils.vala:24
+#, c-format
+msgid "%.1f GB"
+msgstr "%.1f GB"
+
+#: src/vm-actions.vala:27
+#, c-format
+msgid "Can’t Start “%s”"
+msgstr "Não foi possível iniciar “%s”"
+
+#: src/vm-actions.vala:48 src/vm-actions.vala:118
+msgid "_Close"
+msgstr "_Fechar"
+
+#: src/vm-actions.vala:51
+msgid "_Edit Settings"
+msgstr "_Editar configurações"
+
+#: src/vm-actions.vala:75
+#, c-format
+msgid "Can’t shut down %s: %s"
+msgstr "Não foi possível desligar %s: %s"
+
+#. The guest gets no chance to save anything, so ask first
+#: src/vm-actions.vala:86
+#, c-format
+msgid "Force Off “%s”?"
+msgstr "Forçar o desligamento de “%s”?"
+
+#: src/vm-actions.vala:87
+msgid ""
+"The virtual machine stops right away, as if its power were cut. Unsaved work "
+"in it is lost."
+msgstr "A máquina virtual para na hora, como se a energia fosse cortada. O trabalho não salvo nela é perdido."
+
+#: src/vm-actions.vala:102
+#, c-format
+msgid "Can’t force off %s: %s"
+msgstr "Não foi possível forçar o desligamento de %s: %s"
+
+#: src/vm-actions.vala:117
+#, c-format
+msgid "Can’t Read the Settings of “%s”"
+msgstr "Não foi possível ler as configurações de “%s”"
+
+#: src/vm-actions.vala:119
+msgid "_Open Configuration File"
+msgstr "_Abrir arquivo de configuração"
+
+#: src/vm-actions.vala:131
+#, c-format
+msgid "Settings saved. They apply the next time %s starts."
+msgstr "Configurações salvas. Elas valem na próxima vez que %s iniciar."
+
+#: src/vm-actions.vala:142
+#, c-format
+msgid "Delete “%s”?"
+msgstr "Excluir “%s”?"
+
+#: src/vm-actions.vala:143
+msgid "Its settings are removed. The disk image and the logs are kept."
+msgstr "As configurações dela são removidas. A imagem de disco e os logs são mantidos."
+
+#: src/vm-actions.vala:145
+msgid "_Delete"
+msgstr "_Excluir"
+
+#: src/vm-actions.vala:156
+#, c-format
+msgid "Can’t delete %s: %s"
+msgstr "Não foi possível excluir %s: %s"
+
+#: src/vm-actions.vala:174
+msgid "SSH command copied"
+msgstr "Comando SSH copiado"
+
+#: src/vm-actions.vala:189
+#, c-format
+msgid "Can’t open a terminal: %s"
+msgstr "Não foi possível abrir um terminal: %s"
+
+#: src/vm-actions.vala:203
+#, c-format
+msgid "Can’t open %s: %s"
+msgstr "Não foi possível abrir %s: %s"
+
+#: src/widgets/vm-row.blp:63
+msgid "Start"
+msgstr "Iniciar"
+
+#: src/widgets/vm-row.blp:78
+msgid "Shut Down"
+msgstr "Desligar"
+
+#: src/window.blp:39
+msgid "Main Menu"
+msgstr "Menu principal"
+
+#: src/window.blp:46
+msgid "_Retry"
+msgstr "_Tentar novamente"
+
+#: src/window.blp:74 src/window.blp:111 src/window.vala:111
+msgid "No Virtual Machines"
+msgstr "Nenhuma máquina virtual"
+
+#: src/window.blp:78 src/window.blp:115
+msgid "_New Virtual Machine"
+msgstr "_Nova máquina virtual"
+
+#: src/window.blp:100
+msgid "Virtual Machines"
+msgstr "Máquinas virtuais"
+
+#: src/window.blp:112 src/window.vala:112
+msgid "Create one from an existing disk image"
+msgstr "Crie uma a partir de uma imagem de disco existente"
+
+#: src/window.blp:135
+msgid "_Refresh"
+msgstr "_Atualizar"
+
+#: src/window.blp:142
+msgid "_Keyboard Shortcuts"
+msgstr "Atalhos de _teclado"
+
+#: src/window.blp:147
+msgid "_About Salle"
+msgstr "_Sobre o Salle"
+
+#: src/window.vala:111
+msgid "No Virtual Machine Selected"
+msgstr "Nenhuma máquina virtual selecionada"
+
+#: src/window.vala:179
+#, c-format
+msgid "%s: %s"
+msgstr "%s: %s"

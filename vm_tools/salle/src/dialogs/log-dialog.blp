@@ -1,0 +1,78 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SalleLogDialog: Adw.Dialog {
+  content-width: 860;
+  content-height: 620;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      title-widget: Adw.ToggleGroup log_group {
+        Adw.Toggle {
+          name: "console";
+          label: _("Console");
+        }
+
+        Adw.Toggle {
+          name: "crosvm";
+          label: _("crosvm");
+        }
+
+        Adw.Toggle {
+          name: "vhost-device-sound";
+          label: _("Sound");
+        }
+
+        Adw.Toggle {
+          name: "carte";
+          label: _("App Menu");
+        }
+      };
+
+      [start]
+      Button {
+        icon-name: "folder-open-symbolic";
+        tooltip-text: _("Open Log Folder");
+        clicked => $on_open_folder_clicked();
+      }
+
+      [end]
+      Button open_button {
+        icon-name: "document-open-symbolic";
+        tooltip-text: _("Open in Text Editor");
+        clicked => $on_open_clicked();
+      }
+    }
+
+    content: Stack stack {
+      transition-type: crossfade;
+
+      StackPage {
+        name: "log";
+
+        child: ScrolledWindow scrolled {
+          child: TextView view {
+            editable: false;
+            cursor-visible: false;
+            monospace: true;
+            wrap-mode: word_char;
+            top-margin: 12;
+            bottom-margin: 12;
+            left-margin: 12;
+            right-margin: 12;
+          };
+        };
+      }
+
+      StackPage {
+        name: "empty";
+
+        child: Adw.StatusPage empty_page {
+          icon-name: "text-x-generic-symbolic";
+          title: _("No Log Yet");
+        };
+      }
+    };
+  };
+}

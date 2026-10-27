@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/garnish/Salle">
+    <file preprocess="xml-stripblanks">window.ui</file>
+    <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
+    <file preprocess="xml-stripblanks">dialogs/log-dialog.ui</file>
+    <file preprocess="xml-stripblanks">dialogs/vm-dialog.ui</file>
+    <file preprocess="xml-stripblanks">pages/vm-page.ui</file>
+    <file preprocess="xml-stripblanks">widgets/vm-row.ui</file>
+    <file>style.css</file>
+  </gresource>
+</gresources>

@@ -122,6 +122,10 @@ menu are in the VM's file; the [maitre README](vm_tools/maitre/README.md#vm-conf
 lists them. The guest's serial console and the logs of crosvm and the helpers
 are in `~/.local/state/garnish/<name>/`. They are emptied on every start.
 
+[Salle](vm_tools/salle/README.md) is a GTK app for the same: it lists the VMs
+with their state, starts and stops them, creates them from an existing image,
+edits their settings and shows their logs (`makepkg -si` in `host/salle`).
+
 `setup-host-net.sh` runs the commands below through sudo, for each of the
 `TAPS` taps (4 by default; `TAPS=8 ./setup-host-net.sh up` for more VMs at
 once). The taps belong to your user, so crosvm doesn't need root. Tap `n`
@@ -242,10 +246,11 @@ partition at the next boot.
 | `mkosi/authorized_keys`                | your ssh public key (not in git)                     |
 | `check-host-audio.sh`                  | checks the host prerequisites for `Audio=yes`        |
 | `host/vhost-device-sound/`             | Arch PKGBUILD for vhost-device-sound, plus the `--no-capture` patch |
-| `host/carte/`, `host/maitre/`          | Arch PKGBUILDs for `carte` and `maitred`/`maitre`, built from `vm_tools/` |
+| `host/carte/`, `host/maitre/`, `host/salle/` | Arch PKGBUILDs for `carte`, `maitred`/`maitre` and Salle, built from `vm_tools/` |
 | `setup-host-net.sh`                    | creates/removes the host taps and the optional NAT   |
 | `vm_tools/carte/`                      | `carte-agent` (guest) and `carte` (host): guest applications in the host's app menu |
 | `vm_tools/maitre/`                     | `maitred` and `maitre`: start, stop and hand out resources to VMs over D-Bus |
+| `vm_tools/salle/`                      | Salle: a GTK app to create, edit, start and stop the VMs |
 
 The build mounts the whole repository at `$SRCDIR` (`BuildSources=..`), so
 the build scripts can reach `vm_tools/`.

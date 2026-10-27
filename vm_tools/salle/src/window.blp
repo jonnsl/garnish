@@ -1,0 +1,151 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SalleWindow: Adw.ApplicationWindow {
+  title: _("Salle");
+  width-request: 360;
+  height-request: 294;
+
+  Adw.Breakpoint {
+    condition ("max-width: 600sp")
+
+    setters {
+      split_view.collapsed: true;
+    }
+  }
+
+  content: Adw.ToastOverlay toast_overlay {
+    child: Adw.NavigationSplitView split_view {
+      min-sidebar-width: 240;
+
+      sidebar: Adw.NavigationPage {
+        title: _("Salle");
+        tag: "sidebar";
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {
+            [start]
+            Button {
+              icon-name: "list-add-symbolic";
+              tooltip-text: _("New Virtual Machine");
+              action-name: "win.new-vm";
+            }
+
+            [end]
+            MenuButton {
+              primary: true;
+              icon-name: "open-menu-symbolic";
+              tooltip-text: _("Main Menu");
+              menu-model: primary_menu;
+            }
+          }
+
+          [top]
+          Adw.Banner unavailable_banner {
+            button-label: _("_Retry");
+            action-name: "win.refresh";
+          }
+
+          content: Stack sidebar_stack {
+            transition-type: crossfade;
+
+            StackPage {
+              name: "list";
+
+              child: ScrolledWindow {
+                hscrollbar-policy: never;
+
+                child: ListBox vm_list {
+                  row-selected => $on_row_selected();
+
+                  styles [
+                    "navigation-sidebar",
+                  ]
+                };
+              };
+            }
+
+            StackPage {
+              name: "empty";
+
+              child: Adw.StatusPage {
+                icon-name: "computer-symbolic";
+                title: _("No Virtual Machines");
+
+                // Only the sidebar shows when the window is narrow
+                child: Button {
+                  label: _("_New Virtual Machine");
+                  use-underline: true;
+                  halign: center;
+                  action-name: "win.new-vm";
+                  visible: bind split_view.collapsed;
+
+                  styles [
+                    "pill",
+                    "suggested-action",
+                  ]
+                };
+
+                styles [
+                  "compact",
+                ]
+              };
+            }
+          };
+        };
+      };
+
+      content: Adw.NavigationPage placeholder_page {
+        title: _("Virtual Machines");
+        tag: "placeholder";
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {
+            show-title: false;
+          }
+
+          content: Adw.StatusPage placeholder_status {
+            icon-name: "computer-symbolic";
+            title: _("No Virtual Machines");
+            description: _("Create one from an existing disk image");
+
+            child: Button placeholder_button {
+              label: _("_New Virtual Machine");
+              use-underline: true;
+              halign: center;
+              action-name: "win.new-vm";
+
+              styles [
+                "pill",
+                "suggested-action",
+              ]
+            };
+          };
+        };
+      };
+    };
+  };
+}
+
+menu primary_menu {
+  section {
+    item {
+      label: _("_Refresh");
+      action: "win.refresh";
+    }
+  }
+
+  section {
+    item {
+      label: _("_Keyboard Shortcuts");
+      action: "app.shortcuts";
+    }
+
+    item {
+      label: _("_About Salle");
+      action: "app.about";
+    }
+  }
+}

@@ -1,0 +1,368 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SalleVmPage: Adw.NavigationPage {
+  tag: "vm";
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      [end]
+      MenuButton {
+        icon-name: "view-more-symbolic";
+        tooltip-text: _("More");
+        menu-model: vm_menu;
+      }
+
+      [end]
+      Button {
+        icon-name: "document-edit-symbolic";
+        tooltip-text: _("Edit Settings");
+        action-name: "win.edit";
+      }
+    }
+
+    content: ScrolledWindow {
+      hscrollbar-policy: never;
+
+      child: Adw.Clamp {
+        maximum-size: 600;
+
+        child: Box {
+          orientation: vertical;
+          spacing: 24;
+          margin-top: 24;
+          margin-bottom: 24;
+          margin-start: 12;
+          margin-end: 12;
+
+          Box {
+            orientation: vertical;
+            spacing: 12;
+            halign: center;
+
+            Overlay {
+              halign: center;
+
+              Image {
+                icon-name: "computer-symbolic";
+                pixel-size: 96;
+                accessible-role: presentation;
+
+                styles [
+                  "vm-icon",
+                ]
+              }
+
+              [overlay]
+              Box status_dot {
+                halign: end;
+                valign: end;
+                width-request: 20;
+                height-request: 20;
+                margin-end: 4;
+                margin-bottom: 4;
+
+                styles [
+                  "status-dot",
+                ]
+              }
+            }
+
+            Label name_label {
+              wrap: true;
+              justify: center;
+
+              styles [
+                "title-1",
+              ]
+            }
+
+            Label state_label {
+              styles [
+                "dim-label",
+              ]
+            }
+
+            Box {
+              spacing: 12;
+              halign: center;
+              margin-top: 6;
+
+              Button start_button {
+                label: _("_Start");
+                use-underline: true;
+                action-name: "win.start";
+
+                styles [
+                  "pill",
+                  "suggested-action",
+                ]
+              }
+
+              Button busy_button {
+                sensitive: false;
+
+                child: Box {
+                  spacing: 6;
+
+                  Adw.Spinner {}
+
+                  Label busy_label {}
+                };
+
+                styles [
+                  "pill",
+                ]
+              }
+
+              Button shut_down_button {
+                label: _("Shut _Down");
+                use-underline: true;
+                action-name: "win.shut-down";
+
+                styles [
+                  "pill",
+                ]
+              }
+
+              Button force_off_button {
+                label: _("_Force Off");
+                use-underline: true;
+                tooltip-text: _("Stop the virtual machine without letting the guest shut down");
+                action-name: "win.force-off";
+
+                styles [
+                  "pill",
+                  "destructive-action",
+                ]
+              }
+            }
+          }
+
+          Adw.PreferencesGroup problem_group {
+            Adw.ActionRow problem_row {
+              title: _("Can’t Start");
+              subtitle-selectable: true;
+
+              [prefix]
+              Image {
+                icon-name: "dialog-warning-symbolic";
+
+                styles [
+                  "warning",
+                ]
+              }
+
+              [suffix]
+              Button {
+                label: _("_Edit");
+                use-underline: true;
+                valign: center;
+                action-name: "win.edit";
+              }
+            }
+          }
+
+          Adw.PreferencesGroup connection_group {
+            title: _("Connection");
+
+            Adw.ActionRow ssh_row {
+              title: _("SSH");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+
+              [suffix]
+              Button terminal_button {
+                icon-name: "utilities-terminal-symbolic";
+                tooltip-text: _("Open Terminal");
+                valign: center;
+                action-name: "win.open-terminal";
+
+                styles [
+                  "flat",
+                ]
+              }
+
+              [suffix]
+              Button {
+                icon-name: "edit-copy-symbolic";
+                tooltip-text: _("Copy SSH Command");
+                valign: center;
+                action-name: "win.copy-ssh";
+
+                styles [
+                  "flat",
+                ]
+              }
+            }
+
+            Adw.ActionRow address_row {
+              title: _("IP Address");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+
+              [suffix]
+              Button {
+                icon-name: "edit-copy-symbolic";
+                tooltip-text: _("Copy IP Address");
+                valign: center;
+                clicked => $on_copy_address_clicked();
+
+                styles [
+                  "flat",
+                ]
+              }
+            }
+
+            Adw.ActionRow tap_row {
+              title: _("Network Device");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+            }
+
+            Adw.ActionRow cid_row {
+              title: _("vsock CID");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+            }
+
+            Adw.ActionRow pid_row {
+              title: _("Process ID");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+            }
+          }
+
+          Adw.PreferencesGroup settings_group {
+            title: _("Settings");
+
+            header-suffix: Button {
+              label: _("_Edit");
+              use-underline: true;
+              action-name: "win.edit";
+
+              styles [
+                "flat",
+              ]
+            };
+
+            Adw.ActionRow image_row {
+              title: _("Disk Image");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+            }
+
+            Adw.ActionRow hardware_row {
+              title: _("Hardware");
+
+              styles [
+                "property",
+              ]
+            }
+
+            Adw.ActionRow features_row {
+              title: _("Features");
+              subtitle-lines: 0;
+
+              styles [
+                "property",
+              ]
+            }
+
+            Adw.ActionRow shared_home_row {
+              title: _("Shared Home Folder");
+              subtitle-selectable: true;
+
+              styles [
+                "property",
+              ]
+            }
+
+            Adw.ActionRow user_row {
+              title: _("Guest User");
+
+              styles [
+                "property",
+              ]
+            }
+          }
+
+          Adw.PreferencesGroup {
+            title: _("Logs");
+
+            Adw.ActionRow {
+              title: _("Console");
+              subtitle: _("The guest’s boot messages");
+              activatable: true;
+              activated => $on_console_activated();
+
+              [suffix]
+              Image {
+                icon-name: "go-next-symbolic";
+                accessible-role: presentation;
+              }
+            }
+
+            Adw.ActionRow {
+              title: _("crosvm");
+              subtitle: _("Messages from the virtual machine monitor");
+              activatable: true;
+              activated => $on_crosvm_activated();
+
+              [suffix]
+              Image {
+                icon-name: "go-next-symbolic";
+                accessible-role: presentation;
+              }
+            }
+          }
+        };
+      };
+    };
+  };
+}
+
+menu vm_menu {
+  section {
+    item {
+      label: _("_Edit Settings…");
+      action: "win.edit";
+    }
+
+    item {
+      label: _("Show _Logs");
+      action: "win.logs";
+    }
+
+    item {
+      label: _("Open _Configuration File");
+      action: "win.open-config";
+    }
+  }
+
+  section {
+    item {
+      label: _("_Delete…");
+      action: "win.delete";
+    }
+  }
+}

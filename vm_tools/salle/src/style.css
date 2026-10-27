@@ -1,0 +1,26 @@
+/* Application-specific styles. Prefer libadwaita style classes; keep this minimal. */
+
+.status-dot {
+  border-radius: 999px;
+  border: 2px solid var(--window-bg-color);
+}
+
+.navigation-sidebar .status-dot {
+  border-color: var(--sidebar-bg-color);
+}
+
+.status-dot.running {
+  background-color: var(--success-bg-color);
+}
+
+.status-dot.busy {
+  background-color: var(--warning-bg-color);
+}
+
+.status-dot.stopped {
+  background-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.vm-icon {
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}

@@ -1,0 +1,98 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SalleVmRow: ListBoxRow {
+  child: Box {
+    spacing: 12;
+    margin-top: 6;
+    margin-bottom: 6;
+
+    Overlay {
+      valign: center;
+
+      Image {
+        icon-name: "computer-symbolic";
+        pixel-size: 24;
+        accessible-role: presentation;
+      }
+
+      [overlay]
+      Box status_dot {
+        halign: end;
+        valign: end;
+        width-request: 10;
+        height-request: 10;
+
+        styles [
+          "status-dot",
+        ]
+      }
+    }
+
+    Box {
+      orientation: vertical;
+      valign: center;
+      hexpand: true;
+
+      Label name_label {
+        xalign: 0;
+        ellipsize: end;
+      }
+
+      Label status_label {
+        xalign: 0;
+        ellipsize: end;
+
+        styles [
+          "caption",
+          "dim-label",
+        ]
+      }
+    }
+
+    Stack action_stack {
+      valign: center;
+      hhomogeneous: true;
+      vhomogeneous: true;
+
+      StackPage {
+        name: "start";
+
+        child: Button {
+          icon-name: "media-playback-start-symbolic";
+          tooltip-text: _("Start");
+          clicked => $on_start_clicked();
+
+          styles [
+            "flat",
+            "circular",
+          ]
+        };
+      }
+
+      StackPage {
+        name: "shut-down";
+
+        child: Button {
+          icon-name: "system-shutdown-symbolic";
+          tooltip-text: _("Shut Down");
+          clicked => $on_shut_down_clicked();
+
+          styles [
+            "flat",
+            "circular",
+          ]
+        };
+      }
+
+      StackPage {
+        name: "busy";
+
+        child: Adw.Spinner {
+          halign: center;
+          valign: center;
+        };
+      }
+    }
+  };
+}

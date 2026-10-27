@@ -1,0 +1,42 @@
+# Salle, the GTK app for maitred's VMs.
+# Build and install with: makepkg -si
+# Built from the working tree in vm_tools/salle, not from a download, so it
+# picks up uncommitted changes.
+
+pkgname=salle
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Create, configure, start and stop crosvm virtual machines run by maitred'
+arch=(x86_64 aarch64)
+url='https://github.com/jonnsl/garnish'
+license=(GPL-3.0-or-later)
+depends=(glib2 gtk4 libadwaita hicolor-icon-theme)
+makedepends=(meson vala blueprint-compiler)
+checkdepends=(appstream desktop-file-utils)
+optdepends=('maitre: runs the VMs (needed)'
+            'openssh: connect to the VMs'
+            'xdg-terminal-exec: open a terminal with ssh into a VM')
+
+_src="$startdir/../../vm_tools/$pkgname"
+
+prepare() {
+  local version
+  version=$(sed -n "s/^ *version: *'\([^']*\)'.*/\1/p" "$_src/meson.build" | head -n1)
+  if [[ $version != "$pkgver" ]]; then
+    error "pkgver is $pkgver, but meson.build says $version"
+    return 1
+  fi
+}
+
+build() {
+  arch-meson "$_src" build -Dprofile=default
+  meson compile -C build
+}
+
+check() {
+  meson test -C build --print-errorlogs
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+}

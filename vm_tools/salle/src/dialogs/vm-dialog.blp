@@ -1,0 +1,258 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SalleVmDialog: Adw.Dialog {
+  content-width: 560;
+  content-height: 760;
+
+  child: Adw.ToastOverlay toast_overlay {
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {
+        show-start-title-buttons: false;
+        show-end-title-buttons: false;
+
+        [start]
+        Button {
+          label: _("_Cancel");
+          use-underline: true;
+          clicked => $on_cancel_clicked();
+        }
+
+        [end]
+        Button save_button {
+          use-underline: true;
+          clicked => $on_save_clicked();
+
+          styles [
+            "suggested-action",
+          ]
+        }
+      }
+
+      [top]
+      Adw.Banner banner {}
+
+      content: Adw.PreferencesPage {
+        Adw.PreferencesGroup {
+          Adw.EntryRow name_row {
+            title: _("Name");
+            changed => $on_changed();
+          }
+
+          Adw.ActionRow image_row {
+            title: _("Disk Image");
+            activatable-widget: image_button;
+            subtitle-selectable: true;
+
+            [suffix]
+            Button image_button {
+              icon-name: "document-open-symbolic";
+              tooltip-text: _("Choose Disk Image");
+              valign: center;
+              clicked => $on_choose_image_clicked();
+
+              styles [
+                "flat",
+              ]
+            }
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Hardware");
+
+          Adw.SpinRow cpus_row {
+            title: _("Processors");
+            numeric: true;
+
+            adjustment: Adjustment {
+              lower: 1;
+              upper: 64;
+              step-increment: 1;
+              page-increment: 2;
+            };
+          }
+
+          Adw.SpinRow memory_row {
+            title: _("Memory");
+            subtitle: _("In GB");
+            numeric: true;
+            digits: 1;
+
+            adjustment: Adjustment {
+              lower: 0.5;
+              upper: 64;
+              step-increment: 0.5;
+              page-increment: 1;
+            };
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Features");
+
+          Adw.SwitchRow network_row {
+            title: _("Network");
+            subtitle: _("Internet access through a network device from maitred’s pool");
+          }
+
+          Adw.SwitchRow wayland_row {
+            title: _("Graphical Apps");
+            subtitle: _("Show the guest’s app windows on your desktop");
+          }
+
+          Adw.SwitchRow app_menu_row {
+            title: _("Add Apps to the App Menu");
+            subtitle: _("Launch the guest’s apps from your desktop while it runs");
+            sensitive: bind wayland_row.active;
+          }
+
+          Adw.SwitchRow audio_row {
+            title: _("Sound");
+          }
+
+          Adw.SwitchRow microphone_row {
+            title: _("Microphone");
+            subtitle: _("Let the guest record from your default input");
+            sensitive: bind audio_row.active;
+          }
+
+          Adw.ActionRow shared_home_row {
+            title: _("Shared Home Folder");
+            activatable-widget: shared_home_button;
+            subtitle-selectable: true;
+
+            [suffix]
+            Button shared_home_clear {
+              icon-name: "edit-clear-symbolic";
+              tooltip-text: _("Don’t Share a Folder");
+              valign: center;
+              clicked => $on_clear_shared_home_clicked();
+
+              styles [
+                "flat",
+              ]
+            }
+
+            [suffix]
+            Button shared_home_button {
+              icon-name: "folder-open-symbolic";
+              tooltip-text: _("Choose Folder");
+              valign: center;
+              clicked => $on_choose_shared_home_clicked();
+
+              styles [
+                "flat",
+              ]
+            }
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Guest User");
+          description: _("The user the image was built with");
+
+          Adw.EntryRow user_row {
+            title: _("User Name");
+            changed => $on_changed();
+          }
+
+          Adw.SpinRow uid_row {
+            title: _("User ID");
+            numeric: true;
+
+            adjustment: Adjustment {
+              lower: 0;
+              upper: 65535;
+              step-increment: 1;
+              page-increment: 100;
+            };
+          }
+        }
+
+        Adw.PreferencesGroup {
+          Adw.ExpanderRow advanced_row {
+            title: _("Advanced");
+
+            Adw.ActionRow kernel_row {
+              title: _("Kernel");
+              activatable-widget: kernel_button;
+              subtitle-selectable: true;
+
+              [suffix]
+              Button kernel_reset {
+                icon-name: "edit-undo-symbolic";
+                tooltip-text: _("Use the Kernel Next to the Image");
+                valign: center;
+                clicked => $on_reset_kernel_clicked();
+
+                styles [
+                  "flat",
+                ]
+              }
+
+              [suffix]
+              Button kernel_button {
+                icon-name: "document-open-symbolic";
+                tooltip-text: _("Choose Kernel");
+                valign: center;
+                clicked => $on_choose_kernel_clicked();
+
+                styles [
+                  "flat",
+                ]
+              }
+            }
+
+            Adw.ActionRow initrd_row {
+              title: _("Initrd");
+              activatable-widget: initrd_button;
+              subtitle-selectable: true;
+
+              [suffix]
+              Button initrd_reset {
+                icon-name: "edit-undo-symbolic";
+                tooltip-text: _("Use the Initrd Next to the Image");
+                valign: center;
+                clicked => $on_reset_initrd_clicked();
+
+                styles [
+                  "flat",
+                ]
+              }
+
+              [suffix]
+              Button initrd_button {
+                icon-name: "document-open-symbolic";
+                tooltip-text: _("Choose Initrd");
+                valign: center;
+                clicked => $on_choose_initrd_clicked();
+
+                styles [
+                  "flat",
+                ]
+              }
+            }
+
+            Adw.EntryRow cmdline_row {
+              title: _("Extra Kernel Parameters");
+              changed => $on_changed();
+            }
+
+            Adw.EntryRow gpu_row {
+              title: _("GPU Context Types");
+              tooltip-text: _("Add virgl2 only if crosvm was built with virglrenderer");
+              changed => $on_changed();
+            }
+
+            Adw.EntryRow extra_args_row {
+              title: _("Extra crosvm Arguments");
+              changed => $on_changed();
+            }
+          }
+        }
+      };
+    };
+  };
+}
