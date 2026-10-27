@@ -87,13 +87,26 @@ fn sync(cid: u32) -> Result<(), String> {
         let mut vm = None;
         let result = follow(&conn, cid, &exe, &mut vm);
         if let Some(vm) = vm {
-            let _ = fs::remove_file(cid_file(&vm));
+            remove_cid_file(&vm, cid);
         }
         match result {
             Ok(()) => eprintln!("carte: CID {cid} closed the connection"),
             Err(e) => eprintln!("carte: connection to CID {cid}: {e}"),
         }
         thread::sleep(RETRY);
+    }
+}
+
+fn read_cid(path: &Path) -> Option<u32> {
+    fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+/// Removes the CID file of `vm` if it still points at `cid`. Another VM
+/// with the same name may have replaced it, and that VM is still running.
+fn remove_cid_file(vm: &str, cid: u32) {
+    let path = cid_file(vm);
+    if read_cid(&path) == Some(cid) {
+        let _ = fs::remove_file(path);
     }
 }
 
@@ -109,6 +122,9 @@ fn follow(conn: &File, cid: u32, exe: &Path, vm: &mut Option<String>) -> io::Res
         if vm.as_deref() != Some(list.vm.as_str()) {
             let path = cid_file(&list.vm);
             fs::create_dir_all(path.parent().unwrap())?;
+            if let Some(other) = read_cid(&path).filter(|&c| c != cid) {
+                eprintln!("carte: {}: replacing CID {other}, is another VM also named {}?", list.vm, list.vm);
+            }
             fs::write(&path, format!("{cid}\n"))?;
             *vm = Some(list.vm.clone());
         }
@@ -269,10 +285,7 @@ fn try_launch(vm: &str, id: &str) -> Result<(), String> {
     if !proto::is_valid_id(id) {
         return Err(format!("invalid application ID {id:?}"));
     }
-    let cid: u32 = fs::read_to_string(cid_file(vm))
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .ok_or_else(|| format!("{vm} is not running"))?;
+    let cid = read_cid(&cid_file(vm)).ok_or_else(|| format!("{vm} is not running"))?;
     let conn = vsock::connect(cid, proto::AGENT_PORT).map_err(|e| format!("connecting to {vm} (CID {cid}): {e}"))?;
     vsock::set_timeout(&conn, TIMEOUT).map_err(|e| e.to_string())?;
     proto::send(&mut &conn, &Request::Launch { vm: vm.to_owned(), id: id.to_owned() })
