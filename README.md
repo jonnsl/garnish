@@ -19,7 +19,7 @@ disk images for crosvm. Every image comes with:
 - optionally, a host directory as the user's home over virtio-fs (no root needed)
 - PipeWire for an optional virtio-snd sound card that plays into the host's PipeWire
 - `video=Virtual-1:d` on the kernel command line
-- a static address (192.168.10.2/24) on a host tap device, using systemd-networkd and systemd-resolved
+- its address on a host tap device from the kernel command line (`ip=`), or a static 192.168.10.2/24 without one, using systemd-networkd and systemd-resolved
 
 ## Non-goals
 
@@ -69,9 +69,9 @@ These are set with `Environment=` in `mkosi/mkosi.conf`. Override them per build
 | `GUEST_PASSWORD`    | `changeme`       | password for sudo and the serial console (not ssh) |
 | `SOMMELIER_REF`     | `main`           | platform2 branch, tag or commit to build         |
 | `SOMMELIER_REPO`    | platform2 URL    | git repository to clone sommelier from           |
-| `GUEST_ADDRESS`     | `192.168.10.2/24`| guest address on the tap network                 |
-| `GUEST_GATEWAY`     | `192.168.10.1`   | default gateway (the host end of the tap)        |
-| `GUEST_DNS`         | `1.1.1.1,9.9.9.9`| comma-separated DNS servers                      |
+| `GUEST_ADDRESS`     | `192.168.10.2/24`| guest address when the kernel command line has no `ip=` |
+| `GUEST_GATEWAY`     | `192.168.10.1`   | default gateway, likewise                        |
+| `GUEST_DNS`         | `1.1.1.1,9.9.9.9`| comma-separated DNS servers, likewise            |
 | `VM_NAME`           | the distribution | name in the host's app menu and window app_ids   |
 
 ```sh
@@ -88,54 +88,70 @@ To keep the platform2 checkout and meson build between builds, run `mkdir mkosi/
 
 ## Run
 
+VMs are run by [`maitred`](vm_tools/maitre/README.md), a daemon on your
+session bus that needs no root. It gives each VM a vsock CID and a tap with
+its own address, starts crosvm with the helpers the VM needs, and cleans up
+when it stops. Each VM has a configuration file, in the systemd/mkosi
+format.
+
 ```sh
-./setup-host-net.sh up --nat    # tap crosvm_tap at 192.168.10.1; --nat adds internet access
-./run-crosvm.sh debian          # CID=3, 4 CPUs, 4 GiB, tap crosvm_tap by default
-CID=4 MEM=8192 ./run-crosvm.sh fedora
-TAP= ./run-crosvm.sh ubuntu     # no network
-GPU_CONTEXTS=cross-domain:virgl2 ./run-crosvm.sh debian  # only if crosvm has virglrenderer
-ssh jonnathan@vsock/3           # host systemd >= 256; otherwise:
-ssh -o ProxyCommand='socat - VSOCK-CONNECT:3:22' jonnathan@localhost
-ssh jonnathan@192.168.10.2      # over the tap also works
-SHARE_HOME=~/vm/home ./run-crosvm.sh debian  # host directory as the guest home
-AUDIO=1 ./run-crosvm.sh debian  # sound, playback only (see Audio below)
-CARTE=0 ./run-crosvm.sh debian    # don't put the guest's apps in the app menu
-./setup-host-net.sh down        # removes the tap and the NAT rule
+# once: maitred, maitre, and D-Bus activation (see vm_tools/maitre/README.md)
+cargo install --locked --path vm_tools/maitre
+install -Dm644 vm_tools/maitre/data/maitred.service ~/.config/systemd/user/maitred.service
+install -Dm644 vm_tools/maitre/data/org.garnish.Maitre.service \
+    ~/.local/share/dbus-1/services/org.garnish.Maitre.service
+systemctl --user daemon-reload
+
+# once per VM: point Image= at mkosi/mkosi.output/debian.raw
+mkdir -p ~/.config/garnish/vms
+cp vm_tools/maitre/examples/debian.conf ~/.config/garnish/vms/debian.conf
+
+./setup-host-net.sh up --nat    # 4 taps, crosvm_tap0-3; --nat adds internet access
+maitre start debian             # prints the CID and the address
+maitre list
+maitre ssh debian               # ssh jonnathan@vsock/<cid>; needs host systemd >= 256
+ssh jonnathan@192.168.10.2      # the first VM's address on its tap
+maitre stop debian              # clean shutdown, crosvm stop after 30s
+./setup-host-net.sh down        # removes the taps and the NAT rule
 ```
 
-The terminal only shows the serial console. crosvm's own log goes to
-`crosvm-<CID>.log` in the current directory, and with `AUDIO=1`
-vhost-device-sound's goes to `vhost-device-sound-<CID>.log` next to it, and
-`carte sync`'s to `carte-<CID>.log`. They are overwritten on every run. If crosvm exits with an error, the last lines of
-its log are printed. Set `LOG_DIR=<dir>` to put them somewhere else, or
-`LOG_DIR=` to keep them on the terminal.
+Settings such as CPUs, memory, the shared home, audio and the application
+menu are in the VM's file; the [maitre README](vm_tools/maitre/README.md#vm-configuration)
+lists them. The guest's serial console and the logs of crosvm and the helpers
+are in `~/.local/state/garnish/<name>/`. They are emptied on every start.
 
-`setup-host-net.sh` runs the commands below through sudo. The tap belongs to your
-user, so crosvm doesn't need root.
+`setup-host-net.sh` runs the commands below through sudo, for each of the
+`TAPS` taps (4 by default; `TAPS=8 ./setup-host-net.sh up` for more VMs at
+once). The taps belong to your user, so crosvm doesn't need root. Tap `n`
+gets its own /30: the host is 192.168.10.(4n+1) and the guest
+192.168.10.(4n+2).
 
 ```sh
-sudo ip tuntap add mode tap user "$USER" vnet_hdr crosvm_tap
-sudo ip addr add 192.168.10.1/24 dev crosvm_tap
-sudo ip link set crosvm_tap up
+sudo ip tuntap add mode tap user "$USER" vnet_hdr crosvm_tap0
+sudo ip addr add 192.168.10.1/30 dev crosvm_tap0
+sudo ip link set crosvm_tap0 up
 # --nat:
 sudo sysctl -w net.ipv4.ip_forward=1
 sudo iptables -t nat -A POSTROUTING -s 192.168.10.0/24 -j MASQUERADE
 ```
 
-`down` does not turn `ip_forward` off again. If the host firewall drops
-forwarded traffic, the NAT rule alone isn't enough: you also need to allow
-forwarding for 192.168.10.0/24.
+maitred passes the guest its address on the kernel command line (`ip=`), and
+`systemd-network-generator` in the guest configures it. Without `ip=` the
+guest falls back to `GUEST_ADDRESS` (192.168.10.2/24). `down` does not turn
+`ip_forward` off again. If the host firewall drops forwarded traffic, the NAT
+rule alone isn't enough: you also need to allow forwarding for
+192.168.10.0/24.
 
 ### Shared home directory
 
-`SHARE_HOME=<dir>` mounts a host directory over `/home/$GUEST_USER` with
-virtio-fs. crosvm's built-in device serves it, running as your user, so you
-don't need virtiofsd or sudo. Nothing in the image depends on the home
-directory: ssh keys, the sommelier unit and the Wayland variables live in
-`/etc`. You can start with an empty directory.
+`SharedHome=<dir>` in the VM's `[Machine]` section mounts a host directory
+over `/home/$GUEST_USER` with virtio-fs. crosvm's built-in device serves it,
+running as your user, so you don't need virtiofsd or sudo. Nothing in the
+image depends on the home directory: ssh keys, the sommelier unit and the
+Wayland variables live in `/etc`. You can start with an empty directory.
 
 The device runs in a user namespace that has only one uid and one gid. They
-map the guest user (`GUEST_UID`/`GUEST_GID`, default 1000) to your host user.
+map the guest user (`[Guest] UID=`/`GID=`, default 1000) to your host user.
 This means:
 
 - files the guest user creates are owned by you on the host
@@ -143,9 +159,9 @@ This means:
 - guest root can't create files there or `chown` them
 - the guest user can't `chown` to other users either
 
-If you changed `GUEST_USER` at build time, pass the same value to
-`run-crosvm.sh`. If the mount fails (`systemctl status home-<user>.mount`),
-the guest boots anyway with the home from the image.
+If you changed `GUEST_USER` at build time, set the same `[Guest] User=`. If
+the mount fails (`systemctl status home-<user>.mount`), the guest boots
+anyway with the home from the image.
 
 ### Application menu
 
@@ -157,47 +173,53 @@ the host over vsock. On the host, `carte sync` turns them into launchers in
 
 ```sh
 cargo install --locked --path vm_tools/carte --bin carte  # once, to ~/.cargo/bin
-./run-crosvm.sh debian      # runs `carte sync --cid 3` while the VM is up
+maitre start debian         # runs `carte sync --cid <cid>` while the VM is up
 carte remove debian         # removes debian's launchers and icons
 ```
 
-The VM name is `VM_NAME`, by default the distribution (`arch`, `debian`,
-`ubuntu`, `fedora`). It's appended to the application names, and it's also
-sommelier's VM identifier, so GNOME can match windows to their launcher. The
-applications start with the user manager's environment, which is why the
-Wayland variables are also in `/etc/environment.d/50-crosvm-wayland.conf`.
+`AppMenu=no` in the VM's `[Guest]` section turns it off. The name in the menu
+is the image's `VM_NAME`, by default the distribution (`arch`, `debian`,
+`ubuntu`, `fedora`), not the name of the maitre configuration. It's appended
+to the application names, and it's also sommelier's VM identifier, so GNOME
+can match windows to their launcher. The applications start with the user
+manager's environment, which is why the Wayland variables are also in
+`/etc/environment.d/50-crosvm-wayland.conf`.
 
 ### Audio
 
-`AUDIO=1` adds a virtio-snd card. crosvm's own sound device has no PipeWire
-backend, so `run-crosvm.sh` starts
+`Audio=yes` adds a virtio-snd card. crosvm's own sound device has no PipeWire
+backend, so maitred starts
 [vhost-device-sound](https://github.com/rust-vmm/vhost-device) as your user and
 connects crosvm to it over vhost-user. It plays into your PipeWire and stops
-when crosvm exits. In the guest, PipeWire, WirePlumber and pipewire-pulse run
+when the VM stops. In the guest, PipeWire, WirePlumber and pipewire-pulse run
 in the user session, so apps see an ordinary sound card.
 
 The guest gets **no microphone** by default. `host/vhost-device-sound` builds
-the package with a patch that adds `--no-capture`, and `run-crosvm.sh` passes
-it unless you set `AUDIO_CAPTURE=1`. Then the guest can record from your default
-input. This is enforced on the host, so guest root can't turn it back on.
+the package with a patch that adds `--no-capture`, and maitred passes it
+unless the VM has `Microphone=yes`. Then the guest can record from your
+default input. This is enforced on the host, so guest root can't turn it back
+on.
 
 ```sh
 ./check-host-audio.sh                          # host prerequisites (read-only)
 (cd host/vhost-device-sound && makepkg -si)    # Arch package, patched
-AUDIO=1 ./run-crosvm.sh debian
-ssh jonnathan@vsock/3 speaker-test -c 2 -t wav -l 1
-AUDIO=1 AUDIO_CAPTURE=1 ./run-crosvm.sh debian # with microphone
+# Audio=yes in ~/.config/garnish/vms/debian.conf, then:
+maitre start debian
+maitre ssh debian speaker-test -c 2 -t wav -l 1
 ```
 
 The host needs PipeWire with a session manager (WirePlumber) running.
 `check-host-audio.sh` checks that, and that crosvm accepts the device.
-The socket is `$XDG_RUNTIME_DIR/crosvm-snd-$CID.sock`, so VMs with different
-CIDs each get their own.
+The socket is `$XDG_RUNTIME_DIR/garnish/<name>/snd.sock`.
+
+### Kernel command line
 
 crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
-`run-crosvm.sh`, not from `mkosi/mkosi.conf`. If you change one, change the other.
-The image also has an ESP with a UKI, so UEFI boot (`--bios OVMF.fd`) works too.
-That path uses `KernelCommandLine=` from `mkosi/mkosi.conf`.
+maitred (`KernelCommandLine=` in the VM's file, by default the same as in
+`mkosi/mkosi.conf`), not from `mkosi/mkosi.conf`. If you change one, change
+the other. The image also has an ESP with a UKI, so UEFI boot (`--bios
+OVMF.fd` in `ExtraArguments=`) works too. That path uses `KernelCommandLine=`
+from `mkosi/mkosi.conf`.
 
 The root filesystem is 16 GiB but the file is sparse. To make it bigger, run
 `truncate -s +10G mkosi/mkosi.output/debian.raw`. systemd-growfs then grows the
@@ -216,11 +238,11 @@ partition at the next boot.
 | `mkosi/mkosi.finalize`                 | points `/etc/resolv.conf` at the systemd-resolved stub |
 | `mkosi/mkosi.extra/`                   | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `mkosi/authorized_keys`                | your ssh public key (not in git)                     |
-| `run-crosvm.sh`                        | boots an image with crosvm                           |
-| `check-host-audio.sh`                  | checks the host prerequisites for `AUDIO=1`          |
+| `check-host-audio.sh`                  | checks the host prerequisites for `Audio=yes`        |
 | `host/vhost-device-sound/`             | Arch PKGBUILD for vhost-device-sound, plus the `--no-capture` patch |
-| `setup-host-net.sh`                    | creates/removes the host tap and the optional NAT    |
+| `setup-host-net.sh`                    | creates/removes the host taps and the optional NAT   |
 | `vm_tools/carte/`                      | `carte-agent` (guest) and `carte` (host): guest applications in the host's app menu |
+| `vm_tools/maitre/`                     | `maitred` and `maitre`: start, stop and hand out resources to VMs over D-Bus |
 
 The build mounts the whole repository at `$SRCDIR` (`BuildSources=..`), so
 the build scripts can reach `vm_tools/`.

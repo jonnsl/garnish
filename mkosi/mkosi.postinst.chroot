@@ -120,7 +120,10 @@ UNIT
 fi
 
 # --- network ----------------------------------------------------------------
-# Static address on the crosvm tap (see setup-host-net.sh for the host side).
+# maitred gives every VM its own address with ip=... on the kernel command
+# line. systemd-network-generator turns that into
+# /run/systemd/network/70-eth0.network, which wins over the static fallback
+# below (80-), used when nothing is passed.
 install -d /etc/systemd/network
 {
     echo "[Match]"
@@ -137,11 +140,11 @@ install -d /etc/systemd/network
 
 # /etc/resolv.conf -> resolved stub is set up in mkosi.finalize: here it is a
 # read-only bind mount of the host's file (WithNetwork=yes).
-systemctl enable systemd-networkd.service systemd-resolved.service
+systemctl enable systemd-networkd.service systemd-resolved.service systemd-network-generator.service
 
 # --- sommelier user service -------------------------------------------------
 # Like everything below, this stays out of $home so the image keeps working
-# when run-crosvm.sh mounts a host directory over it (SHARE_HOME=).
+# when maitred mounts a host directory over it (SharedHome=).
 unit_dir=/etc/systemd/user
 install -d "$unit_dir/default.target.wants"
 cat > "$unit_dir/sommelier.service" <<'UNIT'
@@ -180,7 +183,7 @@ UNIT
 ln -sf ../carte-agent.service "$unit_dir/default.target.wants/carte-agent.service"
 
 # --- audio ------------------------------------------------------------------
-# PipeWire for the virtio-snd card (run-crosvm.sh AUDIO=1). Enabled
+# PipeWire for the virtio-snd card (Audio=yes in the VM's config). Enabled
 # explicitly because not every distro presets these on. Without the device
 # it just finds no card.
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service

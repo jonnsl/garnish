@@ -33,8 +33,9 @@ On the host:
 cargo install --locked --path . --bin carte   # to ~/.cargo/bin
 ```
 
-`run-crosvm.sh` starts `carte sync` for the VM it boots if `carte` is in your
-`PATH` (`CARTE=0` turns it off) and logs to `carte-<CID>.log`.
+[maitred](../maitre/README.md) runs `carte sync` for every VM it starts if
+`carte` is in its `PATH` (`AppMenu=no` turns it off) and logs to
+`~/.local/state/garnish/<name>/carte.log`.
 
 Builds with Rust 1.85 or newer. Dependencies: `libc`, `serde`, `serde_json`.
 

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.garnish.Maitre
+Exec=/bin/false
+SystemdService=maitred.service

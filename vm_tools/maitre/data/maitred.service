@@ -1,0 +1,13 @@
+[Unit]
+Description=maitre: crosvm VM manager
+
+[Service]
+Type=dbus
+BusName=org.garnish.Maitre
+ExecStart=%h/.cargo/bin/maitred
+# crosvm, vhost-device-sound and carte are looked up in $PATH, and carte is
+# usually installed with cargo.
+Environment=PATH=%h/.cargo/bin:%h/.local/bin:/usr/local/bin:/usr/bin
+# maitred shuts the guests down itself: power button, then crosvm stop after
+# StopTimeoutSec= (30s by default).
+TimeoutStopSec=60

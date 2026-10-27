@@ -1,0 +1,18 @@
+[package]
+name = "maitre"
+version = "0.1.0"
+edition = "2024"
+description = "Starts and stops crosvm guests on behalf of the user, over D-Bus"
+rust-version = "1.88"
+publish = false
+
+[dependencies]
+futures-util = { version = "0.3", default-features = false }
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "process", "rt", "signal", "sync", "time"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+zvariant = "5"
+
+[profile.release]
+strip = true

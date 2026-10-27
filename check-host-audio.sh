@@ -49,7 +49,7 @@ if command -v vhost-device-sound >/dev/null; then
     else
         fail "no pipewire backend in --help (built without the pipewire feature?)"
     fi
-    # run-crosvm.sh passes --no-capture unless AUDIO_CAPTURE=1.
+    # maitred passes --no-capture unless the VM has Microphone=yes.
     if grep -q -- '--no-capture' <<<"$help"; then
         ok "supports --no-capture (patched build)"
     else
