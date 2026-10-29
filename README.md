@@ -65,7 +65,9 @@ image and how they work.
 2. Install maitred and maitre, following the
    [maitre README](vm_tools/maitre/README.md#install), and optionally
    [carte](vm_tools/carte/README.md#install) and
-   [Salle](vm_tools/salle/README.md#building).
+   [Salle](vm_tools/salle/README.md#building). On Arch,
+   `(cd host/garnish && makepkg -si)` installs all three, as the
+   `garnish-host` and `salle` packages.
 3. Create a VM and start it:
 
 ```sh

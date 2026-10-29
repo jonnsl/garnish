@@ -20,8 +20,9 @@ systemctl --user daemon-reload
 busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 ```
 
-On Arch, `makepkg -si` in `host/maitre` installs the same files to `/usr`
-instead, with the shell completions; then reload the bus as above.
+On Arch, `makepkg -si` in `host/garnish` installs the same files to `/usr`
+instead, with the shell completions, as the `garnish-host` package (with
+carte) and the `salle` package; then reload the bus as above.
 
 Shell completions for `maitre` complete subcommands and VM names (from the
 configuration files) and, after `maitre ssh <name>`, a command. Without the

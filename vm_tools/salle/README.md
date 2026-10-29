@@ -23,8 +23,8 @@ GSETTINGS_SCHEMA_DIR=build/data ./build/src/salle
 meson test -C build   # the configuration file code, desktop file, metainfo and schema
 ```
 
-On Arch, `makepkg -si` in `host/salle` builds and installs it from this
-directory.
+On Arch, `makepkg -si` in `host/garnish` builds and installs it from this
+directory, as the `salle` package, along with maitre and carte (`garnish-host`).
 
 ### Code style
 

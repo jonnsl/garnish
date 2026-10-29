@@ -32,8 +32,8 @@ On the host:
 cargo install --locked --path . --bin carte   # to ~/.cargo/bin
 ```
 
-or, on Arch, `makepkg -si` in `host/carte` (to `/usr/bin`, with the shell
-completions).
+or, on Arch, `makepkg -si` in `host/garnish` (to `/usr/bin`, with the shell
+completions; carte is in the `garnish-host` package, with maitre).
 
 Shell completions for `carte` complete subcommands, the VMs that have
 launchers, and their application IDs for `carte launch`. Without the package:

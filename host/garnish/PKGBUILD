@@ -1,0 +1,104 @@
+# The host side of garnish, as two packages from one build:
+# - garnish-host: maitred, the D-Bus VM manager, and maitre, its client; and
+#   carte, the host side of the app menu
+# - salle: the GTK app for maitred's VMs, separate so the command line tools
+#   don't pull in GTK
+# Build and install both with: makepkg -si
+# Built from the working tree in vm_tools/, not from a download, so it picks
+# up uncommitted changes. carte-agent is left out: it runs in the guest, and
+# comes with the garnish-guest package (guest/). The user unit is installed
+# with ExecStart=/usr/bin/maitred; its PATH still has ~/.cargo/bin and
+# ~/.local/bin for crosvm.
+
+pkgbase=garnish
+pkgname=(garnish-host salle)
+pkgver=0.1.0
+pkgrel=1
+arch=(x86_64 aarch64)
+url='https://github.com/jonnsl/garnish'
+license=(GPL-3.0-or-later)
+makedepends=(cargo meson vala blueprint-compiler glib2 gtk4 libadwaita)
+checkdepends=(appstream desktop-file-utils)
+
+_tools="$startdir/../../vm_tools"
+
+# The version in each project's build file has to match pkgver.
+_check_version() {
+  local file=$1 pattern=$2 version
+  version=$(sed -n "$pattern" "$file" | head -n1)
+  if [[ $version != "$pkgver" ]]; then
+    error "pkgver is $pkgver, but $file says $version"
+    return 1
+  fi
+}
+
+prepare() {
+  _check_version "$_tools/maitre/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
+  _check_version "$_tools/carte/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
+  _check_version "$_tools/salle/meson.build" "s/^ *version: *'\([^']*\)'.*/\1/p"
+
+  export RUSTUP_TOOLCHAIN=stable
+  local target
+  target=$(rustc -vV | sed -n 's/host: //p')
+  for project in maitre carte; do
+    cargo fetch --locked --manifest-path "$_tools/$project/Cargo.toml" --target "$target"
+  done
+}
+
+build() {
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --frozen --release --manifest-path "$_tools/maitre/Cargo.toml"
+  cargo build --frozen --release --manifest-path "$_tools/carte/Cargo.toml" --bin carte
+
+  arch-meson "$_tools/salle" salle-build -Dprofile=default
+  meson compile -C salle-build
+}
+
+check() {
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo test --frozen --manifest-path "$_tools/maitre/Cargo.toml"
+  cargo test --frozen --manifest-path "$_tools/carte/Cargo.toml"
+  meson test -C salle-build --print-errorlogs
+}
+
+package_garnish-host() {
+  pkgdesc='Runs crosvm guests for the user over D-Bus, with their applications in the host menu'
+  depends=(gcc-libs glibc)
+  optdepends=('crosvm: runs the VMs (needed, but often built by hand)'
+              'vhost-device-sound: Audio=yes (host/vhost-device-sound, with --no-capture)'
+              'openssh: maitre ssh'
+              'libnotify: notification when a launcher is started while its VM is off')
+  # Formerly separate packages.
+  provides=(maitre carte)
+  conflicts=(maitre carte)
+  replaces=(maitre carte)
+  install=garnish-host.install
+  # Cargo.toml strips the release binaries, so a debug package would be empty.
+  options=(!debug)
+
+  local maitre="$_tools/maitre" carte="$_tools/carte"
+  install -Dm755 "$srcdir"/target/release/{maitred,maitre,carte} -t "$pkgdir/usr/bin/"
+  install -Dm644 "$maitre/data/maitred.service" "$pkgdir/usr/lib/systemd/user/maitred.service"
+  sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/maitred|' "$pkgdir/usr/lib/systemd/user/maitred.service"
+  install -Dm644 "$maitre/data/org.garnish.Maitre.service" -t "$pkgdir/usr/share/dbus-1/services/"
+
+  install -Dm644 "$maitre/completions/maitre.bash" "$pkgdir/usr/share/bash-completion/completions/maitre"
+  install -Dm644 "$carte/completions/carte.bash" "$pkgdir/usr/share/bash-completion/completions/carte"
+  install -Dm644 "$maitre/completions/_maitre" "$carte/completions/_carte" -t "$pkgdir/usr/share/zsh/site-functions/"
+
+  install -Dm644 "$maitre/README.md" "$pkgdir/usr/share/doc/maitre/README.md"
+  install -Dm644 "$maitre"/examples/*.conf -t "$pkgdir/usr/share/doc/maitre/examples/"
+  install -Dm644 "$carte/README.md" "$pkgdir/usr/share/doc/carte/README.md"
+}
+
+package_salle() {
+  pkgdesc='Create, configure, start and stop crosvm virtual machines run by maitred'
+  depends=(glib2 gtk4 libadwaita hicolor-icon-theme)
+  optdepends=('garnish-host: runs the VMs (needed)'
+              'openssh: connect to the VMs'
+              'xdg-terminal-exec: open a terminal with ssh into a VM')
+
+  meson install -C "$srcdir/salle-build" --destdir "$pkgdir"
+}
