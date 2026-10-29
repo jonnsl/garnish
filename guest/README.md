@@ -70,6 +70,8 @@ sent upstream as they are.
 - `0001-clipboard-track-every-transfer-to-the-host.patch`: pasting into a
   host app from a guest app could leave the host app waiting forever when
   two transfers overlapped.
+- `0002-output-one-position-per-host-output.patch`: an app that binds a
+  monitor twice (Firefox) saw a second copy of it to the right of the first.
 
 ## Updating a running guest
 

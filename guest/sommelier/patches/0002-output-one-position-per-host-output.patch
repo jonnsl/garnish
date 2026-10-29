@@ -1,0 +1,45 @@
+sommelier: give every bind of an output the same position
+
+sommelier makes one sl_host_output per client bind of wl_output and lays
+them out left to right, each at the sum of the widths before it. A client
+that binds an output twice, like Firefox (once through GTK, once in its
+own Wayland code), sees one monitor at x=0 and a second copy to its
+right. With that layout, Firefox ignores its saved window size and opens
+at 500x200 every time.
+
+Entries for the same host output share its position, and the list is
+sorted by it. Give them the same virt_x, and only advance past an output
+once.
+
+diff --git a/vm_tools/sommelier/sommelier-output.cc b/vm_tools/sommelier/sommelier-output.cc
+index 8512765..4ef14c7 100644
+--- a/vm_tools/sommelier/sommelier-output.cc
++++ b/vm_tools/sommelier/sommelier-output.cc
+@@ -283,14 +283,24 @@ void sl_output_get_dimensions_original(struct sl_host_output* host,
+ void sl_output_update_output_x(struct sl_context* ctx) {
+   // Outputs are positioned in a line from left to right based off their x
+   // position.
++  // There's one sl_host_output per client bind, so a client that binds the
++  // same output twice has two entries for it. They share the host's
++  // position (the list is sorted by x): give them the same virt_x, or the
++  // second copy looks like another monitor to the right of the first.
+   int next_output_x = 0;
++  struct sl_host_output* prev = nullptr;
+   for (auto output : ctx->host_outputs) {
++    bool same_output = prev && prev->x == output->x && prev->y == output->y;
++    int virt_x = same_output ? prev->virt_x : next_output_x;
+     // Update the value and mark for sending.
+-    if (output->virt_x != next_output_x) {
+-      output->virt_x = next_output_x;
++    if (output->virt_x != virt_x) {
++      output->virt_x = virt_x;
+       output->needs_update = true;
+     }
+-    next_output_x += output->virt_rotated_width;
++    if (!same_output) {
++      next_output_x += output->virt_rotated_width;
++      prev = output;
++    }
+   }
+ }
+ 
