@@ -175,8 +175,7 @@ fn export(cid: u32, list: &AppList, exe: &Path) {
         desktop_files.insert(name);
     }
 
-    let prefix = menu::file_prefix(vm);
-    remove_others(&apps_dir, |name| name.starts_with(&prefix) && name.ends_with(".desktop"), &desktop_files);
+    remove_others(&apps_dir, |name| is_vms_desktop_file(&apps_dir, vm, name), &desktop_files);
     remove_others(&icons, |_| true, &icon_files);
     eprintln!("carte: {vm}: {} applications", desktop_files.len());
 }
@@ -255,6 +254,12 @@ fn write_if_changed(path: &Path, data: &[u8]) -> io::Result<()> {
     fs::rename(&tmp, path)
 }
 
+/// Whether `name` in `dir` is a .desktop file carte wrote for `vm`.
+fn is_vms_desktop_file(dir: &Path, vm: &str, name: &str) -> bool {
+    name.starts_with("carte-")
+        && fs::read_to_string(dir.join(name)).is_ok_and(|text| menu::belongs_to(vm, name, &text))
+}
+
 /// Removes the files in `dir` that match `ours` but aren't in `keep`.
 fn remove_others(dir: &Path, ours: impl Fn(&str) -> bool, keep: &HashSet<impl AsRef<std::ffi::OsStr> + Eq + std::hash::Hash>) {
     let Ok(entries) = fs::read_dir(dir) else { return };
@@ -301,9 +306,9 @@ fn try_launch(vm: &str, id: &str) -> Result<(), String> {
 
 fn remove(vm: &str) -> Result<(), String> {
     check_vm(vm)?;
-    let prefix = menu::file_prefix(vm);
+    let apps_dir = applications_dir();
     let none: HashSet<String> = HashSet::new();
-    remove_others(&applications_dir(), |name| name.starts_with(&prefix) && name.ends_with(".desktop"), &none);
+    remove_others(&apps_dir, |name| is_vms_desktop_file(&apps_dir, vm, name), &none);
     match fs::remove_dir_all(icon_dir(vm)) {
         Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(format!("removing icons: {e}")),
         _ => {}

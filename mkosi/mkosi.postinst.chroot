@@ -11,13 +11,6 @@ set -euo pipefail
 : "${GUEST_ADDRESS:=192.168.10.2/24}"
 : "${GUEST_GATEWAY:=192.168.10.1}"
 : "${GUEST_DNS:=1.1.1.1,9.9.9.9}"
-: "${VM_NAME:=$DISTRIBUTION}"
-
-# The host names its files carte-<VM_NAME>-<app>.desktop, so no '-'.
-if [[ ! "$VM_NAME" =~ ^[A-Za-z0-9_][A-Za-z0-9_.]{0,63}$ ]]; then
-    echo "VM_NAME: '$VM_NAME' must be letters, digits, '_' and '.'" >&2
-    exit 1
-fi
 
 is_true() {
     case "${1,,}" in
@@ -145,16 +138,6 @@ install -d /etc/systemd/network
 # /etc/resolv.conf -> resolved stub is set up in mkosi.finalize: here it is a
 # read-only bind mount of the host's file (WithNetwork=yes).
 systemctl enable systemd-networkd.service systemd-resolved.service systemd-network-generator.service
-
-# --- carte-agent ------------------------------------------------------------
-# Shows the guest's applications in the host's application menu (see
-# vm_tools/carte/). sommelier puts the VM name in every window's app_id
-# (org.chromium.guest_os.<name>.wayland.<app_id>), and the agent tells the
-# host the same name, so the host can match windows to its menu entries.
-# This stays out of $home, like everything here, so the image keeps working
-# when maitred mounts a host directory over it (SharedHome=).
-install -d /etc/environment.d
-echo "SOMMELIER_VM_IDENTIFIER=$VM_NAME" > /etc/environment.d/60-carte.conf
 
 # --- audio ------------------------------------------------------------------
 # PipeWire for the virtio-snd card (Audio=yes in the VM's config). Enabled

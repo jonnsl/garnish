@@ -64,8 +64,9 @@ There is no serial console to type into. The guest's console output goes to
 
 ## VM configuration
 
-One file per VM, `~/.config/garnish/vms/<name>.conf`. The name may contain
-letters, digits, `_`, `.` and `-`, at most 32 characters. The format is the
+One file per VM, `~/.config/garnish/vms/<name>.conf`. The name is also the
+guest's hostname, so it may contain letters, digits and `-` (not at the start
+or end), at most 32 characters. The format is the
 one systemd and mkosi use:
 
 - `[Section]` headers and `Key=Value` settings; `#` and `;` start comments
@@ -106,6 +107,8 @@ The default kernel command line is the image's (`KernelCommandLine=` in
 `mkosi/mkosi.conf`): `root=PARTLABEL=root rw console=ttyS0
 systemd.firstboot=off video=Virtual-1:d`. maitred adds to it:
 
+- `systemd.hostname=<name>`: the guest is named after its configuration file.
+  sommelier and carte-agent use the hostname as the VM's name
 - with `Network=yes`, `ip=<guest>::<host>:255.255.255.252::eth0:off:<dns>`
   and `net.ifnames=0`: the guest's address, gateway and DNS servers
 - with `SharedHome=`, `systemd.mount-extra=` to mount it over

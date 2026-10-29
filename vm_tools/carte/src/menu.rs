@@ -16,14 +16,19 @@ pub fn window_app_id(vm: &str, app_id: &str) -> String {
     format!("org.chromium.guest_os.{vm}.wayland.{app_id}")
 }
 
-/// File name in ~/.local/share/applications. VM names have no '-', so the
-/// prefix carte-<vm>- belongs to exactly one VM.
+/// File name in ~/.local/share/applications. VM names have no '.', so two
+/// VMs can't end up with the same file.
 pub fn file_name(vm: &str, id: &str) -> String {
-    format!("{}{id}.desktop", file_prefix(vm))
+    format!("carte-{vm}.{id}.desktop")
 }
 
-pub fn file_prefix(vm: &str) -> String {
-    format!("carte-{vm}-")
+/// Whether the .desktop file `name` with contents `text` is one of `vm`'s.
+/// It goes by X-Carte-VM=, so it also finds the files of older versions,
+/// which were named carte-<vm>-<id>.desktop.
+pub fn belongs_to(vm: &str, name: &str, text: &str) -> bool {
+    name.starts_with("carte-")
+        && name.ends_with(".desktop")
+        && text.lines().any(|l| l.strip_prefix("X-Carte-VM=") == Some(vm))
 }
 
 /// The .desktop file for `app`. `exe` is the carte binary, which Exec= runs
@@ -150,6 +155,18 @@ mod tests {
              StartupWMClass=org.chromium.guest_os.debian.wayland.org.gnome.Calculator\n\
              X-Carte-VM=debian\nX-Carte-Id=org.gnome.Calculator\n"
         );
+    }
+
+    #[test]
+    fn file_names() {
+        assert_eq!(file_name("debian-2", "org.gnome.Calculator"), "carte-debian-2.org.gnome.Calculator.desktop");
+        let text = render("debian", &app(), None, Path::new("/usr/bin/carte"));
+        assert!(belongs_to("debian", "carte-debian.x.desktop", &text));
+        // Files from before VM names could contain '-'.
+        assert!(belongs_to("debian", "carte-debian-x.desktop", &text));
+        assert!(!belongs_to("debian-2", "carte-debian.x.desktop", &text));
+        assert!(!belongs_to("deb", "carte-debian.x.desktop", &text));
+        assert!(!belongs_to("debian", "other.desktop", &text));
     }
 
     #[test]

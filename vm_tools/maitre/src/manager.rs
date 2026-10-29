@@ -367,7 +367,7 @@ impl Manager {
 
         truncate("console")?;
         truncate("crosvm")?;
-        let args = vm::crosvm_args(config, res, paths, unsafe { libc::getuid() }, unsafe { libc::getgid() });
+        let args = vm::crosvm_args(name, config, res, paths, unsafe { libc::getuid() }, unsafe { libc::getgid() });
         let mut crosvm = vm::spawn("crosvm", &args, &paths.log("console"), &paths.log("crosvm")).map_err(failed)?;
 
         let socket = paths.control_socket();

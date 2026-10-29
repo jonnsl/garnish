@@ -17,8 +17,7 @@ scripts, so they're on as soon as the package is installed. To turn one
 off, mask it.
 
 What stays in the image build (`mkosi/`): the user, sudo, ssh over vsock,
-the network, linger, and `/etc/environment.d/60-carte.conf` with the VM
-name. Those differ per image, or (the `sshd-vsock` units) have to be in
+the network and linger. Those differ per image, or (the `sshd-vsock` units) have to be in
 `/etc` to take precedence over systemd's ssh generator.
 
 ## Building

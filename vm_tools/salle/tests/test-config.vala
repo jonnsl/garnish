@@ -106,7 +106,9 @@ void test_helpers () {
     assert (IniFile.format_path ("/home/me/a.raw") == "~/a.raw");
     assert (VmConfig.replace_extension ("/x/debian.raw", ".vmlinuz") == "/x/debian.vmlinuz");
     assert (VmConfig.replace_extension ("/x.d/debian", ".vmlinuz") == "/x.d/debian.vmlinuz");
-    assert (VmConfig.is_valid_name ("fedora-44.work_1"));
+    assert (VmConfig.is_valid_name ("fedora-44-work") && VmConfig.is_valid_name ("a"));
+    assert (!VmConfig.is_valid_name ("work_1") && !VmConfig.is_valid_name ("fedora.work"));
+    assert (!VmConfig.is_valid_name ("-x") && !VmConfig.is_valid_name ("x-") && !VmConfig.is_valid_name (string.nfill (33, 'x')));
     assert (!VmConfig.is_valid_name (".hidden") && !VmConfig.is_valid_name ("a/b") && !VmConfig.is_valid_name (""));
     assert (VmConfig.format_memory (4096) == "4G" && VmConfig.format_memory (1536) == "1536M");
 }

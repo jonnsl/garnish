@@ -61,9 +61,10 @@ namespace Salle {
             owned get { return path_for (name); }
         }
 
-        /* VM names are also file names and socket paths, so short and plain */
+        /* VM names are also the guest's hostname, file names and socket paths, so short and plain.
+         * Same rule as is_valid_name in maitre's config.rs. */
         public static bool is_valid_name (string name) {
-            return Regex.match_simple ("^[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}$", name);
+            return Regex.match_simple ("^[A-Za-z0-9]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$", name);
         }
 
         public static bool is_valid_user (string user) {

@@ -1,13 +1,13 @@
 # bash completion for carte                               -*- shell-script -*-
 
-# The VMs with launchers: ~/.local/share/applications/carte-<vm>-<id>.desktop
+# The VMs with launchers: ~/.local/share/applications/carte-<vm>.<id>.desktop
 _carte_vms()
 {
     local dir=${XDG_DATA_HOME:-$HOME/.local/share}/applications f
-    for f in "$dir"/carte-*-*.desktop; do
+    for f in "$dir"/carte-*.*.desktop; do
         [[ -f $f ]] || continue
         f=${f##*/carte-}
-        printf '%s\n' "${f%%-*}"
+        printf '%s\n' "${f%%.*}"
     done | sort -u
 }
 
@@ -15,9 +15,9 @@ _carte_vms()
 _carte_apps()
 {
     local dir=${XDG_DATA_HOME:-$HOME/.local/share}/applications f
-    for f in "$dir"/carte-"$1"-*.desktop; do
+    for f in "$dir"/carte-"$1".*.desktop; do
         [[ -f $f ]] || continue
-        f=${f##*/carte-"$1"-}
+        f=${f##*/carte-"$1".}
         printf '%s\n' "${f%.desktop}"
     done
 }

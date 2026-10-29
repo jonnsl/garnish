@@ -1,19 +1,19 @@
 #compdef carte
 
-# The VMs with launchers: ~/.local/share/applications/carte-<vm>-<id>.desktop
+# The VMs with launchers: ~/.local/share/applications/carte-<vm>.<id>.desktop
 _carte_vms() {
   local -a files vms
-  files=(${XDG_DATA_HOME:-$HOME/.local/share}/applications/carte-*-*.desktop(N.:t))
+  files=(${XDG_DATA_HOME:-$HOME/.local/share}/applications/carte-*.*.desktop(N.:t))
   files=(${files#carte-})
-  vms=(${(u)files%%-*})
+  vms=(${(u)files%%.*})
   _describe -t vms 'VM' vms
 }
 
 # The applications of a VM, by ID
 _carte_apps() {
   local -a apps
-  apps=(${XDG_DATA_HOME:-$HOME/.local/share}/applications/carte-$1-*.desktop(N.:t:r))
-  apps=(${apps#carte-$1-})
+  apps=(${XDG_DATA_HOME:-$HOME/.local/share}/applications/carte-$1.*.desktop(N.:t:r))
+  apps=(${apps#carte-$1.})
   _describe -t apps 'application' apps
 }
 

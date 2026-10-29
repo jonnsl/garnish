@@ -39,7 +39,8 @@ pub enum Request {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppList {
-    /// The VM's name: sommelier's --vm-identifier, which is also part of the
+    /// The VM's name: the guest's hostname, sommelier's --vm-identifier, which
+    /// is also part of the
     /// app_id of every window that comes from this VM.
     pub vm: String,
     pub apps: Vec<App>,
@@ -113,13 +114,15 @@ pub fn is_valid_id(id: &str) -> bool {
         && id.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
 }
 
-/// Like [`is_valid_id`] but without '-': the host names files
-/// carte-<vm>-<id>.desktop, and a '-' in <vm> would make that ambiguous.
+/// VM names are the guest's hostname, a single label: letters, digits and
+/// '-', not at either end. Without '.', the host's file names
+/// carte-<vm>.<id>.desktop can't be mistaken for another VM's.
 pub fn is_valid_vm(vm: &str) -> bool {
     !vm.is_empty()
-        && vm.len() <= 64
-        && !vm.starts_with('.')
-        && vm.bytes().all(|b| b.is_ascii_alphanumeric() || b"._".contains(&b))
+        && vm.len() <= 63
+        && !vm.starts_with('-')
+        && !vm.ends_with('-')
+        && vm.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 #[cfg(test)]
@@ -161,6 +164,9 @@ mod tests {
         assert!(!is_valid_id("a b"));
         assert!(!is_valid_id(".hidden"));
         assert!(is_valid_vm("debian"));
-        assert!(!is_valid_vm("debian-2"));
+        assert!(is_valid_vm("debian-2"));
+        assert!(!is_valid_vm("debian.work"));
+        assert!(!is_valid_vm("debian_2"));
+        assert!(!is_valid_vm("-x") && !is_valid_vm("x-"));
     }
 }

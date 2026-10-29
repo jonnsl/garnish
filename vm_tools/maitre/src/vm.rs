@@ -48,8 +48,12 @@ impl Paths {
     }
 }
 
-pub fn kernel_cmdline(config: &VmConfig, res: &Resources) -> String {
-    let mut params: Vec<String> = vec![config.cmdline.clone()];
+/// The kernel command line for the VM called `name`.
+pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String {
+    // The guest is named after its configuration file. sommelier and
+    // carte-agent use the hostname as the VM's name, so windows and menu
+    // entries can be told apart.
+    let mut params: Vec<String> = vec![config.cmdline.clone(), format!("systemd.hostname={name}")];
     if let Some(net) = &res.net {
         // systemd-network-generator turns this into a .network file that
         // takes precedence over the image's static one. It needs the
@@ -74,8 +78,9 @@ pub fn kernel_cmdline(config: &VmConfig, res: &Resources) -> String {
     params.join(" ")
 }
 
-/// `crosvm` and its arguments. `host_uid`/`host_gid` own the shared home.
-pub fn crosvm_args(config: &VmConfig, res: &Resources, paths: &Paths, host_uid: u32, host_gid: u32) -> Vec<OsString> {
+/// `crosvm` and its arguments for the VM called `name`. `host_uid`/`host_gid`
+/// own the shared home.
+pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths, host_uid: u32, host_gid: u32) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
     let mut arg = |a: &str| args.push(a.into());
     arg("--extended-status");
@@ -93,7 +98,7 @@ pub fn crosvm_args(config: &VmConfig, res: &Resources, paths: &Paths, host_uid: 
         args.push(initrd.into());
     }
     args.push("--params".into());
-    args.push(kernel_cmdline(config, res).into());
+    args.push(kernel_cmdline(name, config, res).into());
     args.push("--vsock".into());
     args.push(format!("cid={}", res.cid).into());
     if config.wayland {
@@ -232,22 +237,22 @@ mod tests {
     fn cmdline() {
         let c = config("[Boot]\nImage=d.raw\nKernelCommandLineExtra=quiet\n[Machine]\nSharedHome=/h\n");
         assert_eq!(
-            kernel_cmdline(&c, &net()),
+            kernel_cmdline("debian", &c, &net()),
             format!(
-                "{} ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:off:1.1.1.1:9.9.9.9 net.ifnames=0 \
+                "{} systemd.hostname=debian ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:off:1.1.1.1:9.9.9.9 net.ifnames=0 \
                  systemd.mount-extra=home:/home/me:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service quiet",
                 crate::config::DEFAULT_CMDLINE
             )
         );
         let no_net = Resources { cid: 3, net: None, dns: vec![] };
-        assert_eq!(kernel_cmdline(&c, &no_net).matches("ip=").count(), 0);
+        assert_eq!(kernel_cmdline("debian", &c, &no_net).matches("ip=").count(), 0);
     }
 
     #[test]
     fn crosvm() {
         let c = config("[Boot]\nImage=d.raw\nInitrd=d.initrd\n[Machine]\nCPUs=2\nMemory=2G\nAudio=yes\nSharedHome=/h\nExtraArguments=--x 'y z'\n");
-        let args = strings(crosvm_args(&c, &net(), &paths(), 1001, 1002));
-        let cmdline = kernel_cmdline(&c, &net());
+        let args = strings(crosvm_args("debian", &c, &net(), &paths(), 1001, 1002));
+        let cmdline = kernel_cmdline("debian", &c, &net());
         let expected = [
             "--extended-status",
             "run",
@@ -288,7 +293,7 @@ mod tests {
     fn minimal() {
         let c = config("[Boot]\nImage=d.raw\nInitrd=\n[Machine]\nWayland=no\nGpuContextTypes=\n");
         let res = Resources { cid: 3, net: None, dns: vec![] };
-        let args = strings(crosvm_args(&c, &res, &paths(), 1000, 1000));
+        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
         for absent in ["--gpu", "--wayland-sock", "--net", "--shared-dir", "--vhost-user"] {
             assert!(!args.iter().any(|a| a == absent), "{absent} in {args:?}");
         }

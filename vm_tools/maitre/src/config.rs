@@ -37,12 +37,15 @@ pub struct VmConfig {
     pub app_menu: bool,
 }
 
-/// VM names: also used in file names and socket paths, so short and plain.
+/// VM names: also the guest's hostname, and used in file names and socket
+/// paths, so short and plain: a hostname label (letters, digits and '-', not
+/// at either end).
 pub fn is_valid_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    chars.next().is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+    !name.is_empty()
         && name.len() <= 32
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 fn bool_value(e: &Entry) -> Result<bool, String> {
@@ -340,9 +343,12 @@ mod tests {
     #[test]
     fn names() {
         assert!(is_valid_name("debian"));
-        assert!(is_valid_name("fedora-44.work_1"));
+        assert!(is_valid_name("fedora-44-work"));
         assert!(!is_valid_name(""));
         assert!(!is_valid_name(".hidden"));
+        assert!(!is_valid_name("work_1"));
+        assert!(!is_valid_name("fedora.work"));
+        assert!(!is_valid_name("-x") && !is_valid_name("x-"));
         assert!(!is_valid_name("a/b"));
         assert!(!is_valid_name(&"x".repeat(33)));
     }

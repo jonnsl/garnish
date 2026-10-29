@@ -319,8 +319,11 @@ msgstr "Dê um nome à máquina virtual"
 
 #: src/dialogs/vm-dialog.vala:155
 msgid ""
-"Names can have letters, digits, “_”, “.” and “-”, and at most 32 characters"
-msgstr "Nomes podem ter letras, dígitos, “_”, “.” e “-”, e no máximo 32 caracteres"
+"Names can have letters, digits and “-” (not at the start or end), and at most "
+"32 characters"
+msgstr ""
+"Nomes podem ter letras, dígitos e “-” (não no início nem no fim), e no máximo "
+"32 caracteres"
 
 #: src/dialogs/vm-dialog.vala:158 src/models/vm-config.vala:268
 #, c-format

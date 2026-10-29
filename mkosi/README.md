@@ -69,7 +69,6 @@ These are set with `Environment=` in `mkosi/mkosi.conf`. Override them per build
 | `GUEST_ADDRESS`     | `192.168.10.2/24`| guest address when the kernel command line has no `ip=` |
 | `GUEST_GATEWAY`     | `192.168.10.1`   | default gateway, likewise                        |
 | `GUEST_DNS`         | `1.1.1.1,9.9.9.9`| comma-separated DNS servers, likewise            |
-| `VM_NAME`           | the distribution | name in the host's app menu and window app_ids   |
 
 ```sh
 mkosi -d debian -E PASSWORDLESS_SUDO=no -E GUEST_PASSWORD=hunter2 build
@@ -137,9 +136,12 @@ the build scripts can reach `vm_tools/`.
 - Applications started from the host's menu run with the user manager's
   environment, which is why the Wayland variables are also in
   `/usr/lib/environment.d/50-garnish-wayland.conf`.
-- `VM_NAME` is appended to the application names in the host's menu, and it's
-  also sommelier's VM identifier, so GNOME can match windows to their launcher.
-  It is not the name of the maitre configuration.
+- The guest's hostname is the VM's name: maitred adds `systemd.hostname=<name>`
+  to the kernel command line, `<name>` being the name of the VM's configuration.
+  The hostname is appended to the application names in the host's menu, and
+  it's also sommelier's VM identifier, so GNOME can match windows to their
+  launcher. `Hostname=` in `mkosi.conf.d/` is only used when the image is
+  booted some other way.
 - mkosi builds rootless, so the build can't make files owned by the guest
   user (chown fails with `Invalid argument`). `guest-home-owner.service` runs
   `chown -R` on the home directory once at first boot, before user sessions

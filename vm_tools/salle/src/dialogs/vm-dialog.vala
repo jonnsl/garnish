@@ -156,7 +156,7 @@ namespace Salle {
                     return _("Give the virtual machine a name");
                 }
                 if (!VmConfig.is_valid_name (name)) {
-                    return _("Names can have letters, digits, “_”, “.” and “-”, and at most 32 characters");
+                    return _("Names can have letters, digits and “-” (not at the start or end), and at most 32 characters");
                 }
                 if (FileUtils.test (VmConfig.path_for (name), FileTest.EXISTS)) {
                     return _("There already is a virtual machine named “%s”").printf (name);

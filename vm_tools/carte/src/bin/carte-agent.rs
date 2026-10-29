@@ -50,13 +50,19 @@ impl Shared {
 }
 
 fn main() {
-    // sommelier names windows after this, so it's how the host tells VMs apart.
-    let vm = std::env::var("SOMMELIER_VM_IDENTIFIER")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "termina".into());
+    // The VM's name is the hostname, which maitred sets to the name of the
+    // VM's configuration. sommelier names windows after it too
+    // (--vm-identifier=%H in sommelier.service), so it's how the host tells
+    // VMs and their windows apart.
+    let vm = match std::fs::read_to_string("/proc/sys/kernel/hostname") {
+        Ok(name) => name.trim().to_owned(),
+        Err(e) => {
+            eprintln!("carte-agent: reading the hostname: {e}");
+            process::exit(1);
+        }
+    };
     if !proto::is_valid_vm(&vm) {
-        eprintln!("carte-agent: invalid VM name {vm:?}: use letters, digits, '_' and '.'");
+        eprintln!("carte-agent: invalid VM name (hostname) {vm:?}: use letters, digits and '-'");
         process::exit(1);
     }
     let vm: &'static str = vm.leak();

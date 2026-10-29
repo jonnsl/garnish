@@ -24,8 +24,7 @@ cargo build --release --locked --bin carte-agent
 install -D target/release/carte-agent ~/.local/bin/carte-agent
 ```
 
-and run it from a user unit, with `SOMMELIER_VM_IDENTIFIER` set as for
-sommelier (see [VM names](#vm-names)).
+and run it from a user unit (see [VM names](#vm-names)).
 
 On the host:
 
@@ -63,7 +62,7 @@ carte remove debian         # delete debian's launchers and icons
 `carte sync` waits for the agent, retrying every second, and reconnects when
 the agent restarts or the VM reboots. On every change in the guest it:
 
-- writes `~/.local/share/applications/carte-<vm>-<id>.desktop`,
+- writes `~/.local/share/applications/carte-<vm>.<id>.desktop`,
 - fetches the icon into `~/.local/share/carte/icons/<vm>/<id>.{png,svg}`,
 - removes the launchers and icons of applications that are gone.
 
@@ -113,14 +112,19 @@ manager's environment. That environment needs the Wayland variables
 
 sommelier renames the app_id of every Wayland window to
 `org.chromium.guest_os.<vm>.wayland.<app_id>`, where `<vm>` is
-`SOMMELIER_VM_IDENTIFIER` (default `termina`). The agent reads the same
-variable and sends it as the VM name, and the launchers set `StartupWMClass` to
+its `--vm-identifier`. The guest packages start sommelier with
+`--vm-identifier=%H`, the hostname, which maitred sets to the name of the VM's
+configuration (`systemd.hostname=`). The agent sends the hostname as the VM
+name, and the launchers set `StartupWMClass` to
 that renamed app_id. GNOME uses it to show a window under its launcher instead
 of with a generic icon. This is best effort: it only works for applications
 whose app_id is their desktop ID or their `StartupWMClass`.
 
-VM names may contain letters, digits, `_` and `.` (no `-`, so the
-`carte-<vm>-` prefix belongs to one VM) and are at most 64 characters.
+VM names are a single hostname label: letters, digits and `-` (not at the
+start or end), at most 63 characters. The host names its files
+`carte-<vm>.<id>.desktop`; with no `.` in `<vm>`, two VMs can't share a file.
+carte finds a VM's files by their `X-Carte-VM=` key, so it also cleans up
+those of older versions, named `carte-<vm>-<id>.desktop`.
 
 ## Protocol
 
