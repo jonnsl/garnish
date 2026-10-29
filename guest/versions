@@ -7,7 +7,7 @@
 : "${SOMMELIER_REPO:=https://chromium.googlesource.com/chromiumos/platform2}"
 : "${SOMMELIER_COMMIT:=04bee29b721ea50aa0b4188a625e0cee615e32f5}"
 # Bump when the patches or the packaging change; back to 1 with a new commit.
-: "${SOMMELIER_RELEASE:=3}"
+: "${SOMMELIER_RELEASE:=4}"
 
 : "${GARNISH_GUEST_VERSION:=0.1.0}"
 : "${GARNISH_GUEST_RELEASE:=2}"

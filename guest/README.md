@@ -72,6 +72,9 @@ sent upstream as they are.
   two transfers overlapped.
 - `0002-output-one-position-per-host-output.patch`: an app that binds a
   monitor twice (Firefox) saw a second copy of it to the right of the first.
+- `0003-compositor-drop-the-fake-surface-enter.patch`: Firefox ignored its
+  saved window size and opened at 500x200, because sommelier made new
+  windows enter an output before their first configure.
 
 ## Updating a running guest
 

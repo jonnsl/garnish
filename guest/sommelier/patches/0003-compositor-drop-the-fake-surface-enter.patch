@@ -1,0 +1,42 @@
+sommelier: don't make new surfaces enter an output on their first commit
+
+On the first commit of a surface with a role, sommelier sends
+wl_surface.enter for the internal output if the host hasn't sent one, a
+workaround for Chrome, which didn't track which output a surface is on.
+For an xdg_toplevel that commit is the initial one, without a buffer,
+before the first configure.
+
+GTK takes the enter as a scale change, and Firefox recomputes its bounds
+from its window, still at GTK's placeholder size. That size replaces the
+one Firefox restored from its last session, so Firefox opens at its
+minimum size, 500x200, every time.
+
+Host compositors like Mutter and KWin send wl_surface.enter themselves
+once the surface is on an output, and sl_surface_enter forwards it. Drop
+the workaround.
+
+diff --git a/vm_tools/sommelier/compositor/sommelier-compositor.cc b/vm_tools/sommelier/compositor/sommelier-compositor.cc
+index 23a35a7..da30f1d 100644
+--- a/vm_tools/sommelier/compositor/sommelier-compositor.cc
++++ b/vm_tools/sommelier/compositor/sommelier-compositor.cc
+@@ -783,20 +783,6 @@ void sl_host_surface_commit(struct wl_client* client,
+     TRACE_EVENT("surface", "sl_host_surface_commit: wl_surface_commit",
+                 "resource_id", resource_id, "has_role", host->has_role);
+     wl_surface_commit(host->proxy);
+-
+-    // GTK determines the scale based on the output the surface has entered.
+-    // If the surface has not entered any output, then have it enter the
+-    // internal output. TODO(reveman): Remove this when surface-output tracking
+-    // has been implemented in Chrome.
+-    if (!host->has_output) {
+-      for (auto output : host->ctx->host_outputs) {
+-        if (output->internal) {
+-          wl_surface_send_enter(host->resource, output->resource);
+-          host->has_output = 1;
+-          break;
+-        }
+-      }
+-    }
+   } else {
+     TRACE_EVENT("surface", "sl_host_surface_commit: wl_surface_commit",
+                 "resource_id", resource_id, "has_role", host->has_role);
