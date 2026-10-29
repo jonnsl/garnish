@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "rust-lang.rust-analyzer",
+        "prince781.vala",
+        "bodil.blueprint-gtk"
+    ]
+}
