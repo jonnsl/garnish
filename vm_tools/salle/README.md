@@ -14,7 +14,7 @@ mkosi.
 ## Building
 
 Dependencies: `meson`, `valac`, `blueprint-compiler`, `gtk4 >= 4.18`,
-`libadwaita-1 >= 1.8`. At runtime, maitred (see its README, Install).
+`libadwaita-1 >= 1.8`, `libpulse` (with its GLib main loop). At runtime, maitred (see its README, Install).
 
 ```sh
 meson setup build -Dprofile=development
@@ -52,6 +52,15 @@ build-aux/check-style.sh --fix   # reformat in place
 - **Running VMs**: the ssh command (`ssh <user>@vsock/<cid>`, to copy or to
   open in a terminal through `xdg-terminal-exec`), the address, tap, CID and
   crosvm's PID.
+- **Sound**: for a running VM with `Audio=yes`, a volume slider and a mute
+  button. They set the volume of the VM's stream on the host, through
+  PipeWire's PulseAudio server (`node.name=garnish.<name>`, which maitred
+  sets). The stream only exists while the guest has its sound card open,
+  which it closes a few seconds after going quiet. While it's gone, the
+  slider shows the volume WirePlumber saved, and a change waits for the
+  stream to come back (as long as Salle is open). The guest's own output
+  should stay at full volume (`garnish-guest` starts it there), since the
+  host can only turn it down.
 - **New and Edit**: one dialog for the common settings (disk image, CPUs,
   memory, network, Wayland, app menu, sound, microphone, shared home, guest
   user) and, under Advanced, kernel, initrd, extra kernel parameters, GPU

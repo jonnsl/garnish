@@ -20,6 +20,10 @@ namespace Salle {
         [GtkChild] private unowned Adw.ActionRow tap_row;
         [GtkChild] private unowned Adw.ActionRow cid_row;
         [GtkChild] private unowned Adw.ActionRow pid_row;
+        [GtkChild] private unowned Adw.PreferencesGroup sound_group;
+        [GtkChild] private unowned Adw.ActionRow volume_row;
+        [GtkChild] private unowned Gtk.Scale volume_scale;
+        [GtkChild] private unowned Gtk.ToggleButton mute_button;
         [GtkChild] private unowned Adw.PreferencesGroup settings_group;
         [GtkChild] private unowned Adw.ActionRow image_row;
         [GtkChild] private unowned Adw.ActionRow hardware_row;
@@ -29,6 +33,11 @@ namespace Salle {
 
         public Vm vm { get; construct; }
 
+        private bool audio = false;
+        /* Set while the controls show the mixer's values, so that doesn't
+         * count as a change */
+        private bool showing_volume = false;
+
         public VmPage (Vm vm) {
             Object (vm: vm);
         }
@@ -37,13 +46,20 @@ namespace Salle {
             terminal_button.visible = VmActions.terminal_available ();
             vm.notify.connect (update_state);
             Maitre.get_default ().config_changed.connect (on_config_changed);
+            Mixer.get_default ().changed.connect (on_mixer_changed);
+            Mixer.get_default ().notify["available"].connect (update_sound_group);
+            volume_scale.value_changed.connect (on_volume_changed);
+            mute_button.toggled.connect (on_mute_toggled);
             update_state ();
             load_config ();
+            update_volume ();
         }
 
         public override void dispose () {
             vm.notify.disconnect (update_state);
             Maitre.get_default ().config_changed.disconnect (on_config_changed);
+            Mixer.get_default ().changed.disconnect (on_mixer_changed);
+            Mixer.get_default ().notify["available"].disconnect (update_sound_group);
             dispose_template (typeof (VmPage));
             base.dispose ();
         }
@@ -95,6 +111,8 @@ namespace Salle {
             pid_row.visible = vm.pid != 0;
             pid_row.subtitle = vm.pid.to_string ();
 
+            update_sound_group ();
+
             settings_group.description = state != VmState.STOPPED
                 ? _("Changes apply the next time the virtual machine starts")
                 : null;
@@ -138,6 +156,8 @@ namespace Salle {
             if (config.wayland && config.app_menu) {
                 features += _("App Menu");
             }
+            audio = config.audio;
+            update_sound_group ();
             if (config.audio) {
                 features += config.microphone ? _("Sound and Microphone") : _("Sound");
             }
@@ -147,6 +167,44 @@ namespace Salle {
             user_row.subtitle = "%s (%d)".printf (config.effective_user, config.uid);
 
             show_problem (config.problem () ?? config.missing_files ());
+        }
+
+        private void update_sound_group () {
+            sound_group.visible = audio && vm.state == VmState.RUNNING && Mixer.get_default ().available;
+        }
+
+        private void on_mixer_changed (string name) {
+            if (name == vm.name) {
+                update_volume ();
+            }
+        }
+
+        private void update_volume () {
+            var mixer = Mixer.get_default ();
+            var muted = mixer.get_muted (vm.name);
+            showing_volume = true;
+            volume_scale.set_value (mixer.get_volume (vm.name));
+            mute_button.active = muted;
+            showing_volume = false;
+            mute_button.icon_name = muted ? "audio-volume-muted-symbolic" : "audio-volume-high-symbolic";
+            mute_button.tooltip_text = muted ? _("Unmute") : _("Mute");
+            volume_scale.sensitive = !muted;
+            volume_row.subtitle = mixer.is_pending (vm.name)
+                ? _("Applies when the guest next plays sound")
+                : "";
+            update_sound_group ();
+        }
+
+        private void on_volume_changed () {
+            if (!showing_volume) {
+                Mixer.get_default ().set_volume (vm.name, volume_scale.get_value ());
+            }
+        }
+
+        private void on_mute_toggled () {
+            if (!showing_volume) {
+                Mixer.get_default ().set_muted (vm.name, mute_button.active);
+            }
         }
 
         private void show_problem (string? problem) {

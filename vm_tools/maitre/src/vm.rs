@@ -229,21 +229,61 @@ pub fn sound_args(config: &VmConfig, paths: &Paths) -> Vec<OsString> {
     args
 }
 
+/// The `PIPEWIRE_PROPS` that vhost-device-sound's streams get, so the host's
+/// mixers can tell VMs apart. WirePlumber remembers a stream's volume by
+/// `application.id`, so each VM keeps its own volume, even though the stream
+/// is made again whenever the guest reopens its sound card. Salle finds the
+/// stream by `node.name`.
+pub fn sound_props(name: &str, config: &VmConfig) -> (&'static str, String) {
+    let title = config.title.as_deref().unwrap_or(name);
+    let props = format!(
+        "{{ application.id={} application.name={} application.icon-name=computer node.name={} }}",
+        spa_string(&format!("org.garnish.vm.{name}")),
+        spa_string(title),
+        spa_string(&format!("garnish.{name}")),
+    );
+    ("PIPEWIRE_PROPS", props)
+}
+
+/// `s` as a quoted SPA JSON string.
+fn spa_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if c.is_control() => out.push(' '),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 fn prefixed(prefix: &str, path: &Path) -> OsString {
     let mut s = OsString::from(prefix);
     s.push(path);
     s
 }
 
-/// Starts `program` with stdout and stderr appended to `log`, in its own
-/// process group so a Ctrl-C meant for the daemon doesn't reach it. `keep`
-/// stays open in it, with the same number; our other descriptors are
-/// close-on-exec.
-pub fn spawn(program: &str, args: &[OsString], stdout: &Path, stderr: &Path, keep: Option<RawFd>) -> io::Result<Child> {
+/// Starts `program` with `env` added to its environment and stdout and stderr
+/// appended to `log`, in its own process group so a Ctrl-C meant for the
+/// daemon doesn't reach it. `keep` stays open in it, with the same number;
+/// our other descriptors are close-on-exec.
+pub fn spawn(
+    program: &str,
+    args: &[OsString],
+    env: &[(&str, String)],
+    stdout: &Path,
+    stderr: &Path,
+    keep: Option<RawFd>,
+) -> io::Result<Child> {
     let out = File::create(stdout)?;
     let err = if stderr == stdout { out.try_clone()? } else { File::create(stderr)? };
     let mut cmd = Command::new(program);
-    cmd.args(args).stdin(Stdio::null()).stdout(out).stderr(err).process_group(0);
+    cmd.args(args).envs(env.iter().cloned()).stdin(Stdio::null()).stdout(out).stderr(err).process_group(0);
     // If the daemon dies, take the VM down with it rather than leaving it
     // behind with resources nobody tracks. The runtime is single-threaded,
     // so the thread that forks is the one that lives as long as the daemon.
@@ -425,5 +465,17 @@ mod tests {
             strings(sound_args(&c, &paths())),
             ["--socket", "/run/user/1000/garnish/debian/snd.sock", "--backend", "pipewire", "--no-capture"]
         );
+    }
+
+    #[test]
+    fn sound_props() {
+        let c = config("[Boot]\nImage=d.raw\n");
+        assert_eq!(
+            super::sound_props("debian", &c).1,
+            "{ application.id=\"org.garnish.vm.debian\" application.name=\"debian\" \
+             application.icon-name=computer node.name=\"garnish.debian\" }"
+        );
+        let c = config("[Boot]\nImage=d.raw\n[Machine]\nTitle=Débian \"work\" \\ play\n");
+        assert!(super::sound_props("debian", &c).1.contains(r#"application.name="Débian \"work\" \\ play""#));
     }
 }

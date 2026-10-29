@@ -52,13 +52,20 @@ sources = files(
   'dialogs/vm-dialog.vala',
   'main.vala',
   'pages/vm-page.vala',
+  'services/mixer.vala',
   'vm-actions.vala',
   'widgets/vm-row.vala',
   'window.vala',
 )
 
+mixer_deps = [
+  dependency('libpulse'),
+  dependency('libpulse-mainloop-glib'),
+  meson.get_compiler('c').find_library('m'),
+]
+
 executable('salle', sources, resources,
-  dependencies: [deps, core_dep],
+  dependencies: [deps, core_dep, mixer_deps],
   include_directories: config_inc,
   vala_args: [
     '--target-glib=2.80',

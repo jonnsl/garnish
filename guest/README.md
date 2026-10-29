@@ -9,7 +9,9 @@ distribution (Arch, Debian, Ubuntu, Fedora):
 - **`garnish-guest`**: `carte-agent` (from `vm_tools/carte`) and its user
   unit, `maitre-ready.service`, and the Wayland environment
   (`/etc/profile.d/garnish-wayland.sh`,
-  `/usr/lib/environment.d/50-garnish-wayland.conf`). It depends on
+  `/usr/lib/environment.d/50-garnish-wayland.conf`), and a WirePlumber
+  setting that starts the sound output at full volume, since the host sets
+  each VM's volume (Salle, or the host's sound settings). It depends on
   `sommelier`.
 
 The units are enabled by symlinks inside the packages, not by install

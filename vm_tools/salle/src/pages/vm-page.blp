@@ -258,6 +258,42 @@ template $SalleVmPage: Adw.NavigationPage {
             }
           }
 
+          Adw.PreferencesGroup sound_group {
+            title: _("Sound");
+
+            Adw.ActionRow volume_row {
+              title: _("Volume");
+
+              [suffix]
+              Scale volume_scale {
+                hexpand: true;
+                width-request: 160;
+                valign: center;
+                draw-value: false;
+
+                adjustment: Adjustment {
+                  lower: 0;
+                  upper: 1;
+                  step-increment: 0.05;
+                  page-increment: 0.1;
+                };
+
+                accessibility {
+                  label: _("Volume");
+                }
+              }
+
+              [suffix]
+              ToggleButton mute_button {
+                valign: center;
+
+                styles [
+                  "flat",
+                ]
+              }
+            }
+          }
+
           Adw.PreferencesGroup settings_group {
             title: _("Settings");
 

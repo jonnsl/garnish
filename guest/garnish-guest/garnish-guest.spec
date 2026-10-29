@@ -22,8 +22,9 @@ Requires:       systemd
 %description
 The parts of garnish that run in a guest: carte-agent, which shows the
 guest's applications in the host's application menu, maitre-ready.service,
-which tells maitred when the guest has booted, and the environment that
-makes applications use Wayland.
+which tells maitred when the guest has booted, the environment that makes
+applications use Wayland, and a setting that starts the sound output at full
+volume, since the host sets each VM's volume.
 
 %prep
 %autosetup
@@ -44,3 +45,4 @@ cargo build --frozen --release --manifest-path carte/Cargo.toml \
 %{_unitdir}/multi-user.target.wants/maitre-ready.service
 %{_prefix}/lib/environment.d/50-garnish-wayland.conf
 %config(noreplace) %{_sysconfdir}/profile.d/garnish-wayland.sh
+%{_datadir}/wireplumber/wireplumber.conf.d/50-garnish.conf

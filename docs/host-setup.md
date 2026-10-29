@@ -157,3 +157,11 @@ maitre ssh debian speaker-test -c 2 -t wav -l 1
 The host needs PipeWire with a session manager (WirePlumber) running.
 `check-host-audio.sh` checks that, and that crosvm accepts the device.
 The socket is `$XDG_RUNTIME_DIR/garnish/<name>/snd.sock`.
+
+Each VM's sound is its own stream on the host, named after the VM, so its
+volume is set from the host: the slider on the VM's page in Salle, or your
+desktop's sound settings, where it shows by its title. WirePlumber remembers
+it per VM. The host can only turn the guest's sound down, so the guest's own
+output should be at full volume. The `garnish-guest` package starts it
+there, but a guest that saved another volume before keeps it. Fix that once
+with `maitre ssh debian wpctl set-volume @DEFAULT_AUDIO_SINK@ 1.0`.

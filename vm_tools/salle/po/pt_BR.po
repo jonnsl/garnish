@@ -786,3 +786,19 @@ msgstr "Nenhuma máquina virtual selecionada"
 #, c-format
 msgid "%s: %s"
 msgstr "%s: %s"
+
+#: src/pages/vm-page.blp:265 src/pages/vm-page.blp:282
+msgid "Volume"
+msgstr "Volume"
+
+#: src/pages/vm-page.vala:190
+msgid "Unmute"
+msgstr "Ativar som"
+
+#: src/pages/vm-page.vala:190
+msgid "Mute"
+msgstr "Silenciar"
+
+#: src/pages/vm-page.vala:193
+msgid "Applies when the guest next plays sound"
+msgstr "Aplicado quando o convidado tocar som de novo"

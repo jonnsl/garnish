@@ -14,4 +14,5 @@ Description: guest side of garnish
  The parts of garnish that run in a guest: carte-agent, which shows the
  guest's applications in the host's application menu, maitre-ready.service,
  which tells maitred when the guest has booted, and the environment that
- makes applications use Wayland.
+ makes applications use Wayland, and starts the sound output at full
+ volume, since the host sets each VM's volume.

@@ -201,6 +201,12 @@ To start a VM, maitred
    is installed),
 4. starts `crosvm run` and waits for its control socket.
 
+vhost-device-sound gets `PIPEWIRE_PROPS` naming its playback stream after
+the VM: `node.name=garnish.<name>`, `application.name` the title (or the
+name) and `application.id=org.garnish.vm.<name>`. The host's sound settings
+then show each VM by name, WirePlumber remembers each one's volume, and Salle
+finds the stream to set its volume.
+
 `StartVm` returns after step 4, with the VM `booting`. If crosvm exits
 before that, the call fails with the end of crosvm's log.
 

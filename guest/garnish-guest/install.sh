@@ -22,3 +22,5 @@ ln -sf ../maitre-ready.service "$dest/usr/lib/systemd/system/multi-user.target.w
 
 install -Dm644 "$files/garnish-wayland.env" "$dest/usr/lib/environment.d/50-garnish-wayland.conf"
 install -Dm644 "$files/garnish-wayland.sh" "$dest/etc/profile.d/garnish-wayland.sh"
+
+install -Dm644 "$files/garnish-wireplumber.conf" "$dest/usr/share/wireplumber/wireplumber.conf.d/50-garnish.conf"

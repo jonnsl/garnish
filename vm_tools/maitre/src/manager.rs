@@ -373,12 +373,13 @@ impl Manager {
         if let Some(Net::Passt) = res.net {
             truncate("passt")?;
             let log = paths.log("passt");
-            helpers.push(("passt", vm::spawn("passt", &vm::passt_args(paths), &log, &log, None).map_err(failed)?));
+            helpers.push(("passt", vm::spawn("passt", &vm::passt_args(paths), &[], &log, &log, None).map_err(failed)?));
         }
         if config.audio {
             truncate("vhost-device-sound")?;
             let log = paths.log("vhost-device-sound");
-            let child = vm::spawn("vhost-device-sound", &vm::sound_args(config, paths), &log, &log, None).map_err(failed)?;
+            let props = [vm::sound_props(name, config)];
+            let child = vm::spawn("vhost-device-sound", &vm::sound_args(config, paths), &props, &log, &log, None).map_err(failed)?;
             helpers.push(("vhost-device-sound", child));
         }
         if config.app_menu {
@@ -387,7 +388,7 @@ impl Manager {
                 let log = paths.log("carte");
                 // Waits for the guest's carte-agent, and reconnects if it restarts.
                 let args = ["sync".into(), "--cid".into(), res.cid.to_string().into()];
-                helpers.push(("carte", vm::spawn("carte", &args, &log, &log, None).map_err(failed)?));
+                helpers.push(("carte", vm::spawn("carte", &args, &[], &log, &log, None).map_err(failed)?));
             } else {
                 log(format!("{name}: carte isn't installed, the guest's applications won't be in the menu"));
             }
@@ -397,7 +398,7 @@ impl Manager {
         truncate("crosvm")?;
         let args = vm::crosvm_args(name, config, res, paths, unsafe { libc::getuid() }, unsafe { libc::getgid() });
         let tap_fd = res.net.as_ref().and_then(Net::tap_fd);
-        let mut crosvm = vm::spawn("crosvm", &args, &paths.log("console"), &paths.log("crosvm"), tap_fd).map_err(failed)?;
+        let mut crosvm = vm::spawn("crosvm", &args, &[], &paths.log("console"), &paths.log("crosvm"), tap_fd).map_err(failed)?;
 
         let socket = paths.control_socket();
         let deadline = Instant::now() + START_TIMEOUT;
@@ -477,7 +478,7 @@ impl Manager {
                     // the next connection, and carte reconnects.
                     let _ = fs::remove_file(paths.control_socket());
                     let tap_fd = launched.net.as_ref().and_then(Net::tap_fd);
-                    match vm::spawn("crosvm", &launched.args, &paths.log("console"), &paths.log("crosvm"), tap_fd) {
+                    match vm::spawn("crosvm", &launched.args, &[], &paths.log("console"), &paths.log("crosvm"), tap_fd) {
                         Ok(child) => {
                             launched.crosvm = child;
                             self.set_state(&name, self.booting_state(), launched.crosvm.id()).await;
