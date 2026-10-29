@@ -4,13 +4,15 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::io;
 use std::net::Ipv4Addr;
+use std::os::fd::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
 
 use tokio::process::{Child, Command};
 
 use crate::config::VmConfig;
-use crate::pool::NetSlot;
+use crate::net::Tap;
 
 /// crosvm's exit status (with --extended-status) when the guest reboots.
 pub const EXIT_RESET: i32 = 32;
@@ -19,7 +21,9 @@ pub const EXIT_RESET: i32 = 32;
 #[derive(Debug, Clone)]
 pub struct Resources {
     pub cid: u32,
-    pub net: Option<NetSlot>,
+    /// Shared with crosvm, which gets the descriptor. The tap goes away
+    /// once the last copy is dropped and crosvm has exited.
+    pub net: Option<Arc<Tap>>,
     pub dns: Vec<Ipv4Addr>,
 }
 
@@ -59,7 +63,7 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
         // takes precedence over the image's static one. It needs the
         // interface name, hence net.ifnames=0.
         let dns: Vec<String> = res.dns.iter().take(2).map(|a| a.to_string()).collect();
-        let mut ip = format!("ip={}::{}:{}::eth0:off", net.guest, net.host, net.netmask());
+        let mut ip = format!("ip={}::{}:{}::eth0:off", net.info.guest, net.info.host, net.info.netmask());
         if !dns.is_empty() {
             ip = format!("{ip}:{}", dns.join(":"));
         }
@@ -110,8 +114,9 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
         args.push(paths.wayland.clone().into());
     }
     if let Some(net) = &res.net {
+        // `spawn` keeps the descriptor open across exec.
         args.push("--net".into());
-        args.push(format!("tap-name={}", net.tap).into());
+        args.push(format!("tap-fd={}", net.fd.as_raw_fd()).into());
     }
     if let Some(home) = &config.shared_home {
         // The device runs in a user namespace where only the guest user's
@@ -158,8 +163,10 @@ fn prefixed(prefix: &str, path: &Path) -> OsString {
 }
 
 /// Starts `program` with stdout and stderr appended to `log`, in its own
-/// process group so a Ctrl-C meant for the daemon doesn't reach it.
-pub fn spawn(program: &str, args: &[OsString], stdout: &Path, stderr: &Path) -> io::Result<Child> {
+/// process group so a Ctrl-C meant for the daemon doesn't reach it. `keep`
+/// stays open in it, with the same number; our other descriptors are
+/// close-on-exec.
+pub fn spawn(program: &str, args: &[OsString], stdout: &Path, stderr: &Path, keep: Option<RawFd>) -> io::Result<Child> {
     let out = File::create(stdout)?;
     let err = if stderr == stdout { out.try_clone()? } else { File::create(stderr)? };
     let mut cmd = Command::new(program);
@@ -168,8 +175,13 @@ pub fn spawn(program: &str, args: &[OsString], stdout: &Path, stderr: &Path) -> 
     // behind with resources nobody tracks. The runtime is single-threaded,
     // so the thread that forks is the one that lives as long as the daemon.
     unsafe {
-        cmd.pre_exec(|| {
+        cmd.pre_exec(move || {
             if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            if let Some(fd) = keep
+                && libc::fcntl(fd, libc::F_SETFD, 0) != 0
+            {
                 return Err(io::Error::last_os_error());
             }
             Ok(())
@@ -209,14 +221,11 @@ mod tests {
     }
 
     fn net() -> Resources {
+        // Any descriptor will do.
+        let fd = File::open("/dev/null").unwrap().into();
         Resources {
             cid: 7,
-            net: Some(NetSlot {
-                index: 1,
-                tap: "crosvm_tap1".into(),
-                host: Ipv4Addr::new(192, 168, 10, 5),
-                guest: Ipv4Addr::new(192, 168, 10, 6),
-            }),
+            net: Some(Arc::new(Tap { info: crate::net::NetConfig::default().slot(1), fd })),
             dns: vec![Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)],
         }
     }
@@ -251,8 +260,10 @@ mod tests {
     #[test]
     fn crosvm() {
         let c = config("[Boot]\nImage=d.raw\nInitrd=d.initrd\n[Machine]\nCPUs=2\nMemory=2G\nAudio=yes\nSharedHome=/h\nExtraArguments=--x 'y z'\n");
-        let args = strings(crosvm_args("debian", &c, &net(), &paths(), 1001, 1002));
-        let cmdline = kernel_cmdline("debian", &c, &net());
+        let res = net();
+        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1001, 1002));
+        let cmdline = kernel_cmdline("debian", &c, &res);
+        let tap_fd = format!("tap-fd={}", res.net.as_ref().unwrap().fd.as_raw_fd());
         let expected = [
             "--extended-status",
             "run",
@@ -275,7 +286,7 @@ mod tests {
             "--wayland-sock",
             "/run/user/1000/wayland-0",
             "--net",
-            "tap-name=crosvm_tap1",
+            &tap_fd,
             "--shared-dir",
             "/h:home:type=fs:cache=auto:uidmap=1000 1001 1:gidmap=1000 1002 1:uid=1000:gid=1000",
             "--vhost-user",

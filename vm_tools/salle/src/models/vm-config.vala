@@ -12,6 +12,8 @@ namespace Salle {
         public const int64 DEFAULT_MEMORY_MIB = 4096;
         public const int DEFAULT_UID = 1000;
         public const string DEFAULT_GPU_CONTEXT_TYPES = "cross-domain";
+        /* [Network] Mode=: "nat" or "none" */
+        public const string DEFAULT_NETWORK_MODE = "nat";
         /* Smallest amount of memory maitre accepts */
         public const int64 MIN_MEMORY_MIB = 128;
 
@@ -27,7 +29,7 @@ namespace Salle {
         public string? title { get; set; }
         public int cpus { get; set; default = DEFAULT_CPUS; }
         public int64 memory_mib { get; set; default = DEFAULT_MEMORY_MIB; }
-        public bool network { get; set; default = true; }
+        public string network_mode { get; set; default = DEFAULT_NETWORK_MODE; }
         public string? shared_home { get; set; }
         public bool audio { get; set; default = false; }
         public bool microphone { get; set; default = false; }
@@ -131,9 +133,6 @@ namespace Salle {
                     memory_mib = bytes >> 20;
                 }
                 break;
-            case "Machine/Network":
-                network = empty || (IniFile.parse_bool (v) ?? network);
-                break;
             case "Machine/SharedHome":
                 shared_home = empty ? null : IniFile.resolve_path (v, dir);
                 break;
@@ -158,6 +157,9 @@ namespace Salle {
             case "Guest/UID":
                 int64 n;
                 uid = empty ? DEFAULT_UID : (int64.try_parse (v, out n) && n >= 0 && n < int.MAX ? (int) n : uid);
+                break;
+            case "Network/Mode":
+                network_mode = empty ? DEFAULT_NETWORK_MODE : v;
                 break;
             case "Guest/AppMenu":
                 app_menu = empty || (IniFile.parse_bool (v) ?? app_menu);
@@ -293,7 +295,6 @@ namespace Salle {
             put (file, false, "Machine", "Title", title, title != old.title);
             put (file, is_new, "Machine", "CPUs", cpus.to_string (), cpus != old.cpus);
             put (file, is_new, "Machine", "Memory", format_memory (memory_mib), memory_mib != old.memory_mib);
-            put (file, is_new, "Machine", "Network", bool_value (network), network != old.network);
             put (file, false, "Machine", "SharedHome", path_value (shared_home), shared_home != old.shared_home);
             put (file, is_new, "Machine", "Audio", bool_value (audio), audio != old.audio);
             put (file, is_new, "Machine", "Microphone", bool_value (microphone), microphone != old.microphone);
@@ -302,6 +303,8 @@ namespace Salle {
                  gpu_context_types != DEFAULT_GPU_CONTEXT_TYPES ? gpu_context_types : null,
                  gpu_context_types != old.gpu_context_types);
             put (file, false, "Machine", "ExtraArguments", list_value (extra_args), extra_args != old.extra_args);
+
+            put (file, is_new, "Network", "Mode", network_mode, network_mode != old.network_mode);
 
             put (file, false, "Guest", "User", user, user != old.user);
             put (file, is_new, "Guest", "UID", uid.to_string (), uid != old.uid);

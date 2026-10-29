@@ -1,0 +1,8 @@
+# maitre-net configures the garnish<n> taps of the VMs itself. Keep
+# systemd-networkd from taking them over through a catch-all .network file
+# (e.g. one matching Type=ether), which would replace their addresses.
+[Match]
+Name=garnish*
+
+[Link]
+Unmanaged=yes

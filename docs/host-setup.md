@@ -1,7 +1,7 @@
 # Host setup
 
 Details on the host side that the component READMEs don't cover: crosvm, the
-tap network, the shared home directory and audio. For installing maitred and
+network, the shared home directory and audio. For installing maitred and
 writing VM files, see the [maitre README](../vm_tools/maitre/README.md); for
 the application menu, the [carte README](../vm_tools/carte/README.md).
 
@@ -19,31 +19,89 @@ replaces `crosvm-git`. `host/crosvm/upstream-bug.md` has the details.
 
 ## Network
 
-Only root can create taps, so `setup-host-net.sh` does it once per boot, for
-each of the `TAPS` taps (4 by default; `TAPS=8 ./setup-host-net.sh up` for
-more VMs at once). The taps belong to your user, so crosvm doesn't need root.
-Tap `n` gets its own /30: the host is 192.168.10.(4n+1) and the guest
-192.168.10.(4n+2).
+Each VM has one setting, `[Network] Mode=` in its file:
 
-```sh
-./setup-host-net.sh up --nat    # crosvm_tap0-3; --nat adds internet access
-./setup-host-net.sh down        # removes the taps and the NAT rule
+- `nat` (the default): a network device of its own, with an address, and
+  internet access through the host's
+- `none`: no network device
+
+Only root can create network devices, so maitred runs `maitre-net`, a small
+helper installed setuid root next to it, every time a VM with `Mode=nat`
+starts. The helper
+
+1. creates tap `garnish<n>` for the lowest free /30 in the subnet: the host
+   gets 192.168.10.(4n+1) on it and the guest 192.168.10.(4n+2),
+2. turns IPv4 forwarding on (`net.ipv4.ip_forward=1`; it stays on),
+3. loads the nftables table below, replacing any older version of it,
+4. passes the open tap to maitred over a socket and exits.
+
+maitred hands the tap to crosvm as `--net tap-fd=N`. The tap isn't
+persistent: the kernel removes it when the VM stops and the last descriptor
+is closed, even if maitred crashes. Nothing has to be set up after a reboot.
+
+```
+table ip garnish {
+    chain postrouting {
+        type nat hook postrouting priority srcnat;
+        ip saddr 192.168.10.0/24 oifname != "garnish*" masquerade
+    }
+    chain forward {
+        type filter hook forward priority filter;
+        iifname "garnish*" oifname "garnish*" drop
+        iifname "garnish*" ip saddr != 192.168.10.0/24 drop
+    }
+}
 ```
 
-It runs these commands through sudo:
+Guests reach the outside through the host's address, but not each other,
+and they can't send from addresses that aren't theirs. They can reach the
+host itself, at their gateway address or any other. If the host firewall
+drops forwarded traffic (a `forward` chain with `policy drop`, as firewalld
+or ufw set up), the NAT rule alone isn't enough: that firewall also has to
+accept forwarding from and to the `garnish*` interfaces. To remove the table:
+`sudo nft delete table ip garnish`.
 
-```sh
-sudo ip tuntap add mode tap user "$USER" vnet_hdr crosvm_tap0
-sudo ip addr add 192.168.10.1/30 dev crosvm_tap0
-sudo ip link set crosvm_tap0 up
-# --nat:
-sudo sysctl -w net.ipv4.ip_forward=1
-sudo iptables -t nat -A POSTROUTING -s 192.168.10.0/24 -j MASQUERADE
+The subnet is the same for every user of the host, so it is set by root, in
+`/etc/garnish/network.conf` (optional; `vm_tools/maitre/examples/network.conf`
+has the default). Pick one that doesn't overlap a network the host is on:
+
+```ini
+[NAT]
+Subnet=192.168.10.0/24
 ```
 
-`down` does not turn `ip_forward` off again. If the host firewall drops
-forwarded traffic, the NAT rule alone isn't enough: you also need to allow
-forwarding for 192.168.10.0/24.
+The file has to belong to root and not be writable by anyone else, or
+maitre-net refuses to run. maitre-net has no other options: nothing the
+caller passes picks the tap's name or addresses, and it can't remove or
+change a tap.
+
+### The helper's privileges
+
+maitre-net runs with root's privileges only long enough to give most of them
+up. Before it reads its configuration or touches the network, it
+
+- becomes the user who ran it, keeping only `CAP_NET_ADMIN`: no other
+  capability, none in the bounding set, ambient or inheritable sets, and
+  `no_new_privs`, so nothing it could run would get any back
+- is marked not dumpable, so the user can't attach a debugger to it
+- opens everything it needs: `/dev/net/tun`,
+  `/proc/sys/net/ipv4/ip_forward`, a netlink socket for addresses and one for
+  nftables
+- installs a seccomp filter. After that it can't open files, create sockets,
+  run programs or send signals. `ioctl` works only for creating the tap and
+  looking up its index, `sendmsg`, `recv` and `write` only on the descriptors
+  meant for them, and any other call kills it
+
+Its environment is ignored, and it accepts exactly one argument, `nat`.
+The code is in `vm_tools/maitre/src/bin/maitre-net/`.
+
+### systemd-networkd
+
+A catch-all `.network` file (e.g. one matching `Type=ether`) would make
+systemd-networkd take over the taps and replace their addresses. The package
+installs `/usr/lib/systemd/network/10-garnish.network`, which tells networkd
+to leave `garnish*` alone. NetworkManager leaves taps it didn't create alone
+by default.
 
 ## Shared home directory
 

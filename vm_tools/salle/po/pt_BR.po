@@ -179,8 +179,8 @@ msgid "Network"
 msgstr "Rede"
 
 #: src/dialogs/vm-dialog.blp:97
-msgid "Internet access through a network device from maitred’s pool"
-msgstr "Acesso à internet por um dispositivo de rede do pool do maitred"
+msgid "Internet access through the host (NAT)"
+msgstr "Acesso à internet pelo host (NAT)"
 
 #: src/dialogs/vm-dialog.blp:101 src/pages/vm-page.vala:110
 msgid "Graphical Apps"

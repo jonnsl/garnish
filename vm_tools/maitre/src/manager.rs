@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, DirBuilder, File};
 use std::io;
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -17,10 +18,11 @@ use tokio::time::{Instant, sleep, sleep_until, timeout};
 use zbus::object_server::SignalEmitter;
 use zbus::{Connection, interface};
 
-use crate::config::{self, DaemonConfig, VmConfig};
+use crate::config::{self, DaemonConfig, NetworkMode, VmConfig};
 use crate::dbus::{Error, OBJECT_PATH, VmInfo};
 use crate::ini;
-use crate::pool::{Pool, SysfsTaps};
+use crate::net::{self, Tap};
+use crate::pool::Pool;
 use crate::vm::{self, Paths, Resources};
 use crate::xdg;
 
@@ -73,6 +75,8 @@ struct Launched {
     crosvm: Child,
     /// crosvm's arguments, to start it again when the guest reboots.
     args: Vec<OsString>,
+    /// The tap crosvm's arguments refer to, kept open for those restarts.
+    tap: Option<Arc<Tap>>,
     helpers: Vec<(&'static str, Child)>,
 }
 
@@ -244,6 +248,18 @@ impl Manager {
         if config.audio && !vm::in_path("vhost-device-sound") {
             return Err(Error::StartFailed("Audio=yes needs vhost-device-sound (see host/vhost-device-sound)".into()));
         }
+        let already_running = || Error::AlreadyRunning(format!("{name} is already running"));
+        if self.inner.lock().unwrap().vms.contains_key(name) {
+            return Err(already_running());
+        }
+        // Before the VM is listed as starting: this can take a moment. If
+        // the start fails after all, dropping the tap removes it.
+        let tap = match config.network {
+            NetworkMode::None => None,
+            NetworkMode::Nat => Some(Arc::new(net::nat_tap().await.map_err(|e| {
+                Error::StartFailed(format!("no network: {e} ([Network] Mode=none starts the VM without one)"))
+            })?)),
+        };
 
         let (tx, rx) = mpsc::unbounded_channel();
         let (res, info) = {
@@ -252,26 +268,15 @@ impl Manager {
                 return Err(Error::ShuttingDown("maitred is shutting down".into()));
             }
             if inner.vms.contains_key(name) {
-                return Err(Error::AlreadyRunning(format!("{name} is already running")));
+                return Err(already_running());
             }
             let cid = inner.pool.alloc_cid().map_err(Error::NoResources)?;
-            let net = if config.network {
-                match inner.pool.alloc_net(&SysfsTaps) {
-                    Ok(net) => Some(net),
-                    Err(e) => {
-                        inner.pool.free_cid(cid);
-                        return Err(Error::NoResources(format!("{e}; or set Network=no")));
-                    }
-                }
-            } else {
-                None
-            };
-            let res = Resources { cid, net, dns: inner.pool.dns().to_vec() };
+            let res = Resources { cid, net: tap, dns: inner.pool.dns().to_vec() };
             let info = VmInfo {
                 state: "starting".into(),
                 cid,
-                tap: res.net.as_ref().map(|n| n.tap.clone()).unwrap_or_default(),
-                address: res.net.as_ref().map(|n| n.guest.to_string()).unwrap_or_default(),
+                tap: res.net.as_ref().map(|n| n.info.name.clone()).unwrap_or_default(),
+                address: res.net.as_ref().map(|n| n.info.guest.to_string()).unwrap_or_default(),
                 user: config.user.clone(),
                 log_dir: paths.logs.display().to_string(),
                 ..VmInfo::stopped(name)
@@ -293,7 +298,7 @@ impl Manager {
         };
         self.set_state(name, self.booting_state(), launched.crosvm.id()).await;
         let info = self.info(name).unwrap();
-        let net = res.net.as_ref().map_or("no network".to_owned(), |n| format!("{} on {}", n.guest, n.tap));
+        let net = res.net.as_ref().map_or("no network".to_owned(), |n| format!("{} on {}", n.info.guest, n.info.name));
         log(format!("{name}: started, CID {}, {net}, logs in {}", res.cid, paths.logs.display()));
         if let Ok(emitter) = self.emitter() {
             let _ = Maitre::vm_started(&emitter, info.clone()).await;
@@ -332,7 +337,7 @@ impl Manager {
         if result.is_err() {
             stop_helpers(name, &mut helpers).await;
         }
-        result.map(|(crosvm, args)| Launched { crosvm, args, helpers })
+        result.map(|(crosvm, args)| Launched { crosvm, args, tap: res.net.clone(), helpers })
     }
 
     async fn launch_inner(
@@ -350,7 +355,7 @@ impl Manager {
         if config.audio {
             truncate("vhost-device-sound")?;
             let log = paths.log("vhost-device-sound");
-            let child = vm::spawn("vhost-device-sound", &vm::sound_args(config, paths), &log, &log).map_err(failed)?;
+            let child = vm::spawn("vhost-device-sound", &vm::sound_args(config, paths), &log, &log, None).map_err(failed)?;
             helpers.push(("vhost-device-sound", child));
         }
         if config.app_menu {
@@ -359,7 +364,7 @@ impl Manager {
                 let log = paths.log("carte");
                 // Waits for the guest's carte-agent, and reconnects if it restarts.
                 let args = ["sync".into(), "--cid".into(), res.cid.to_string().into()];
-                helpers.push(("carte", vm::spawn("carte", &args, &log, &log).map_err(failed)?));
+                helpers.push(("carte", vm::spawn("carte", &args, &log, &log, None).map_err(failed)?));
             } else {
                 log(format!("{name}: carte isn't installed, the guest's applications won't be in the menu"));
             }
@@ -368,7 +373,8 @@ impl Manager {
         truncate("console")?;
         truncate("crosvm")?;
         let args = vm::crosvm_args(name, config, res, paths, unsafe { libc::getuid() }, unsafe { libc::getgid() });
-        let mut crosvm = vm::spawn("crosvm", &args, &paths.log("console"), &paths.log("crosvm")).map_err(failed)?;
+        let tap_fd = res.net.as_ref().map(|n| n.fd.as_raw_fd());
+        let mut crosvm = vm::spawn("crosvm", &args, &paths.log("console"), &paths.log("crosvm"), tap_fd).map_err(failed)?;
 
         let socket = paths.control_socket();
         let deadline = Instant::now() + START_TIMEOUT;
@@ -447,7 +453,8 @@ impl Manager {
                     // The helpers stay: vhost-device-sound serves the next
                     // connection, and carte reconnects.
                     let _ = fs::remove_file(paths.control_socket());
-                    match vm::spawn("crosvm", &launched.args, &paths.log("console"), &paths.log("crosvm")) {
+                    let tap_fd = launched.tap.as_ref().map(|n| n.fd.as_raw_fd());
+                    match vm::spawn("crosvm", &launched.args, &paths.log("console"), &paths.log("crosvm"), tap_fd) {
                         Ok(child) => {
                             launched.crosvm = child;
                             self.set_state(&name, self.booting_state(), launched.crosvm.id()).await;
@@ -511,10 +518,8 @@ impl Manager {
     fn release(&self, name: &str) {
         let mut inner = self.inner.lock().unwrap();
         if let Some(vm) = inner.vms.remove(name) {
+            // The tap goes once the supervisor drops its copy too.
             inner.pool.free_cid(vm.res.cid);
-            if let Some(net) = &vm.res.net {
-                inner.pool.free_net(net);
-            }
             let _ = fs::remove_dir_all(&vm.paths.runtime);
         }
         drop(inner);

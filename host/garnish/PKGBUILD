@@ -1,6 +1,7 @@
 # The host side of garnish, as two packages from one build:
-# - garnish-host: maitred, the D-Bus VM manager, and maitre, its client; and
-#   carte, the host side of the app menu
+# - garnish-host: maitred, the D-Bus VM manager, and maitre, its client;
+#   maitre-net, the setuid-root helper that creates the VMs' network devices;
+#   and carte, the host side of the app menu
 # - salle: the GTK app for maitred's VMs, separate so the command line tools
 #   don't pull in GTK
 # Build and install both with: makepkg -si
@@ -80,6 +81,10 @@ package_garnish-host() {
 
   local maitre="$_tools/maitre" carte="$_tools/carte"
   install -Dm755 "$srcdir"/target/release/{maitred,maitre,carte} -t "$pkgdir/usr/bin/"
+  # setuid root: it drops everything but CAP_NET_ADMIN and seccomp-confines
+  # itself before doing anything (vm_tools/maitre/src/bin/maitre-net).
+  install -Dm4755 "$srcdir/target/release/maitre-net" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$maitre/data/10-garnish.network" -t "$pkgdir/usr/lib/systemd/network/"
   install -Dm644 "$maitre/data/maitred.service" "$pkgdir/usr/lib/systemd/user/maitred.service"
   sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/maitred|' "$pkgdir/usr/lib/systemd/user/maitred.service"
   install -Dm644 "$maitre/data/org.garnish.Maitre.service" -t "$pkgdir/usr/share/dbus-1/services/"

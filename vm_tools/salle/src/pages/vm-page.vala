@@ -119,7 +119,7 @@ namespace Salle {
                 _("%s Memory").printf (Utils.format_memory (config.memory_mib)),
             });
             string[] features = {};
-            if (config.network) {
+            if (config.network_mode != "none") {
                 features += _("Network");
             }
             if (config.wayland) {

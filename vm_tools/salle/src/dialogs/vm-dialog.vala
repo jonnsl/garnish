@@ -68,7 +68,7 @@ namespace Salle {
             cpus_row.value = config.cpus;
             memory_row.adjustment.upper = double.max (memory_row.adjustment.upper, config.memory_mib / 1024.0);
             memory_row.value = config.memory_mib / 1024.0;
-            network_row.active = config.network;
+            network_row.active = config.network_mode != "none";
             wayland_row.active = config.wayland;
             app_menu_row.active = config.app_menu;
             audio_row.active = config.audio;
@@ -128,7 +128,12 @@ namespace Salle {
             c.title = vm_title != "" ? vm_title : null;
             c.cpus = (int) cpus_row.value;
             c.memory_mib = int64.max ((int64) (memory_row.value * 1024 + 0.5), VmConfig.MIN_MEMORY_MIB);
-            c.network = network_row.active;
+            // Keep a mode Salle doesn't know about, unless it's switched off
+            if (!network_row.active) {
+                c.network_mode = "none";
+            } else if (c.network_mode == "none") {
+                c.network_mode = VmConfig.DEFAULT_NETWORK_MODE;
+            }
             c.wayland = wayland_row.active;
             c.app_menu = app_menu_row.active;
             c.audio = audio_row.active;

@@ -23,7 +23,7 @@ pub struct VmConfig {
     pub title: Option<String>,
     pub cpus: u32,
     pub memory_mib: u64,
-    pub network: bool,
+    pub network: NetworkMode,
     pub shared_home: Option<PathBuf>,
     pub audio: bool,
     pub microphone: bool,
@@ -35,6 +35,25 @@ pub struct VmConfig {
     pub uid: u32,
     pub gid: u32,
     pub app_menu: bool,
+}
+
+/// `[Network] Mode=`: how the guest is connected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NetworkMode {
+    /// No network device.
+    None,
+    /// A tap of its own, with a /30 and NAT to the outside, from maitre-net.
+    Nat,
+}
+
+impl NetworkMode {
+    pub fn parse(s: &str) -> Option<NetworkMode> {
+        match s {
+            "none" => Some(NetworkMode::None),
+            "nat" => Some(NetworkMode::Nat),
+            _ => None,
+        }
+    }
 }
 
 /// VM names: also the guest's hostname, and used in file names and socket
@@ -76,7 +95,7 @@ impl VmConfig {
         let mut title = None;
         let mut cpus = 4;
         let mut memory = 4u64 << 30;
-        let mut network = true;
+        let mut network = NetworkMode::Nat;
         let mut shared_home = None;
         let mut audio = false;
         let mut microphone = false;
@@ -116,7 +135,9 @@ impl VmConfig {
                         return Err(e.error("must be at least 128M (a plain number is in bytes)"));
                     }
                 }
-                ("Machine", "Network") => network = empty || bool_value(e)?,
+                ("Machine", "Network") => {
+                    return Err(e.error("replaced by [Network] Mode= (nat or none)"));
+                }
                 ("Machine", "SharedHome") => shared_home = (!empty).then(|| path(e)),
                 ("Machine", "Audio") => audio = !empty && bool_value(e)?,
                 ("Machine", "Microphone") => microphone = !empty && bool_value(e)?,
@@ -126,6 +147,14 @@ impl VmConfig {
                 }
                 ("Machine", "ExtraArguments") if empty => extra_args.clear(),
                 ("Machine", "ExtraArguments") => extra_args.extend(words(e)?),
+
+                ("Network", "Mode") => {
+                    network = if empty {
+                        NetworkMode::Nat
+                    } else {
+                        NetworkMode::parse(&e.value).ok_or_else(|| e.error("expected nat or none"))?
+                    };
+                }
 
                 ("Guest", "User") => guest_user = (!empty).then(|| e.value.clone()),
                 ("Guest", "UID") => uid = if empty { 1000 } else { number(e)? },
@@ -194,11 +223,7 @@ impl VmConfig {
 pub struct DaemonConfig {
     /// vsock context IDs to hand out. 0-2 are reserved.
     pub cids: RangeInclusive<u32>,
-    /// Split into /30 networks, one per tap: the n-th gets tap
-    /// `<tap_prefix><n>`, the host its first address and the guest its second.
-    pub subnet: Ipv4Addr,
-    pub prefix_len: u8,
-    pub tap_prefix: String,
+    /// Given to guests with a network.
     pub dns: Vec<Ipv4Addr>,
     /// How long a guest gets to shut down before crosvm is stopped.
     pub stop_timeout_secs: u64,
@@ -208,9 +233,6 @@ impl Default for DaemonConfig {
     fn default() -> Self {
         DaemonConfig {
             cids: 3..=99,
-            subnet: Ipv4Addr::new(192, 168, 10, 0),
-            prefix_len: 24,
-            tap_prefix: "crosvm_tap".to_owned(),
             dns: vec![Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)],
             stop_timeout_secs: 30,
         }
@@ -235,26 +257,8 @@ impl DaemonConfig {
                     };
                     config.cids = lo..=hi;
                 }
-                ("Pool", "Subnet") if empty => (config.subnet, config.prefix_len) = (default.subnet, default.prefix_len),
-                ("Pool", "Subnet") => {
-                    let parsed = e.value.split_once('/').and_then(|(addr, len)| {
-                        Some((addr.parse::<Ipv4Addr>().ok()?, len.parse::<u8>().ok().filter(|l| *l <= 30)?))
-                    });
-                    let Some((addr, len)) = parsed else {
-                        return Err(e.error("expected an IPv4 network like 192.168.10.0/24, at most /30"));
-                    };
-                    let mask = u32::MAX.checked_shl(32 - u32::from(len)).unwrap_or(0);
-                    if u32::from(addr) & !mask != 0 {
-                        return Err(e.error("host bits are set"));
-                    }
-                    (config.subnet, config.prefix_len) = (addr, len);
-                }
-                ("Pool", "TapPrefix") => {
-                    config.tap_prefix = if empty { default.tap_prefix.clone() } else { e.value.clone() };
-                    // Interface names are at most 15 bytes; leave room for the number.
-                    if config.tap_prefix.len() > 12 || config.tap_prefix.contains(['/', ' ']) {
-                        return Err(e.error("must be at most 12 characters, without '/' or spaces"));
-                    }
+                ("Pool", "Subnet" | "TapPrefix") => {
+                    return Err(e.error(format!("the guest networks are set in {} now", crate::net::CONFIG_PATH)));
                 }
                 ("Pool", "DNS") if empty => dns = Some(Vec::new()),
                 ("Pool", "DNS") => {
@@ -277,11 +281,6 @@ impl DaemonConfig {
         }
         Ok(config)
     }
-
-    /// Number of /30 networks in the subnet.
-    pub fn net_slots(&self) -> u32 {
-        1 << (30 - self.prefix_len)
-    }
 }
 
 #[cfg(test)]
@@ -301,7 +300,7 @@ mod tests {
         assert_eq!(c.initrd, None);
         assert_eq!(c.cmdline, DEFAULT_CMDLINE);
         assert_eq!(c.title, None);
-        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, true, false, true));
+        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, NetworkMode::Nat, false, true));
         assert_eq!((c.user.as_str(), c.uid, c.gid), ("me", 1000, 1000));
         assert_eq!(c.gpu_context_types, ["cross-domain"]);
     }
@@ -309,15 +308,15 @@ mod tests {
     #[test]
     fn settings() {
         let c = vm("[Boot]\nImage=~/d.raw\nKernel=/k\nKernelCommandLineExtra=a b\nKernelCommandLineExtra=\n\
-                    KernelCommandLineExtra=c \"d e\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\nNetwork=no\nAudio=yes\n\
+                    KernelCommandLineExtra=c \"d e\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\nAudio=yes\n\
                     SharedHome=~/vm/home\nGpuContextTypes=cross-domain virgl2\nExtraArguments=--x\n\
-                    [Guest]\nUser=alice\nUID=1001\nAppMenu=off\n")
+                    [Network]\nMode=none\n[Guest]\nUser=alice\nUID=1001\nAppMenu=off\n")
         .unwrap();
         assert_eq!(c.image, Path::new("/home/me/d.raw"));
         assert_eq!(c.kernel, Path::new("/k"));
         assert_eq!(c.cmdline_extra, ["c", "d e"]);
         assert_eq!(c.title.as_deref(), Some("Débian (work)"));
-        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio), (2, 8192, false, true));
+        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio), (2, 8192, NetworkMode::None, true));
         assert_eq!(c.shared_home.as_deref(), Some(Path::new("/home/me/vm/home")));
         assert_eq!(c.gpu_context_types, ["cross-domain", "virgl2"]);
         assert_eq!(c.extra_args, ["--x"]);
@@ -330,6 +329,8 @@ mod tests {
         assert!(vm("[Boot]\nImage=a\nImgae=b\n").unwrap_err().contains("unknown setting [Boot] Imgae="));
         assert!(vm("[Boot]\nImage=a\n[Machine]\nMemory=4096\n").unwrap_err().contains("128M"));
         assert!(vm("[Boot]\nImage=a\n[Machine]\nAudio=maybe\n").unwrap_err().contains("test.conf:4"));
+        assert!(vm("[Boot]\nImage=a\n[Network]\nMode=bridge\n").unwrap_err().contains("nat or none"));
+        assert!(vm("[Boot]\nImage=a\n[Machine]\nNetwork=yes\n").unwrap_err().contains("[Network] Mode="));
     }
 
     #[test]
@@ -361,14 +362,11 @@ mod tests {
     fn daemon_config() {
         let d = daemon("").unwrap();
         assert_eq!(d, DaemonConfig::default());
-        assert_eq!(d.net_slots(), 64);
-        let d = daemon("[Pool]\nCIDs=10-20\nSubnet=10.0.0.0/28\nDNS=10.0.0.1\n").unwrap();
+        let d = daemon("[Pool]\nCIDs=10-20\nDNS=10.0.0.1\n").unwrap();
         assert_eq!(d.cids, 10..=20);
-        assert_eq!(d.net_slots(), 4);
         assert_eq!(d.dns, [Ipv4Addr::new(10, 0, 0, 1)]);
         assert!(daemon("[Pool]\nDNS=\n").unwrap().dns.is_empty());
         assert!(daemon("[Pool]\nCIDs=2-5\n").is_err());
-        assert!(daemon("[Pool]\nSubnet=10.0.0.1/24\n").unwrap_err().contains("host bits"));
-        assert!(daemon("[Pool]\nSubnet=10.0.0.0/31\n").is_err());
+        assert!(daemon("[Pool]\nSubnet=10.0.0.0/24\n").unwrap_err().contains("/etc/garnish/network.conf"));
     }
 }

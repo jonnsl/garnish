@@ -115,8 +115,8 @@ void test_helpers () {
 
 void test_load () {
     write_vm ("load", "[Boot]\nImage=images/debian.raw\nKernelCommandLineExtra=a\nKernelCommandLineExtra=\n"
-              + "KernelCommandLineExtra=b \"c d\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\nNetwork=no\n"
-              + "Audio=yes\nSharedHome=~/share\n[Guest]\nUser=guest\nGID=5\n");
+              + "KernelCommandLineExtra=b \"c d\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\n"
+              + "Audio=yes\nSharedHome=~/share\n[Network]\nMode=none\n[Guest]\nUser=guest\nGID=5\n");
     DirUtils.create_with_parents (VmConfig.path_for ("load") + ".d", 0755);
     try {
         FileUtils.set_contents (VmConfig.path_for ("load") + ".d/10-more.conf", "[Machine]\nCPUs=3\n");
@@ -128,7 +128,7 @@ void test_load () {
     assert (c.effective_kernel == Path.build_filename (VmConfig.vm_dir (), "images/debian.vmlinuz"));
     assert (c.cmdline_extra == "b \"c d\"");
     assert (c.title == "Débian (work)" && c.display_name == "Débian (work)");
-    assert (c.cpus == 3 && c.memory_mib == 8192 && !c.network && c.audio && !c.microphone && c.wayland);
+    assert (c.cpus == 3 && c.memory_mib == 8192 && c.network_mode == "none" && c.audio && !c.microphone && c.wayland);
     assert (c.shared_home == "/home/me/share");
     assert (c.user == "guest" && c.uid == 1000 && c.app_menu);
     assert (c.has_dropins);
@@ -147,8 +147,8 @@ void test_save_new () {
     save_vm (c);
     assert (read_vm ("new") == "# Created by Salle. All settings: see the maitre README (VM configuration).\n\n"
             + "[Boot]\nImage=~/images/debian.raw\n\n"
-            + "[Machine]\nTitle=New VM\nCPUs=4\nMemory=2G\nNetwork=yes\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
-            + "[Guest]\nUID=1000\nAppMenu=yes\n");
+            + "[Machine]\nTitle=New VM\nCPUs=4\nMemory=2G\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
+            + "[Network]\nMode=nat\n\n[Guest]\nUID=1000\nAppMenu=yes\n");
 
     // Saving a new VM over an existing one fails
     try {

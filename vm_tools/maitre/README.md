@@ -2,9 +2,10 @@
 
 Runs crosvm guests for you. `maitred` is a daemon on your session bus, without
 root, that starts and stops VMs when asked to over D-Bus. It gives each one a
-vsock CID and a tap device with its own address from a shared pool, starts
-crosvm and the programs that go with it, and takes everything back when the
-VM stops. `maitre` is the command line client.
+vsock CID and a network device with its own address and NAT, starts crosvm
+and the programs that go with it, and takes everything back when the VM
+stops. `maitre` is the command line client. `maitre-net` is the small
+setuid-root helper that creates the network devices.
 
 It does roughly what concierge does on ChromeOS, for the images in this
 repository.
@@ -12,7 +13,10 @@ repository.
 ## Install
 
 ```sh
-cargo install --locked --path .        # maitred and maitre to ~/.cargo/bin
+cargo install --locked --path .        # maitred, maitre and maitre-net to ~/.cargo/bin
+# maitre-net has to be setuid root, so it can't stay in ~/.cargo/bin
+sudo install -o root -g root -m 4755 ~/.cargo/bin/maitre-net /usr/local/bin/
+rm ~/.cargo/bin/maitre-net
 install -Dm644 data/maitred.service ~/.config/systemd/user/maitred.service
 install -Dm644 data/org.garnish.Maitre.service ~/.local/share/dbus-1/services/org.garnish.Maitre.service
 systemctl --user daemon-reload
@@ -21,8 +25,9 @@ busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DB
 ```
 
 On Arch, `makepkg -si` in `host/garnish` installs the same files to `/usr`
-instead, with the shell completions, as the `garnish-host` package (with
-carte) and the `salle` package; then reload the bus as above.
+instead, with the shell completions and `10-garnish.network` for
+systemd-networkd, as the `garnish-host` package (with carte) and the `salle`
+package; then reload the bus as above.
 
 Shell completions for `maitre` complete subcommands and VM names (from the
 configuration files) and, after `maitre ssh <name>`, a command. Without the
@@ -41,7 +46,8 @@ You can also run `maitred` in a terminal instead; it then logs to stderr.
 
 The unit puts `~/.cargo/bin` and `~/.local/bin` in `PATH`, where it looks for
 `crosvm`, `vhost-device-sound` and `carte`. If yours are elsewhere, change
-`Environment=PATH=` in the unit.
+`Environment=PATH=` in the unit. `maitre-net` is looked up in `PATH` too; a
+copy that isn't setuid root is skipped.
 
 Requires Rust 1.88 or newer. Dependencies: `zbus`, `tokio`, `serde`,
 `futures-util`, `libc`.
@@ -51,7 +57,6 @@ Requires Rust 1.88 or newer. Dependencies: `zbus`, `tokio`, `serde`,
 ```sh
 mkdir -p ~/.config/garnish/vms
 cp examples/debian.conf ~/.config/garnish/vms/   # and set Image=
-../../setup-host-net.sh up --nat                 # the tap pool, once per boot
 
 maitre start debian          # prints the CID and the address
 maitre list
@@ -93,13 +98,13 @@ one systemd and mkosi use:
 | `[Machine] Title=` | | a name for people, e.g. `Debian (work)`; Salle shows it instead of the VM's name |
 | `[Machine] CPUs=` | `4` | |
 | `[Machine] Memory=` | `4G` | with a `K`, `M`, `G` or `T` suffix; a plain number is bytes |
-| `[Machine] Network=` | `yes` | a tap and an address from the pool |
 | `[Machine] SharedHome=` | | host directory mounted over the guest user's home |
 | `[Machine] Audio=` | `no` | virtio-snd through vhost-device-sound |
 | `[Machine] Microphone=` | `no` | lets the guest record from your default input |
 | `[Machine] Wayland=` | `yes` | GPU with `GpuContextTypes` and the host's Wayland socket, for sommelier |
 | `[Machine] GpuContextTypes=` | `cross-domain` | list; add `virgl2` only if crosvm has virglrenderer |
 | `[Machine] ExtraArguments=` | | list, passed to `crosvm run` |
+| `[Network] Mode=` | `nat` | `nat`: a network device with an address and NAT to the outside; `none`: no network |
 | `[Guest] User=` | your user name | the image's `GUEST_USER`: home mount and `maitre ssh` |
 | `[Guest] UID=`, `GID=` | `1000`, the UID | the guest user's IDs, for the shared home |
 | `[Guest] AppMenu=` | `yes` | run `carte sync` while the VM is up |
@@ -110,7 +115,7 @@ systemd.firstboot=off video=Virtual-1:d`. maitred adds to it:
 
 - `systemd.hostname=<name>`: the guest is named after its configuration file.
   sommelier and carte-agent use the hostname as the VM's name
-- with `Network=yes`, `ip=<guest>::<host>:255.255.255.252::eth0:off:<dns>`
+- with `Mode=nat`, `ip=<guest>::<host>:255.255.255.252::eth0:off:<dns>`
   and `net.ifnames=0`: the guest's address, gateway and DNS servers
 - with `SharedHome=`, `systemd.mount-extra=` to mount it over
   `/home/<User>` (`nofail`: if the mount fails, the guest boots with the home
@@ -128,29 +133,39 @@ and read once, at startup. `examples/maitred.conf` has the defaults:
 | Setting | Default | Meaning |
 |---|---|---|
 | `[Pool] CIDs=` | `3-99` | vsock context IDs |
-| `[Pool] Subnet=` | `192.168.10.0/24` | split into /30 networks, one per VM |
-| `[Pool] TapPrefix=` | `crosvm_tap` | tap of the n-th network: `<TapPrefix><n>` |
 | `[Pool] DNS=` | `1.1.1.1 9.9.9.9` | list, at most two |
 | `[Manager] StopTimeoutSec=` | `30` | how long a guest gets to shut down |
 
-A VM gets the lowest free CID and the lowest free network. In network `n` the
-host is `.4n+1` on tap `<TapPrefix><n>` and the guest is `.4n+2`: 192.168.10.2
-for the first VM, 192.168.10.6 for the second, and so on. They are given back
-when the VM stops, so a VM's CID and address can change between runs; `maitre
-list` shows the current ones. A /30 per VM means guests can't reach each
-other, only the host and, with NAT, the outside.
+A VM gets the lowest free CID. It is given back when the VM stops, so a VM's
+CID can change between runs; `maitre list` shows the current one.
 
-Only root can create taps. `setup-host-net.sh up` creates `TAPS` of them
-(default 4), owned by you, with the host addresses already on them, and
-maitred uses those that exist: with 4 taps, 4 VMs can have a network at the
-same time. A VM with `Network=no` doesn't need one.
+## Network
+
+With `[Network] Mode=nat`, maitred runs `maitre-net nat` before it starts the
+VM. The helper creates tap `garnish<n>` for the lowest free /30 of the
+subnet in `/etc/garnish/network.conf` (default 192.168.10.0/24), puts the
+host's address on it, makes sure IPv4 forwarding and the NAT rules are in
+place, and passes the open tap back over a Unix socket. crosvm gets it as
+`--net tap-fd=N`. In network `n` the host is `.4n+1` and the guest is
+`.4n+2`: 192.168.10.2 for the first VM, 192.168.10.6 for the second, and so
+on, across all users' VMs. A /30 per VM and a firewall rule keep guests from
+reaching each other; they reach the outside through the host's address.
+
+The tap lives as long as its descriptors: maitred keeps one for crosvm's
+restarts after a guest reboot, and when the VM stops, the kernel removes the
+tap. So a VM's address can change between runs.
+
+maitre-net is setuid root but keeps only `CAP_NET_ADMIN`, as your user, and
+seccomp-confines itself before it does anything; its caller can't choose the
+tap's name or addresses. [docs/host-setup.md](../../docs/host-setup.md#network)
+has the details, the firewall rules and how to change the subnet.
 
 ## Starting and stopping
 
 To start a VM, maitred
 
 1. reads and checks its configuration,
-2. takes a CID and, with `Network=yes`, a tap,
+2. with `Mode=nat`, gets a tap from `maitre-net`, and takes a CID,
 3. starts `vhost-device-sound` (with `Audio=yes`) and `carte sync --cid <cid>`
    (with `AppMenu=yes`, if `carte` is installed),
 4. starts `crosvm run` and waits for its control socket.
@@ -225,8 +240,8 @@ that failed. It comes before `VmStarted` and `VmStopped`, which are still
 sent.
 
 Errors are `org.garnish.Maitre1.Error.<name>` with a message: `NoSuchVm`,
-`InvalidConfig`, `AlreadyRunning`, `NotRunning`, `NoResources` (out of CIDs or
-taps), `StartFailed`, `ShuttingDown`.
+`InvalidConfig`, `AlreadyRunning`, `NotRunning`, `NoResources` (out of CIDs),
+`StartFailed` (also when there's no network device), `ShuttingDown`.
 
 ```sh
 busctl --user call org.garnish.Maitre /org/garnish/Maitre org.garnish.Maitre1 StartVm s debian
@@ -240,6 +255,10 @@ Anything running as your user can call these, just as it could run crosvm.
 - an interactive serial console
 - fixed CIDs or addresses for a VM
 - more than two DNS servers
+- network modes other than `nat` (e.g. a bridge to the host's network), and
+  IPv6 for the guests
+- a limit on how many taps one user can hold: anyone can run maitre-net, and
+  each tap takes one of the subnet's /30s until it is closed
 - noticing a CID taken by a crosvm that maitred didn't start (the start then
   fails with crosvm's "cid in use" error)
 
@@ -249,15 +268,17 @@ Anything running as your user can call these, just as it could run crosvm.
 |---|---|
 | `src/ini.rs` | the configuration file format |
 | `src/config.rs` | VM and daemon settings |
-| `src/pool.rs` | CIDs and taps |
+| `src/pool.rs` | CIDs |
+| `src/net.rs` | the network settings, and how maitred and maitre-net talk |
 | `src/vm.rs` | crosvm's command line, kernel command line, starting processes |
 | `src/manager.rs` | the daemon's state, starting, supervising and stopping VMs, the D-Bus object |
 | `src/ready.rs` | the vsock listener for the guests' boot notifications |
 | `src/dbus.rs` | names, `VmInfo`, errors and the client proxy |
 | `src/bin/maitred.rs` | the daemon |
 | `src/bin/maitre.rs` | the client |
-| `data/` | systemd user unit and D-Bus service file |
+| `src/bin/maitre-net/` | the setuid helper: dropping privileges, the seccomp filter, netlink and nftables |
+| `data/` | systemd user unit, D-Bus service file, networkd file for the taps |
 | `completions/` | bash and zsh completions for `maitre` |
-| `examples/` | a VM configuration and the pool defaults |
+| `examples/` | a VM configuration, the pool defaults and `/etc/garnish/network.conf` |
 
 `cargo test` runs the unit tests.

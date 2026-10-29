@@ -20,8 +20,8 @@ ChromeOS's food names.
 - **Isolation by default.** Guests are VMs, not containers. They can't see
   each other, get no microphone unless you allow it, and only share the host
   directory you choose.
-- **No root at runtime.** VMs run as your user. Only the network taps need
-  sudo, once per boot.
+- **No root at runtime.** VMs run as your user. A small setuid helper,
+  locked down to what it needs, creates each VM's network device on start.
 - **Small and understandable.** Images are built with mkosi from plain config
   files; the host tools are small and talk over D-Bus.
 
@@ -73,7 +73,6 @@ image and how they work.
 ```sh
 mkdir -p ~/.config/garnish/vms
 cp vm_tools/maitre/examples/debian.conf ~/.config/garnish/vms/   # set Image=
-./setup-host-net.sh up --nat    # host taps, once per boot (uses sudo)
 maitre start debian
 maitre ssh debian
 maitre stop debian
