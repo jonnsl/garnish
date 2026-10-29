@@ -45,7 +45,7 @@ Nothing has to be started: the first call over D-Bus starts `maitred.service`
 You can also run `maitred` in a terminal instead; it then logs to stderr.
 
 The unit puts `~/.cargo/bin` and `~/.local/bin` in `PATH`, where it looks for
-`crosvm`, `vhost-device-sound` and `carte`. If yours are elsewhere, change
+`crosvm`, `vhost-device-sound`, `carte` and `sonnette`. If yours are elsewhere, change
 `Environment=PATH=` in the unit. `passt` and `maitre-net` are looked up in
 `PATH` too; a copy of maitre-net that isn't setuid root is skipped.
 
@@ -108,13 +108,14 @@ one systemd and mkosi use:
 | `[Guest] User=` | your user name | the image's `GUEST_USER`: home mount and `maitre ssh` |
 | `[Guest] UID=`, `GID=` | `1000`, the UID | the guest user's IDs, for the shared home |
 | `[Guest] AppMenu=` | `yes` | run `carte sync` while the VM is up |
+| `[Guest] Notifications=` | `yes` | run `sonnette relay` while the VM is up: the guest's notifications show on the host |
 
 The default kernel command line is the image's (`KernelCommandLine=` in
 `mkosi/mkosi.conf`): `root=PARTLABEL=root rw console=ttyS0
 systemd.firstboot=off video=Virtual-1:d`. maitred adds to it:
 
 - `systemd.hostname=<name>`: the guest is named after its configuration file.
-  sommelier and carte-agent use the hostname as the VM's name
+  sommelier, carte-agent and sonnette-agent use the hostname as the VM's name
 - with a network, `ip=<guest>::<gateway>:<netmask>::eth0:off:<dns>` and
   `net.ifnames=0`: the guest's address, gateway and DNS servers
 - with `SharedHome=`, `systemd.mount-extra=` to mount it over
@@ -197,8 +198,9 @@ To start a VM, maitred
 1. reads and checks its configuration,
 2. with `Mode=nat`, gets a tap from `maitre-net`, and takes a CID,
 3. starts `passt` (with `Mode=passt`), `vhost-device-sound` (with
-   `Audio=yes`) and `carte sync --cid <cid>` (with `AppMenu=yes`, if `carte`
-   is installed),
+   `Audio=yes`), `carte sync --cid <cid>` (with `AppMenu=yes`, if `carte`
+   is installed) and `sonnette relay --cid <cid>` (with `Notifications=yes`,
+   if `sonnette` is installed),
 4. starts `crosvm run` and waits for its control socket.
 
 vhost-device-sound gets `PIPEWIRE_PROPS` naming its playback stream after
@@ -246,6 +248,7 @@ Each VM has a directory, `~/.local/state/garnish/<name>/`, with:
 | `passt.log` | with `Mode=passt` |
 | `vhost-device-sound.log` | with `Audio=yes` |
 | `carte.log` | with `AppMenu=yes` |
+| `sonnette.log` | with `Notifications=yes` |
 
 They are emptied on every start. After a guest reboot crosvm writes to the
 end of them. Sockets are in `$XDG_RUNTIME_DIR/garnish/<name>/`.

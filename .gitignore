@@ -9,3 +9,4 @@ mkosi.tools.manifest
 
 /vm_tools/carte/target/
 /vm_tools/maitre/target/
+/vm_tools/sonnette/target/

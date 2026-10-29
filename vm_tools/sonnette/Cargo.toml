@@ -1,0 +1,24 @@
+[package]
+name = "sonnette"
+version = "0.1.0"
+edition = "2021"
+# Debian trixie's rustc: sonnette-agent is built in the guest. resolver 3
+# keeps the lockfile on crates that build with it.
+rust-version = "1.85"
+resolver = "3"
+description = "Forwards the desktop notifications of crosvm guests to the host"
+license = "GPL-3.0-or-later"
+publish = false
+
+[dependencies]
+# For the icon lookup, XDG directories, VM name checks and launcher names.
+carte = { path = "../carte" }
+futures-util = { version = "0.3", default-features = false }
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "signal", "sync", "time"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[profile.release]
+strip = true

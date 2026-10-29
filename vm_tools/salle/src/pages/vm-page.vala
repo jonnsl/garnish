@@ -156,6 +156,9 @@ namespace Salle {
             if (config.wayland && config.app_menu) {
                 features += _("App Menu");
             }
+            if (config.notifications) {
+                features += _("Notifications");
+            }
             audio = config.audio;
             update_sound_group ();
             if (config.audio) {

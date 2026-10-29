@@ -1,13 +1,14 @@
 # The host side of garnish, as two packages from one build:
 # - garnish-host: maitred, the D-Bus VM manager, and maitre, its client;
 #   maitre-net, the setuid-root helper that creates the VMs' network devices;
-#   and carte, the host side of the app menu
+#   carte, the host side of the app menu; and sonnette, which shows the
+#   guests' notifications
 # - salle: the GTK app for maitred's VMs, separate so the command line tools
 #   don't pull in GTK
 # Build and install both with: makepkg -si
 # Built from the working tree in vm_tools/, not from a download, so it picks
-# up uncommitted changes. carte-agent is left out: it runs in the guest, and
-# comes with the garnish-guest package (guest/). The user unit is installed
+# up uncommitted changes. carte-agent and sonnette-agent are left out: they
+# run in the guest, and come with the garnish-guest package (guest/). The user unit is installed
 # with ExecStart=/usr/bin/maitred; its PATH still has ~/.cargo/bin and
 # ~/.local/bin for crosvm.
 
@@ -36,12 +37,13 @@ _check_version() {
 prepare() {
   _check_version "$_tools/maitre/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
   _check_version "$_tools/carte/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
+  _check_version "$_tools/sonnette/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
   _check_version "$_tools/salle/meson.build" "s/^ *version: *'\([^']*\)'.*/\1/p"
 
   export RUSTUP_TOOLCHAIN=stable
   local target
   target=$(rustc -vV | sed -n 's/host: //p')
-  for project in maitre carte; do
+  for project in maitre carte sonnette; do
     cargo fetch --locked --manifest-path "$_tools/$project/Cargo.toml" --target "$target"
   done
 }
@@ -51,6 +53,7 @@ build() {
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo build --frozen --release --manifest-path "$_tools/maitre/Cargo.toml"
   cargo build --frozen --release --manifest-path "$_tools/carte/Cargo.toml" --bin carte
+  cargo build --frozen --release --manifest-path "$_tools/sonnette/Cargo.toml" --bin sonnette
 
   arch-meson "$_tools/salle" salle-build -Dprofile=default
   meson compile -C salle-build
@@ -61,11 +64,12 @@ check() {
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo test --frozen --manifest-path "$_tools/maitre/Cargo.toml"
   cargo test --frozen --manifest-path "$_tools/carte/Cargo.toml"
+  cargo test --frozen --manifest-path "$_tools/sonnette/Cargo.toml"
   meson test -C salle-build --print-errorlogs
 }
 
 package_garnish-host() {
-  pkgdesc='Runs crosvm guests for the user over D-Bus, with their applications in the host menu'
+  pkgdesc='Runs crosvm guests for the user over D-Bus, with their applications in the host menu and their notifications on the desktop'
   # passt: [Network] Mode=passt, the default.
   depends=(gcc-libs glibc passt)
   optdepends=('crosvm: runs the VMs (needed, but often built by hand)'
@@ -80,8 +84,8 @@ package_garnish-host() {
   # Cargo.toml strips the release binaries, so a debug package would be empty.
   options=(!debug)
 
-  local maitre="$_tools/maitre" carte="$_tools/carte"
-  install -Dm755 "$srcdir"/target/release/{maitred,maitre,carte} -t "$pkgdir/usr/bin/"
+  local maitre="$_tools/maitre" carte="$_tools/carte" sonnette="$_tools/sonnette"
+  install -Dm755 "$srcdir"/target/release/{maitred,maitre,carte,sonnette} -t "$pkgdir/usr/bin/"
   # setuid root: it drops everything but CAP_NET_ADMIN and seccomp-confines
   # itself before doing anything (vm_tools/maitre/src/bin/maitre-net).
   install -Dm4755 "$srcdir/target/release/maitre-net" -t "$pkgdir/usr/bin/"
@@ -97,6 +101,7 @@ package_garnish-host() {
   install -Dm644 "$maitre/README.md" "$pkgdir/usr/share/doc/maitre/README.md"
   install -Dm644 "$maitre"/examples/*.conf -t "$pkgdir/usr/share/doc/maitre/examples/"
   install -Dm644 "$carte/README.md" "$pkgdir/usr/share/doc/carte/README.md"
+  install -Dm644 "$sonnette/README.md" "$pkgdir/usr/share/doc/sonnette/README.md"
 }
 
 package_salle() {

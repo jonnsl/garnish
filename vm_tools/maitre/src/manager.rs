@@ -393,6 +393,17 @@ impl Manager {
                 log(format!("{name}: carte isn't installed, the guest's applications won't be in the menu"));
             }
         }
+        if config.notifications {
+            if vm::in_path("sonnette") {
+                truncate("sonnette")?;
+                let log = paths.log("sonnette");
+                // Waits for the guest's sonnette-agent, and reconnects if it restarts.
+                let args = ["relay".into(), "--cid".into(), res.cid.to_string().into()];
+                helpers.push(("sonnette", vm::spawn("sonnette", &args, &[], &log, &log, None).map_err(failed)?));
+            } else {
+                log(format!("{name}: sonnette isn't installed, the guest's notifications won't be shown"));
+            }
+        }
 
         truncate("console")?;
         truncate("crosvm")?;
@@ -475,7 +486,7 @@ impl Manager {
                     }
                     log(format!("{name}: the guest rebooted, starting crosvm again"));
                     // The helpers stay: passt and vhost-device-sound serve
-                    // the next connection, and carte reconnects.
+                    // the next connection, and carte and sonnette reconnect.
                     let _ = fs::remove_file(paths.control_socket());
                     let tap_fd = launched.net.as_ref().and_then(Net::tap_fd);
                     match vm::spawn("crosvm", &launched.args, &[], &paths.log("console"), &paths.log("crosvm"), tap_fd) {

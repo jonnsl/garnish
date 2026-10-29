@@ -10,9 +10,11 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 override_dh_auto_build:
 	cargo build --frozen --release --manifest-path carte/Cargo.toml \
 		--target-dir target --bin carte-agent
+	cargo build --frozen --release --manifest-path sonnette/Cargo.toml \
+		--target-dir target --bin sonnette-agent
 
 override_dh_auto_install:
-	./install.sh debian/garnish-guest target/release/carte-agent
+	./install.sh debian/garnish-guest target/release/carte-agent target/release/sonnette-agent
 
 override_dh_auto_clean:
 	rm -rf target

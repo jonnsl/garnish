@@ -40,6 +40,7 @@ namespace Salle {
         public string? user { get; set; }
         public int uid { get; set; default = DEFAULT_UID; }
         public bool app_menu { get; set; default = true; }
+        public bool notifications { get; set; default = true; }
 
         /* Some settings come from drop-ins, which win over the main file */
         public bool has_dropins { get; private set; }
@@ -163,6 +164,9 @@ namespace Salle {
                 break;
             case "Guest/AppMenu":
                 app_menu = empty || (IniFile.parse_bool (v) ?? app_menu);
+                break;
+            case "Guest/Notifications":
+                notifications = empty || (IniFile.parse_bool (v) ?? notifications);
                 break;
             default:
                 // Not edited here (KernelCommandLine=, GID=, ...); maitre checks them
@@ -309,6 +313,7 @@ namespace Salle {
             put (file, false, "Guest", "User", user, user != old.user);
             put (file, is_new, "Guest", "UID", uid.to_string (), uid != old.uid);
             put (file, is_new, "Guest", "AppMenu", bool_value (app_menu), app_menu != old.app_menu);
+            put (file, is_new, "Guest", "Notifications", bool_value (notifications), notifications != old.notifications);
 
             file.save ();
             loaded = copy ();

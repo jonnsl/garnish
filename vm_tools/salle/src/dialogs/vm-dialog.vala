@@ -15,6 +15,7 @@ namespace Salle {
         [GtkChild] private unowned Gtk.CheckButton network_none_check;
         [GtkChild] private unowned Adw.SwitchRow wayland_row;
         [GtkChild] private unowned Adw.SwitchRow app_menu_row;
+        [GtkChild] private unowned Adw.SwitchRow notifications_row;
         [GtkChild] private unowned Adw.SwitchRow audio_row;
         [GtkChild] private unowned Adw.SwitchRow microphone_row;
         [GtkChild] private unowned Adw.ActionRow shared_home_row;
@@ -76,6 +77,7 @@ namespace Salle {
             network_none_check.active = config.network_mode == "none";
             wayland_row.active = config.wayland;
             app_menu_row.active = config.app_menu;
+            notifications_row.active = config.notifications;
             audio_row.active = config.audio;
             microphone_row.active = config.microphone;
             user_row.text = config.user ?? "";
@@ -142,6 +144,7 @@ namespace Salle {
             }
             c.wayland = wayland_row.active;
             c.app_menu = app_menu_row.active;
+            c.notifications = notifications_row.active;
             c.audio = audio_row.active;
             c.microphone = audio_row.active && microphone_row.active;
             var user = user_row.text.strip ();

@@ -130,7 +130,7 @@ void test_load () {
     assert (c.title == "Débian (work)" && c.display_name == "Débian (work)");
     assert (c.cpus == 3 && c.memory_mib == 8192 && c.network_mode == "none" && c.audio && !c.microphone && c.wayland);
     assert (c.shared_home == "/home/me/share");
-    assert (c.user == "guest" && c.uid == 1000 && c.app_menu);
+    assert (c.user == "guest" && c.uid == 1000 && c.app_menu && c.notifications);
     assert (c.has_dropins);
     assert (c.problem () == null);
     assert (c.missing_files () != null);
@@ -148,7 +148,7 @@ void test_save_new () {
     assert (read_vm ("new") == "# Created by Salle. All settings: see the maitre README (VM configuration).\n\n"
             + "[Boot]\nImage=~/images/debian.raw\n\n"
             + "[Machine]\nTitle=New VM\nCPUs=4\nMemory=2G\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
-            + "[Network]\nMode=passt\n\n[Guest]\nUID=1000\nAppMenu=yes\n");
+            + "[Network]\nMode=passt\n\n[Guest]\nUID=1000\nAppMenu=yes\nNotifications=yes\n");
 
     // Saving a new VM over an existing one fails
     try {

@@ -1,5 +1,6 @@
 #!/bin/sh
-# Installs garnish-guest under $1, with the carte-agent binary at $2.
+# Installs garnish-guest under $1, with the carte-agent binary at $2 and
+# sonnette-agent at $3.
 # Every package format runs it, so the file list lives in one place.
 #
 # The units are enabled with symlinks in the package instead of
@@ -8,6 +9,7 @@ set -eu
 
 dest=$1
 carte_agent=$2
+sonnette_agent=$3
 files=$(dirname "$0")/files
 
 install -Dm755 "$carte_agent" "$dest/usr/bin/carte-agent"
@@ -15,6 +17,11 @@ install -Dm755 "$carte_agent" "$dest/usr/bin/carte-agent"
 install -Dm644 "$files/carte-agent.service" "$dest/usr/lib/systemd/user/carte-agent.service"
 install -d "$dest/usr/lib/systemd/user/default.target.wants"
 ln -sf ../carte-agent.service "$dest/usr/lib/systemd/user/default.target.wants/carte-agent.service"
+
+install -Dm755 "$sonnette_agent" "$dest/usr/bin/sonnette-agent"
+install -Dm644 "$files/sonnette-agent.service" "$dest/usr/lib/systemd/user/sonnette-agent.service"
+ln -sf ../sonnette-agent.service "$dest/usr/lib/systemd/user/default.target.wants/sonnette-agent.service"
+install -Dm644 "$files/org.garnish.sonnette.service" "$dest/usr/share/dbus-1/services/org.garnish.sonnette.service"
 
 install -Dm644 "$files/maitre-ready.service" "$dest/usr/lib/systemd/system/maitre-ready.service"
 install -d "$dest/usr/lib/systemd/system/multi-user.target.wants"

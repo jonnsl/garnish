@@ -39,6 +39,7 @@ other than x86-64.
 | [maitre](vm_tools/maitre/README.md) | host | `maitred`, a session-bus daemon that starts and stops VMs, and the `maitre` CLI |
 | [Salle](vm_tools/salle/README.md) | host | a GTK app to create, edit, start and stop VMs and read their logs |
 | [carte](vm_tools/carte/README.md) | guest + host | puts the guest's applications in the host's application menu |
+| [sonnette](vm_tools/sonnette/README.md) | guest + host | shows the guest's desktop notifications on the host |
 
 ## Salle
 
@@ -65,9 +66,10 @@ image and how they work.
 1. Build an image (above).
 2. Install maitred and maitre, following the
    [maitre README](vm_tools/maitre/README.md#install), and optionally
-   [carte](vm_tools/carte/README.md#install) and
+   [carte](vm_tools/carte/README.md#install),
+   [sonnette](vm_tools/sonnette/README.md#install) and
    [Salle](vm_tools/salle/README.md#building). On Arch,
-   `(cd host/garnish && makepkg -si)` installs all three, as the
+   `(cd host/garnish && makepkg -si)` installs all of them, as the
    `garnish-host` and `salle` packages.
 3. Create a VM and start it:
 

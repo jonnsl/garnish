@@ -149,6 +149,11 @@ template $SalleVmDialog: Adw.Dialog {
             sensitive: bind wayland_row.active;
           }
 
+          Adw.SwitchRow notifications_row {
+            title: _("Notifications");
+            subtitle: _("Show the guest’s notifications on your desktop");
+          }
+
           Adw.SwitchRow audio_row {
             title: _("Sound");
           }

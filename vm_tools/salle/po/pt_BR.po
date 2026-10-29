@@ -218,6 +218,14 @@ msgstr "Adicionar aplicativos ao menu de aplicativos"
 msgid "Launch the guest’s apps from your desktop while it runs"
 msgstr "Abra os aplicativos do convidado pela sua área de trabalho enquanto ele executa"
 
+#: src/dialogs/vm-dialog.blp src/pages/vm-page.vala
+msgid "Notifications"
+msgstr "Notificações"
+
+#: src/dialogs/vm-dialog.blp
+msgid "Show the guest’s notifications on your desktop"
+msgstr "Mostra as notificações do convidado na sua área de trabalho"
+
 #: src/dialogs/vm-dialog.blp:116
 msgid "Microphone"
 msgstr "Microfone"

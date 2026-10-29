@@ -8,7 +8,7 @@
 # Copies the finished packages into every OUTDIR. The image build runs it
 # from mkosi/mkosi.build.chroot, inside the target distribution, with the
 # build dependencies from mkosi.conf.d installed. It needs network access
-# to fetch sommelier and carte's crates.
+# to fetch sommelier and the crates of carte and sonnette.
 #
 # Versions come from ./versions. The sommelier tarball is upstream at
 # SOMMELIER_COMMIT with sommelier/patches/*.patch applied.
@@ -78,15 +78,20 @@ tar -C "$stage" -czf "$stage/sommelier-$sommelier_version.tar.gz" "sommelier-$so
 # --- garnish-guest source ----------------------------------------------------
 guest_version=$GARNISH_GUEST_VERSION
 guest_tree="$stage/garnish-guest-$guest_version"
-install -d "$guest_tree/carte"
-tar -C "$repo/vm_tools/carte" --exclude=./target -c . | tar -C "$guest_tree/carte" -x
+# Side by side, as in vm_tools/: sonnette uses carte through ../carte.
+for crate in carte sonnette; do
+    install -d "$guest_tree/$crate"
+    tar -C "$repo/vm_tools/$crate" --exclude=./target -c . | tar -C "$guest_tree/$crate" -x
+done
 cp -a "$guest/garnish-guest/install.sh" "$guest/garnish-guest/files" "$guest_tree/"
 cp "$repo/LICENSE" "$guest_tree/LICENSE"
 tar -C "$stage" -czf "$stage/garnish-guest-$guest_version.tar.gz" "garnish-guest-$guest_version"
 
 # The package builds run cargo with --frozen, from these.
 export CARGO_HOME="$work/cargo"
-cargo fetch --locked --manifest-path "$guest_tree/carte/Cargo.toml"
+for crate in carte sonnette; do
+    cargo fetch --locked --manifest-path "$guest_tree/$crate/Cargo.toml"
+done
 
 # --- build -------------------------------------------------------------------
 # name version release

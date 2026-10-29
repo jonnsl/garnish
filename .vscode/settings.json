@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
         "vm_tools/carte/Cargo.toml",
-        "vm_tools/maitre/Cargo.toml"
+        "vm_tools/maitre/Cargo.toml",
+        "vm_tools/sonnette/Cargo.toml"
     ]
 }

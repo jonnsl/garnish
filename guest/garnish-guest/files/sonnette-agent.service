@@ -1,0 +1,14 @@
+[Unit]
+Description=sonnette agent: shows the guest's notifications on the host
+
+# Enabled for every user by the symlink in default.target.wants/ next to
+# this file, which comes with the package, so it's there when the host
+# connects. D-Bus activation starts it too, through
+# /usr/share/dbus-1/services/org.garnish.sonnette.service.
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.Notifications
+ExecStart=/usr/bin/sonnette-agent
+Restart=on-failure
+RestartSec=2

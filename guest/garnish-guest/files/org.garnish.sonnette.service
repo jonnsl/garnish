@@ -1,0 +1,7 @@
+# Starts sonnette-agent when an application sends a notification and it
+# isn't running. Named after garnish, not the bus name, so it doesn't clash
+# with the files of other notification servers.
+[D-BUS Service]
+Name=org.freedesktop.Notifications
+Exec=/usr/bin/sonnette-agent
+SystemdService=sonnette-agent.service

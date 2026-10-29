@@ -35,6 +35,7 @@ pub struct VmConfig {
     pub uid: u32,
     pub gid: u32,
     pub app_menu: bool,
+    pub notifications: bool,
 }
 
 /// `[Network] Mode=`: how the guest is connected.
@@ -110,6 +111,7 @@ impl VmConfig {
         let mut uid = 1000;
         let mut gid = None;
         let mut app_menu = true;
+        let mut notifications = true;
 
         for e in entries {
             // An empty assignment resets the setting to its default.
@@ -164,6 +166,7 @@ impl VmConfig {
                 ("Guest", "UID") => uid = if empty { 1000 } else { number(e)? },
                 ("Guest", "GID") => gid = if empty { None } else { Some(number(e)?) },
                 ("Guest", "AppMenu") => app_menu = empty || bool_value(e)?,
+                ("Guest", "Notifications") => notifications = empty || bool_value(e)?,
                 _ => return Err(unknown(e)),
             }
         }
@@ -198,6 +201,7 @@ impl VmConfig {
             uid,
             gid: gid.unwrap_or(uid),
             app_menu,
+            notifications,
         })
     }
 
@@ -305,7 +309,7 @@ mod tests {
         assert_eq!(c.cmdline, DEFAULT_CMDLINE);
         assert_eq!(c.title, None);
         assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, NetworkMode::Passt, false, true));
-        assert_eq!((c.user.as_str(), c.uid, c.gid), ("me", 1000, 1000));
+        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications), ("me", 1000, 1000, true, true));
         assert_eq!(c.gpu_context_types, ["cross-domain"]);
     }
 
@@ -314,7 +318,7 @@ mod tests {
         let c = vm("[Boot]\nImage=~/d.raw\nKernel=/k\nKernelCommandLineExtra=a b\nKernelCommandLineExtra=\n\
                     KernelCommandLineExtra=c \"d e\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\nAudio=yes\n\
                     SharedHome=~/vm/home\nGpuContextTypes=cross-domain virgl2\nExtraArguments=--x\n\
-                    [Network]\nMode=none\n[Guest]\nUser=alice\nUID=1001\nAppMenu=off\n")
+                    [Network]\nMode=none\n[Guest]\nUser=alice\nUID=1001\nAppMenu=off\nNotifications=no\n")
         .unwrap();
         assert_eq!(c.image, Path::new("/home/me/d.raw"));
         assert_eq!(c.kernel, Path::new("/k"));
@@ -324,7 +328,7 @@ mod tests {
         assert_eq!(c.shared_home.as_deref(), Some(Path::new("/home/me/vm/home")));
         assert_eq!(c.gpu_context_types, ["cross-domain", "virgl2"]);
         assert_eq!(c.extra_args, ["--x"]);
-        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu), ("alice", 1001, 1001, false));
+        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications), ("alice", 1001, 1001, false, false));
     }
 
     #[test]

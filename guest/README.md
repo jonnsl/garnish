@@ -6,8 +6,9 @@ distribution (Arch, Debian, Ubuntu, Fedora):
 - **`sommelier`**: ChromiumOS's Wayland proxy, from the platform2 commit in
   `versions`, with the patches in `sommelier/patches/` applied. It ships
   `sommelier.service`, enabled for every user.
-- **`garnish-guest`**: `carte-agent` (from `vm_tools/carte`) and its user
-  unit, `maitre-ready.service`, and the Wayland environment
+- **`garnish-guest`**: `carte-agent` (from `vm_tools/carte`) and
+  `sonnette-agent` (from `vm_tools/sonnette`) with their user units,
+  `maitre-ready.service`, and the Wayland environment
   (`/etc/profile.d/garnish-wayland.sh`,
   `/usr/lib/environment.d/50-garnish-wayland.conf`), and a WirePlumber
   setting that starts the sound output at full volume, since the host sets
@@ -36,7 +37,7 @@ mkosi -d fedora -t none build
 Debian and Ubuntu get separate builds, linked against their own libraries.
 
 `build-packages.sh` makes the source tarballs (sommelier with the patches
-applied; carte plus `garnish-guest/`) and runs the distribution's own tool on
+applied; carte, sonnette and `garnish-guest/`) and runs the distribution's own tool on
 the recipe:
 
 | Distribution  | Recipe                                      | Tool                 |
@@ -95,4 +96,5 @@ packaged ones.
 
 The running sommelier keeps the old binary until it restarts. Reboot the VM,
 or run `systemctl --user restart sommelier` in it, which closes every guest
-window.
+window. The agents restart the same way, without closing anything:
+`systemctl --user restart carte-agent sonnette-agent`.

@@ -12,6 +12,8 @@ Every image comes with:
 - passwordless sudo, which you can turn off
 - `sommelier.service` for every user, with linger turned on
 - `carte-agent`, which puts the guest's applications in the host's application menu
+- `sonnette-agent`, the guest's notification server, which shows its
+  notifications on the host
 - `maitre-ready.service`, which tells maitred on the host when the guest has
   booted (`systemd-notify --ready` to vsock port 8891), so it can show the VM
   as running
