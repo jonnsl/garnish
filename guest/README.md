@@ -68,6 +68,10 @@ the patches or the packaging change, bump `SOMMELIER_RELEASE`.
 root of platform2 (paths like `vm_tools/sommelier/...`), so they can be
 sent upstream as they are.
 
+- `0001-clipboard-track-every-transfer-to-the-host.patch`: pasting into a
+  host app from a guest app could leave the host app waiting forever when
+  two transfers overlapped.
+
 ## Updating a running guest
 
 ```sh

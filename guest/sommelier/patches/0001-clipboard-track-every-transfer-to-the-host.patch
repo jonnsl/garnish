@@ -1,0 +1,57 @@
+sommelier: track every clipboard transfer to the host, not just the last
+
+When a host app pastes from a guest app, the host compositor sends a pipe,
+sommelier gives the guest app a new pipe, and watches its read end to copy
+the data to the host and tell crosvm to close the host's pipe at the end.
+
+sommelier keeps only one event source for that. If a second transfer
+starts before the first ends (GNOME's clipboard manager reads a new
+selection right away, and apps ask for several types), the second replaces
+the first's source. The first pipe is never read again, crosvm is never
+told to close the host's end, and the host app waits on it forever.
+
+Keep one event source per pipe, keyed by its read end.
+
+diff --git a/vm_tools/sommelier/sommelier-ctx.h b/vm_tools/sommelier/sommelier-ctx.h
+--- a/vm_tools/sommelier/sommelier-ctx.h
++++ b/vm_tools/sommelier/sommelier-ctx.h
+@@ -6,6 +6,7 @@
+ #define VM_TOOLS_SOMMELIER_SOMMELIER_CTX_H_
+
+ #include <limits.h>
++#include <map>
+ #include <memory>
+ #include <string>
+ #include <vector>
+@@ -115,7 +116,9 @@
+   std::unique_ptr<struct wl_event_source> display_ready_event_source;
+   std::unique_ptr<struct wl_event_source> sigchld_event_source;
+   std::unique_ptr<struct wl_event_source> sigusr1_event_source;
+-  std::unique_ptr<struct wl_event_source> clipboard_event_source;
++  // One per clipboard transfer to the host, keyed by the pipe's read end.
++  std::map<int, std::unique_ptr<struct wl_event_source>>
++      clipboard_event_sources;
+   std::unique_ptr<struct wl_event_source> stats_timer_event_source;
+   struct wl_array dpi;
+   int wm_fd;
+diff --git a/vm_tools/sommelier/sommelier-ctx.cc b/vm_tools/sommelier/sommelier-ctx.cc
+--- a/vm_tools/sommelier/sommelier-ctx.cc
++++ b/vm_tools/sommelier/sommelier-ctx.cc
+@@ -248,7 +248,7 @@
+   }
+
+   if (hang_up) {
+-    ctx->clipboard_event_source.reset();
++    ctx->clipboard_event_sources.erase(fd);
+     return 0;
+   }
+
+@@ -286,7 +286,7 @@
+     struct wl_event_loop* event_loop =
+         wl_display_get_event_loop(ctx->host_display);
+
+-    ctx->clipboard_event_source.reset(
++    ctx->clipboard_event_sources[pipe_read_fd].reset(
+         wl_event_loop_add_fd(event_loop, pipe_read_fd, WL_EVENT_READABLE,
+                              sl_handle_clipboard_event, ctx));
+   } else if (event_type != WaylandChannelEvent::Receive) {
