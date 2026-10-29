@@ -1,0 +1,10 @@
+[Unit]
+Description=carte agent: shares applications with the host
+
+# Enabled for every user by the symlink in default.target.wants/ next to
+# this file, which comes with the package.
+
+[Service]
+ExecStart=/usr/bin/carte-agent
+Restart=on-failure
+RestartSec=2

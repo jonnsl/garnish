@@ -16,7 +16,7 @@ use tokio::time::{sleep, timeout};
 use crate::manager::Manager;
 
 /// The host's vsock port for the notifications. Also in
-/// mkosi/mkosi.extra/etc/systemd/system/maitre-ready.service.
+/// guest/garnish-guest/files/maitre-ready.service.
 pub const READY_PORT: u32 = 8891;
 /// How long a guest gets to send its message.
 const READ_TIMEOUT: Duration = Duration::from_secs(5);

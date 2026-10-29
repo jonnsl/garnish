@@ -1,0 +1,29 @@
+# garnish-guest for garnish's Arch guests: carte-agent, maitre-ready and the
+# Wayland environment.
+# Don't run makepkg here: ../build-packages.sh fills in @VERSION@ and
+# @RELEASE@ from ../versions, makes the source tarball and fetches the
+# crates, then builds this in a copy.
+
+pkgname=garnish-guest
+pkgver=@VERSION@
+pkgrel=@RELEASE@
+pkgdesc="Guest side of garnish: carte-agent, boot notification for maitred, Wayland environment"
+arch=(x86_64)
+url='https://github.com/jonnsl/garnish'
+license=(GPL-3.0-or-later)
+depends=(glibc libgcc sommelier systemd)
+makedepends=(cargo)
+options=(!debug)
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=(SKIP)
+
+build() {
+  cd "$pkgname-$pkgver"
+  cargo build --frozen --release --manifest-path carte/Cargo.toml \
+    --target-dir "$srcdir/target" --bin carte-agent
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  ./install.sh "$pkgdir" "$srcdir/target/release/carte-agent"
+}

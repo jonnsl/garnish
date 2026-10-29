@@ -1,0 +1,28 @@
+# sommelier for garnish's Arch guests.
+# Don't run makepkg here: ../build-packages.sh fills in @VERSION@ and
+# @RELEASE@ from ../versions and makes the source tarball (upstream plus
+# patches/), then builds this in a copy.
+
+pkgname=sommelier
+pkgver=@VERSION@
+pkgrel=@RELEASE@
+pkgdesc="Wayland proxy that shows crosvm guest windows on the host (garnish build)"
+arch=(x86_64)
+url='https://chromium.googlesource.com/chromiumos/platform2/+/HEAD/vm_tools/sommelier/'
+license=(BSD-3-Clause)
+depends=(glibc libdrm libgcc libstdc++ libxcb libxkbcommon mesa pixman wayland)
+makedepends=(meson python-jinja)
+options=(!debug)
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=(SKIP)
+
+build() {
+  arch-meson "$pkgname-$pkgver" build -Dwith_tests=false
+  meson compile -C build
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+  "$pkgname-$pkgver/garnish/install-extras.sh" "$pkgdir"
+  install -Dm644 "$pkgname-$pkgver/garnish/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname/"
+}

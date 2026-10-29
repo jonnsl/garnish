@@ -1,6 +1,8 @@
 #!/bin/bash
-# Creates the guest user and wires up sommelier, carte-agent, sudo and
-# sshd-vsock.
+# Creates the guest user and sets up sudo, sshd-vsock, the network and the
+# settings that differ per image. sommelier, carte-agent, maitre-ready and
+# the Wayland environment come from the guest packages (guest/), which
+# mkosi installs before this runs.
 set -euo pipefail
 
 : "${GUEST_USER:=user}"
@@ -86,10 +88,6 @@ rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 
 systemctl enable sshd-vsock.socket
 
-# --- boot notification -------------------------------------------------------
-# Tells maitred the guest has booted (mkosi.extra/.../maitre-ready.service).
-systemctl enable maitre-ready.service
-
 # --- package manager ----------------------------------------------------------
 # pacman-mirrorlist ships with every server commented out, and mkosi only
 # configures its mirror for the build itself. Use the same mirror mkosi uses
@@ -148,45 +146,15 @@ install -d /etc/systemd/network
 # read-only bind mount of the host's file (WithNetwork=yes).
 systemctl enable systemd-networkd.service systemd-resolved.service systemd-network-generator.service
 
-# --- sommelier user service -------------------------------------------------
-# Like everything below, this stays out of $home so the image keeps working
-# when maitred mounts a host directory over it (SharedHome=).
-unit_dir=/etc/systemd/user
-install -d "$unit_dir/default.target.wants"
-cat > "$unit_dir/sommelier.service" <<'UNIT'
-[Unit]
-Description=Sommelier Wayland proxy
-
-[Service]
-ExecStart=/usr/local/bin/sommelier --parent --socket=wayland-0 --virtgpu-channel
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-UNIT
-# Equivalent of `systemctl --global enable sommelier`.
-ln -sf ../sommelier.service "$unit_dir/default.target.wants/sommelier.service"
-
 # --- carte-agent ------------------------------------------------------------
 # Shows the guest's applications in the host's application menu (see
 # vm_tools/carte/). sommelier puts the VM name in every window's app_id
 # (org.chromium.guest_os.<name>.wayland.<app_id>), and the agent tells the
 # host the same name, so the host can match windows to its menu entries.
+# This stays out of $home, like everything here, so the image keeps working
+# when maitred mounts a host directory over it (SharedHome=).
 install -d /etc/environment.d
 echo "SOMMELIER_VM_IDENTIFIER=$VM_NAME" > /etc/environment.d/60-carte.conf
-cat > "$unit_dir/carte-agent.service" <<'UNIT'
-[Unit]
-Description=carte agent: shares applications with the host
-
-[Service]
-ExecStart=/usr/local/bin/carte-agent
-Restart=on-failure
-RestartSec=2
-
-[Install]
-WantedBy=default.target
-UNIT
-ln -sf ../carte-agent.service "$unit_dir/default.target.wants/carte-agent.service"
 
 # --- audio ------------------------------------------------------------------
 # PipeWire for the virtio-snd card (Audio=yes in the VM's config). Enabled
@@ -198,23 +166,6 @@ systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.serv
 # (and thus sommelier) at boot without needing a login.
 install -d /var/lib/systemd/linger
 touch "/var/lib/systemd/linger/$GUEST_USER"
-
-# --- shell environment ------------------------------------------------------
-wayland_env=(
-    WAYLAND_DISPLAY=wayland-0
-    MOZ_ENABLE_WAYLAND=1
-    GDK_BACKEND=wayland
-    QT_QPA_PLATFORM=wayland
-    # Electron/Chromium (VS Code, ...) pick their backend from this. logind sets
-    # it to "tty" for ssh logins, so they try X11, find no $DISPLAY and quit.
-    XDG_SESSION_TYPE=wayland
-)
-# /etc/profile sources this for login shells on all four distros.
-printf 'export %s\n' "${wayland_env[@]}" > /etc/profile.d/crosvm-wayland.sh
-# The same for the user manager, so the applications carte-agent starts
-# get it too.
-install -d /etc/environment.d
-printf '%s\n' "${wayland_env[@]}" > /etc/environment.d/50-crosvm-wayland.conf
 
 # --- home ownership ---------------------------------------------------------
 # Rootless mkosi maps only a single user (root) into the build, so chown to

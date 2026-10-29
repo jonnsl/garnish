@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+# debian/changelog is written by ../../build-packages.sh, which also makes
+# the source tree (upstream plus patches/) this directory is copied into.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- -Dwith_tests=false
+
+override_dh_auto_install:
+	dh_auto_install
+	garnish/install-extras.sh debian/sommelier
+
+# install-extras.sh enables sommelier.service with a symlink in the package,
+# so it doesn't need maintainer scripts.
+override_dh_installsystemduser:
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym

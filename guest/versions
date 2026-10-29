@@ -1,0 +1,13 @@
+# Versions of the guest packages. build-packages.sh sources this file, and
+# each value can be overridden from the environment, e.g. with
+# `mkosi -E SOMMELIER_COMMIT=main build`.
+
+# The ChromiumOS platform2 commit sommelier is built from. The package
+# version is made from its date and hash: 0.<YYYYMMDD>.git<hash>.
+: "${SOMMELIER_REPO:=https://chromium.googlesource.com/chromiumos/platform2}"
+: "${SOMMELIER_COMMIT:=04bee29b721ea50aa0b4188a625e0cee615e32f5}"
+# Bump when the patches or the packaging change; back to 1 with a new commit.
+: "${SOMMELIER_RELEASE:=1}"
+
+: "${GARNISH_GUEST_VERSION:=0.1.0}"
+: "${GARNISH_GUEST_RELEASE:=1}"

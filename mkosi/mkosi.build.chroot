@@ -1,37 +1,19 @@
 #!/bin/bash
-# Builds sommelier from ChromiumOS platform2 and carte-agent from vm_tools/carte/,
-# and installs them to /usr/local/bin in the final image.
-# Runs inside the image (with BuildPackages= overlaid), so it is compiled
-# against the target distribution's own libraries.
+# Builds the guest packages (sommelier and garnish-guest, see guest/) for
+# the target distribution. Runs inside the image (with BuildPackages=
+# overlaid), so they're built with the distribution's own tools and
+# libraries.
+#
+# The packages go to $PACKAGEDIR, mkosi's local repository, from which
+# VolatilePackages= in mkosi.conf installs them, and to
+# mkosi.output/packages-<distribution>/, for guest/update-guest.sh.
 set -euo pipefail
 
-: "${SOMMELIER_REPO:=https://chromium.googlesource.com/chromiumos/platform2}"
-: "${SOMMELIER_REF:=main}"
+# mkosi (27.1) gives build scripts no $OUTPUTDIR, and with `-t none` it
+# stops right after them, so nothing later could copy the packages out.
+# Write them through the repository mount instead (BuildSources=..), to
+# OutputDirectory= from mkosi.conf.
+out="$SRCDIR/mkosi/mkosi.output/packages-$DISTRIBUTION"
+rm -rf "$out"
 
-work="${BUILDDIR:-$(mktemp -d)}"
-src="$work/platform2"
-
-# platform2 is huge: fetch only vm_tools/sommelier.
-if [[ ! -d "$src/.git" ]]; then
-    git clone --depth=1 --filter=blob:none --sparse --no-checkout "$SOMMELIER_REPO" "$src"
-    git -C "$src" sparse-checkout set vm_tools/sommelier
-fi
-git -C "$src" fetch --depth=1 origin "$SOMMELIER_REF"
-git -C "$src" checkout --force FETCH_HEAD
-echo "sommelier: building $(git -C "$src" rev-parse HEAD)"
-
-rm -rf "$work/build"
-meson setup "$work/build" "$src/vm_tools/sommelier" \
-    --prefix=/usr/local \
-    --buildtype=release \
-    -Dwith_tests=false
-meson compile -C "$work/build"
-meson install -C "$work/build" --destdir "$DESTDIR"
-
-# carte-agent. Cargo downloads the crates in Cargo.lock; with mkosi.builddir
-# they and the build are kept between builds.
-CARGO_HOME="$work/cargo" cargo build --release --locked \
-    --manifest-path "$SRCDIR/vm_tools/carte/Cargo.toml" \
-    --target-dir "$work/carte-target" \
-    --bin carte-agent
-install -D -m 0755 "$work/carte-target/release/carte-agent" "$DESTDIR/usr/local/bin/carte-agent"
+"$SRCDIR/guest/build-packages.sh" "$PACKAGEDIR" "$out"

@@ -1,0 +1,32 @@
+Source: sommelier
+Section: x11
+Priority: optional
+Maintainer: Jonnathan Soares <jonnsl@hotmail.com>
+Build-Depends: debhelper-compat (= 13),
+               meson,
+               ninja-build,
+               pkgconf,
+               python3,
+               python3-jinja2,
+               libwayland-bin,
+               libwayland-dev,
+               libgbm-dev,
+               libdrm-dev,
+               libpixman-1-dev,
+               libxcb1-dev,
+               libxcb-composite0-dev,
+               libxcb-shape0-dev,
+               libxcb-xfixes0-dev,
+               libxkbcommon-dev
+Standards-Version: 4.7.0
+Homepage: https://chromium.googlesource.com/chromiumos/platform2/+/HEAD/vm_tools/sommelier/
+Rules-Requires-Root: no
+
+Package: sommelier
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Wayland proxy that shows crosvm guest windows on the host
+ sommelier is ChromiumOS's Wayland proxy. In a garnish guest it forwards
+ the guest's Wayland clients to the host compositor through crosvm's
+ cross-domain GPU channel. This build carries garnish's patches and a
+ systemd user unit that starts it for every user.

@@ -15,9 +15,9 @@ Two programs:
 
 ## Install
 
-In the guest, the images in this repository build and enable `carte-agent`
-(`/usr/local/bin/carte-agent`, `carte-agent.service` in `/etc/systemd/user`).
-By hand:
+In the guest, the `garnish-guest` package (see `guest/` at the top of this
+repository) installs `/usr/bin/carte-agent` and enables
+`carte-agent.service` for every user. The images install it. By hand:
 
 ```sh
 cargo build --release --locked --bin carte-agent

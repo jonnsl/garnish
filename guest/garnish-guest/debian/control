@@ -1,0 +1,17 @@
+Source: garnish-guest
+Section: admin
+Priority: optional
+Maintainer: Jonnathan Soares <jonnsl@hotmail.com>
+Build-Depends: debhelper-compat (= 13), cargo
+Standards-Version: 4.7.0
+Homepage: https://github.com/jonnsl/garnish
+Rules-Requires-Root: no
+
+Package: garnish-guest
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, sommelier, systemd
+Description: guest side of garnish
+ The parts of garnish that run in a guest: carte-agent, which shows the
+ guest's applications in the host's application menu, maitre-ready.service,
+ which tells maitred when the guest has booted, and the environment that
+ makes applications use Wayland.

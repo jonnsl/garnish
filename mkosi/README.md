@@ -6,15 +6,17 @@ Ubuntu (26.04 "resolute") and Fedora (44), built for crosvm on x86-64.
 Every image comes with:
 
 - sshd on AF_VSOCK port 22 (`sshd-vsock.socket`); public-key login only, root login disabled
-- sommelier built from ChromiumOS platform2, installed to `/usr/local/bin/sommelier`
+- the `sommelier` and `garnish-guest` packages from `guest/`, built for the
+  image's distribution during the image build (see `guest/README.md`)
 - a user (`user` by default) in `video`, `render` and `sudo`/`wheel`
 - passwordless sudo, which you can turn off
-- `/etc/systemd/user/sommelier.service`, enabled, with linger turned on
+- `sommelier.service` for every user, with linger turned on
 - `carte-agent`, which puts the guest's applications in the host's application menu
 - `maitre-ready.service`, which tells maitred on the host when the guest has
   booted (`systemd-notify --ready` to vsock port 8891), so it can show the VM
   as running
-- the Wayland environment variables in `/etc/profile.d/crosvm-wayland.sh` (Wayland only, no X11)
+- the Wayland environment variables, in `/etc/profile.d/garnish-wayland.sh`
+  and `/usr/lib/environment.d/50-garnish-wayland.conf` (Wayland only, no X11)
 - PipeWire for an optional virtio-snd sound card that plays into the host's PipeWire
 - `video=Virtual-1:d` on the kernel command line
 - its address on a host tap device from the kernel command line (`ip=`), or a
@@ -38,11 +40,19 @@ mkosi -d fedora build
 ```
 
 Output in `mkosi/mkosi.output/`: `<name>.raw`, `<name>.vmlinuz`, `<name>.initrd`
-where `<name>` is `archlinux`, `debian`, `ubuntu` or `fedora`.
+where `<name>` is `archlinux`, `debian`, `ubuntu` or `fedora`, and the guest
+packages in `packages-<distribution>/`.
 
 Add `-f` to rebuild an existing image (`-ff` also drops the cached image).
-To keep the platform2 checkout and meson build between builds, run
+To keep the platform2 checkout and carte's crates between builds, run
 `mkdir mkosi/mkosi.builddir`.
+
+To build only the packages, for updating a guest that's already running
+(see `guest/README.md`), skip the image with `-t none`:
+
+```sh
+mkosi -d debian -t none build
+```
 
 ## Build options
 
@@ -54,8 +64,8 @@ These are set with `Environment=` in `mkosi/mkosi.conf`. Override them per build
 | `PASSWORDLESS_SUDO` | `yes`            | `no` makes sudo ask for the password             |
 | `GUEST_USER`        | `user`           | name of the user that gets created               |
 | `GUEST_PASSWORD`    | `changeme`       | password for sudo and the serial console (not ssh) |
-| `SOMMELIER_REF`     | `main`           | platform2 branch, tag or commit to build         |
-| `SOMMELIER_REPO`    | platform2 URL    | git repository to clone sommelier from           |
+| `SOMMELIER_COMMIT`  | in `guest/versions` | platform2 commit, branch or tag to build      |
+| `SOMMELIER_REPO`    | platform2 URL    | git repository to fetch sommelier from           |
 | `GUEST_ADDRESS`     | `192.168.10.2/24`| guest address when the kernel command line has no `ip=` |
 | `GUEST_GATEWAY`     | `192.168.10.1`   | default gateway, likewise                        |
 | `GUEST_DNS`         | `1.1.1.1,9.9.9.9`| comma-separated DNS servers, likewise            |
@@ -95,10 +105,10 @@ partition at the next boot.
 | `mkosi.conf.d/10-<distro>.conf`        | release, packages and build packages for each distro |
 | `mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common     |
 | `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
-| `mkosi.build.chroot`                   | builds sommelier and carte-agent inside the target distro |
+| `mkosi.build.chroot`                   | builds the `sommelier` and `garnish-guest` packages inside the target distro (`guest/build-packages.sh`) |
 | `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier and carte-agent units, linger and Wayland variables |
 | `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
-| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, `maitre-ready.service`, preset, sshd drop-in |
+| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
 | `authorized_keys`                      | your ssh public key (not in git)                     |
 
 The build mounts the whole repository at `$SRCDIR` (`BuildSources=..`), so
@@ -126,7 +136,7 @@ the build scripts can reach `vm_tools/`.
   Electron.
 - Applications started from the host's menu run with the user manager's
   environment, which is why the Wayland variables are also in
-  `/etc/environment.d/50-crosvm-wayland.conf`.
+  `/usr/lib/environment.d/50-garnish-wayland.conf`.
 - `VM_NAME` is appended to the application names in the host's menu, and it's
   also sommelier's VM identifier, so GNOME can match windows to their launcher.
   It is not the name of the maitre configuration.

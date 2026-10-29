@@ -1,0 +1,10 @@
+[Unit]
+Description=Sommelier Wayland proxy
+
+# Enabled for every user by the symlink in default.target.wants/ next to
+# this file, which comes with the package. To turn it off for a user:
+# systemctl --user mask sommelier.service
+
+[Service]
+ExecStart=/usr/bin/sommelier --parent --socket=wayland-0 --virtgpu-channel
+Restart=on-failure

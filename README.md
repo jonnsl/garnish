@@ -34,6 +34,7 @@ other than x86-64.
 | Component | Runs on | What it does |
 |---|---|---|
 | [Guest images](mkosi/README.md) | build host | mkosi configs for Arch, Debian, Ubuntu and Fedora guests |
+| [Guest packages](guest/README.md) | guest | `sommelier` and `garnish-guest` packages for each guest distribution, also for updating running guests |
 | [maitre](vm_tools/maitre/README.md) | host | `maitred`, a session-bus daemon that starts and stops VMs, and the `maitre` CLI |
 | [Salle](vm_tools/salle/README.md) | host | a GTK app to create, edit, start and stop VMs and read their logs |
 | [carte](vm_tools/carte/README.md) | guest + host | puts the guest's applications in the host's application menu |

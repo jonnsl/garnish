@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+# debian/changelog is written by ../../build-packages.sh, which also makes
+# the source tree and fetches the crates (cargo runs with --frozen).
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --frozen --release --manifest-path carte/Cargo.toml \
+		--target-dir target --bin carte-agent
+
+override_dh_auto_install:
+	./install.sh debian/garnish-guest target/release/carte-agent
+
+override_dh_auto_clean:
+	rm -rf target
+
+# install.sh enables the units with symlinks in the package; don't add
+# maintainer scripts that enable, start or restart them.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start --no-stop-on-upgrade
+
+override_dh_installsystemduser:
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
