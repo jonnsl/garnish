@@ -10,7 +10,9 @@ namespace Salle {
         [GtkChild] private unowned Adw.ActionRow image_row;
         [GtkChild] private unowned Adw.SpinRow cpus_row;
         [GtkChild] private unowned Adw.SpinRow memory_row;
-        [GtkChild] private unowned Adw.SwitchRow network_row;
+        [GtkChild] private unowned Gtk.CheckButton network_passt_check;
+        [GtkChild] private unowned Gtk.CheckButton network_nat_check;
+        [GtkChild] private unowned Gtk.CheckButton network_none_check;
         [GtkChild] private unowned Adw.SwitchRow wayland_row;
         [GtkChild] private unowned Adw.SwitchRow app_menu_row;
         [GtkChild] private unowned Adw.SwitchRow audio_row;
@@ -68,7 +70,10 @@ namespace Salle {
             cpus_row.value = config.cpus;
             memory_row.adjustment.upper = double.max (memory_row.adjustment.upper, config.memory_mib / 1024.0);
             memory_row.value = config.memory_mib / 1024.0;
-            network_row.active = config.network_mode != "none";
+            // A mode Salle doesn't know checks none of them, and is kept
+            network_passt_check.active = config.network_mode == "passt";
+            network_nat_check.active = config.network_mode == "nat";
+            network_none_check.active = config.network_mode == "none";
             wayland_row.active = config.wayland;
             app_menu_row.active = config.app_menu;
             audio_row.active = config.audio;
@@ -128,11 +133,12 @@ namespace Salle {
             c.title = vm_title != "" ? vm_title : null;
             c.cpus = (int) cpus_row.value;
             c.memory_mib = int64.max ((int64) (memory_row.value * 1024 + 0.5), VmConfig.MIN_MEMORY_MIB);
-            // Keep a mode Salle doesn't know about, unless it's switched off
-            if (!network_row.active) {
+            if (network_passt_check.active) {
+                c.network_mode = "passt";
+            } else if (network_nat_check.active) {
+                c.network_mode = "nat";
+            } else if (network_none_check.active) {
                 c.network_mode = "none";
-            } else if (c.network_mode == "none") {
-                c.network_mode = VmConfig.DEFAULT_NETWORK_MODE;
             }
             c.wayland = wayland_row.active;
             c.app_menu = app_menu_row.active;

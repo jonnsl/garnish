@@ -42,6 +42,9 @@ pub struct VmConfig {
 pub enum NetworkMode {
     /// No network device.
     None,
+    /// passt, run as the user: the guest's connections become the host's
+    /// own, with no network device on the host and no privileges.
+    Passt,
     /// A tap of its own, with a /30 and NAT to the outside, from maitre-net.
     Nat,
 }
@@ -50,6 +53,7 @@ impl NetworkMode {
     pub fn parse(s: &str) -> Option<NetworkMode> {
         match s {
             "none" => Some(NetworkMode::None),
+            "passt" => Some(NetworkMode::Passt),
             "nat" => Some(NetworkMode::Nat),
             _ => None,
         }
@@ -95,7 +99,7 @@ impl VmConfig {
         let mut title = None;
         let mut cpus = 4;
         let mut memory = 4u64 << 30;
-        let mut network = NetworkMode::Nat;
+        let mut network = NetworkMode::Passt;
         let mut shared_home = None;
         let mut audio = false;
         let mut microphone = false;
@@ -136,7 +140,7 @@ impl VmConfig {
                     }
                 }
                 ("Machine", "Network") => {
-                    return Err(e.error("replaced by [Network] Mode= (nat or none)"));
+                    return Err(e.error("replaced by [Network] Mode= (passt, nat or none)"));
                 }
                 ("Machine", "SharedHome") => shared_home = (!empty).then(|| path(e)),
                 ("Machine", "Audio") => audio = !empty && bool_value(e)?,
@@ -150,9 +154,9 @@ impl VmConfig {
 
                 ("Network", "Mode") => {
                     network = if empty {
-                        NetworkMode::Nat
+                        NetworkMode::Passt
                     } else {
-                        NetworkMode::parse(&e.value).ok_or_else(|| e.error("expected nat or none"))?
+                        NetworkMode::parse(&e.value).ok_or_else(|| e.error("expected passt, nat or none"))?
                     };
                 }
 
@@ -300,7 +304,7 @@ mod tests {
         assert_eq!(c.initrd, None);
         assert_eq!(c.cmdline, DEFAULT_CMDLINE);
         assert_eq!(c.title, None);
-        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, NetworkMode::Nat, false, true));
+        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, NetworkMode::Passt, false, true));
         assert_eq!((c.user.as_str(), c.uid, c.gid), ("me", 1000, 1000));
         assert_eq!(c.gpu_context_types, ["cross-domain"]);
     }
@@ -329,7 +333,8 @@ mod tests {
         assert!(vm("[Boot]\nImage=a\nImgae=b\n").unwrap_err().contains("unknown setting [Boot] Imgae="));
         assert!(vm("[Boot]\nImage=a\n[Machine]\nMemory=4096\n").unwrap_err().contains("128M"));
         assert!(vm("[Boot]\nImage=a\n[Machine]\nAudio=maybe\n").unwrap_err().contains("test.conf:4"));
-        assert!(vm("[Boot]\nImage=a\n[Network]\nMode=bridge\n").unwrap_err().contains("nat or none"));
+        assert!(vm("[Boot]\nImage=a\n[Network]\nMode=bridge\n").unwrap_err().contains("passt, nat or none"));
+        assert_eq!(vm("[Boot]\nImage=a\n[Network]\nMode=nat\n").unwrap().network, NetworkMode::Nat);
         assert!(vm("[Boot]\nImage=a\n[Machine]\nNetwork=yes\n").unwrap_err().contains("[Network] Mode="));
     }
 

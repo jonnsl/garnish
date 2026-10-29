@@ -178,9 +178,29 @@ msgstr "Recursos"
 msgid "Network"
 msgstr "Rede"
 
-#: src/dialogs/vm-dialog.blp:97
-msgid "Internet access through the host (NAT)"
-msgstr "Acesso à internet pelo host (NAT)"
+msgid "User-Mode (passt)"
+msgstr "Modo usuário (passt)"
+
+msgid "Internet access through a program that runs as you. Needs no setup."
+msgstr "Acesso à internet por um programa que roda como você. Não precisa de configuração."
+
+msgid "Network Device (NAT)"
+msgstr "Dispositivo de rede (NAT)"
+
+msgid "A device of its own on the host, which can reach the guest at its address"
+msgstr "Um dispositivo próprio no host, que alcança o convidado pelo endereço dele"
+
+msgid "No Network"
+msgstr "Sem rede"
+
+msgid "Apps and ssh still work: they don’t use the network"
+msgstr "Aplicativos e ssh continuam funcionando: eles não usam a rede"
+
+msgid "User-Mode Network"
+msgstr "Rede em modo usuário"
+
+msgid "NAT Network"
+msgstr "Rede NAT"
 
 #: src/dialogs/vm-dialog.blp:101 src/pages/vm-page.vala:110
 msgid "Graphical Apps"

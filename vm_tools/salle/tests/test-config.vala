@@ -148,7 +148,7 @@ void test_save_new () {
     assert (read_vm ("new") == "# Created by Salle. All settings: see the maitre README (VM configuration).\n\n"
             + "[Boot]\nImage=~/images/debian.raw\n\n"
             + "[Machine]\nTitle=New VM\nCPUs=4\nMemory=2G\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
-            + "[Network]\nMode=nat\n\n[Guest]\nUID=1000\nAppMenu=yes\n");
+            + "[Network]\nMode=passt\n\n[Guest]\nUID=1000\nAppMenu=yes\n");
 
     // Saving a new VM over an existing one fails
     try {

@@ -119,8 +119,18 @@ namespace Salle {
                 _("%s Memory").printf (Utils.format_memory (config.memory_mib)),
             });
             string[] features = {};
-            if (config.network_mode != "none") {
+            switch (config.network_mode) {
+            case "passt":
+                features += _("User-Mode Network");
+                break;
+            case "nat":
+                features += _("NAT Network");
+                break;
+            case "none":
+                break;
+            default:
                 features += _("Network");
+                break;
             }
             if (config.wayland) {
                 features += _("Graphical Apps");

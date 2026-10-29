@@ -97,12 +97,46 @@ template $SalleVmDialog: Adw.Dialog {
         }
 
         Adw.PreferencesGroup {
-          title: _("Features");
+          title: _("Network");
 
-          Adw.SwitchRow network_row {
-            title: _("Network");
-            subtitle: _("Internet access through the host (NAT)");
+          Adw.ActionRow network_passt_row {
+            title: _("User-Mode (passt)");
+            subtitle: _("Internet access through a program that runs as you. Needs no setup.");
+            activatable-widget: network_passt_check;
+
+            [prefix]
+            CheckButton network_passt_check {
+              valign: center;
+            }
           }
+
+          Adw.ActionRow network_nat_row {
+            title: _("Network Device (NAT)");
+            subtitle: _("A device of its own on the host, which can reach the guest at its address");
+            activatable-widget: network_nat_check;
+
+            [prefix]
+            CheckButton network_nat_check {
+              valign: center;
+              group: network_passt_check;
+            }
+          }
+
+          Adw.ActionRow network_none_row {
+            title: _("No Network");
+            subtitle: _("Apps and ssh still work: they don’t use the network");
+            activatable-widget: network_none_check;
+
+            [prefix]
+            CheckButton network_none_check {
+              valign: center;
+              group: network_passt_check;
+            }
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Features");
 
           Adw.SwitchRow wayland_row {
             title: _("Graphical Apps");

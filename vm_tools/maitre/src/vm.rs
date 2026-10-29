@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::process::{Child, Command};
 
 use crate::config::VmConfig;
-use crate::net::Tap;
+use crate::net::{self, Tap};
 
 /// crosvm's exit status (with --extended-status) when the guest reboots.
 pub const EXIT_RESET: i32 = 32;
@@ -21,10 +21,38 @@ pub const EXIT_RESET: i32 = 32;
 #[derive(Debug, Clone)]
 pub struct Resources {
     pub cid: u32,
-    /// Shared with crosvm, which gets the descriptor. The tap goes away
-    /// once the last copy is dropped and crosvm has exited.
-    pub net: Option<Arc<Tap>>,
+    pub net: Option<Net>,
     pub dns: Vec<Ipv4Addr>,
+}
+
+/// A VM's network.
+#[derive(Debug, Clone)]
+pub enum Net {
+    /// passt, a helper that serves the device over vhost-user at
+    /// `Paths::passt_socket`.
+    Passt,
+    /// A tap from maitre-net. Shared with crosvm, which gets the
+    /// descriptor; the tap goes away once the last copy is dropped and
+    /// crosvm has exited.
+    Tap(Arc<Tap>),
+}
+
+impl Net {
+    /// The guest's address, its gateway and the netmask.
+    pub fn addresses(&self) -> (Ipv4Addr, Ipv4Addr, Ipv4Addr) {
+        match self {
+            Net::Passt => (net::PASST_GUEST, net::PASST_GATEWAY, net::PASST_NETMASK),
+            Net::Tap(tap) => (tap.info.guest, tap.info.host, tap.info.netmask()),
+        }
+    }
+
+    /// The descriptor crosvm has to inherit.
+    pub fn tap_fd(&self) -> Option<RawFd> {
+        match self {
+            Net::Passt => None,
+            Net::Tap(tap) => Some(tap.fd.as_raw_fd()),
+        }
+    }
 }
 
 /// Where a VM's files go.
@@ -47,6 +75,10 @@ impl Paths {
         self.runtime.join("snd.sock")
     }
 
+    pub fn passt_socket(&self) -> PathBuf {
+        self.runtime.join("passt.sock")
+    }
+
     pub fn log(&self, name: &str) -> PathBuf {
         self.logs.join(format!("{name}.log"))
     }
@@ -63,7 +95,8 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
         // takes precedence over the image's static one. It needs the
         // interface name, hence net.ifnames=0.
         let dns: Vec<String> = res.dns.iter().take(2).map(|a| a.to_string()).collect();
-        let mut ip = format!("ip={}::{}:{}::eth0:off", net.info.guest, net.info.host, net.info.netmask());
+        let (guest, gateway, netmask) = net.addresses();
+        let mut ip = format!("ip={guest}::{gateway}:{netmask}::eth0:off");
         if !dns.is_empty() {
             ip = format!("{ip}:{}", dns.join(":"));
         }
@@ -113,10 +146,25 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
         args.push("--wayland-sock".into());
         args.push(paths.wayland.clone().into());
     }
-    if let Some(net) = &res.net {
-        // `spawn` keeps the descriptor open across exec.
-        args.push("--net".into());
-        args.push(format!("tap-fd={}", net.fd.as_raw_fd()).into());
+    // crosvm waits up to --vhost-user-connect-timeout-ms for the sockets
+    // of vhost-user devices to appear.
+    let mut vhost_user = false;
+    match &res.net {
+        Some(Net::Tap(tap)) => {
+            // `spawn` keeps the descriptor open across exec.
+            args.push("--net".into());
+            args.push(format!("tap-fd={}", tap.fd.as_raw_fd()).into());
+        }
+        Some(Net::Passt) => {
+            // crosvm offers the guest 32768 entries per queue unless told
+            // otherwise. passt is built for at most 1024 (QEMU's maximum)
+            // and dies on an assertion once a TCP download fills 1024
+            // receive buffers (passt 2026_10_02). 256 is QEMU's default.
+            args.push("--vhost-user".into());
+            args.push(prefixed("type=net,max-queue-size=256,socket=", &paths.passt_socket()));
+            vhost_user = true;
+        }
+        None => {}
     }
     if let Some(home) = &config.shared_home {
         // The device runs in a user namespace where only the guest user's
@@ -134,15 +182,40 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
     if config.audio {
         // vhost-device-sound takes at most 64 entries per queue and exits on
         // anything bigger, but crosvm offers the guest its own maximum
-        // unless told otherwise. crosvm waits up to the timeout for the
-        // socket to appear.
+        // unless told otherwise.
         args.push("--vhost-user".into());
         args.push(prefixed("type=sound,max-queue-size=64,socket=", &paths.sound_socket()));
+        vhost_user = true;
+    }
+    if vhost_user {
         args.push("--vhost-user-connect-timeout-ms".into());
         args.push("5000".into());
     }
     args.extend(config.extra_args.iter().map(OsString::from));
     args.push(config.kernel.clone().into());
+    args
+}
+
+/// passt's arguments. It stays up while crosvm restarts after a guest
+/// reboot, and serves the next connection.
+pub fn passt_args(paths: &Paths) -> Vec<OsString> {
+    let mut args: Vec<OsString> = vec!["--foreground".into(), "--vhost-user".into(), "--socket".into()];
+    args.push(paths.passt_socket().into());
+    for a in [
+        // The same addresses for every VM: each has a passt of its own. The
+        // guest gets them from maitred on the kernel command line.
+        "--address",
+        &net::PASST_GUEST.to_string(),
+        "--netmask",
+        &net::PASST_NETMASK.to_string(),
+        "--gateway",
+        &net::PASST_GATEWAY.to_string(),
+        // By default the gateway address leads to the host's loopback, so
+        // the guest could reach services that listen only there.
+        "--no-map-gw",
+    ] {
+        args.push(a.into());
+    }
     args
 }
 
@@ -225,7 +298,7 @@ mod tests {
         let fd = File::open("/dev/null").unwrap().into();
         Resources {
             cid: 7,
-            net: Some(Arc::new(Tap { info: crate::net::NetConfig::default().slot(1), fd })),
+            net: Some(Net::Tap(Arc::new(Tap { info: crate::net::NetConfig::default().slot(1), fd }))),
             dns: vec![Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)],
         }
     }
@@ -263,7 +336,7 @@ mod tests {
         let res = net();
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1001, 1002));
         let cmdline = kernel_cmdline("debian", &c, &res);
-        let tap_fd = format!("tap-fd={}", res.net.as_ref().unwrap().fd.as_raw_fd());
+        let tap_fd = format!("tap-fd={}", res.net.as_ref().unwrap().tap_fd().unwrap());
         let expected = [
             "--extended-status",
             "run",
@@ -308,6 +381,41 @@ mod tests {
         for absent in ["--gpu", "--wayland-sock", "--net", "--shared-dir", "--vhost-user"] {
             assert!(!args.iter().any(|a| a == absent), "{absent} in {args:?}");
         }
+    }
+
+    #[test]
+    fn passt() {
+        let c = config("[Boot]\nImage=d.raw\n[Machine]\nWayland=no\n");
+        let res = Resources { cid: 3, net: Some(Net::Passt), dns: vec![Ipv4Addr::new(1, 1, 1, 1)] };
+        assert!(kernel_cmdline("debian", &c, &res).contains(" ip=10.0.2.15::10.0.2.2:255.255.255.0::eth0:off:1.1.1.1 "));
+        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        let tail = &args[args.len() - 5..];
+        assert_eq!(tail, [
+            "--vhost-user",
+            "type=net,max-queue-size=256,socket=/run/user/1000/garnish/debian/passt.sock",
+            "--vhost-user-connect-timeout-ms",
+            "5000",
+            "/cfg/d.vmlinuz"
+        ]);
+        assert!(!args.iter().any(|a| a == "--net"));
+        assert_eq!(strings(passt_args(&paths())), [
+            "--foreground",
+            "--vhost-user",
+            "--socket",
+            "/run/user/1000/garnish/debian/passt.sock",
+            "--address",
+            "10.0.2.15",
+            "--netmask",
+            "255.255.255.0",
+            "--gateway",
+            "10.0.2.2",
+            "--no-map-gw",
+        ]);
+        // With sound too, the timeout comes once.
+        let c = config("[Boot]\nImage=d.raw\n[Machine]\nAudio=yes\n");
+        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        assert_eq!(args.iter().filter(|a| *a == "--vhost-user").count(), 2);
+        assert_eq!(args.iter().filter(|a| *a == "--vhost-user-connect-timeout-ms").count(), 1);
     }
 
     #[test]

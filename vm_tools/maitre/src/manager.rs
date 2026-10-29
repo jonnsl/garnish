@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, DirBuilder, File};
 use std::io;
-use std::os::fd::AsRawFd;
 use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -21,9 +20,9 @@ use zbus::{Connection, interface};
 use crate::config::{self, DaemonConfig, NetworkMode, VmConfig};
 use crate::dbus::{Error, OBJECT_PATH, VmInfo};
 use crate::ini;
-use crate::net::{self, Tap};
+use crate::net;
 use crate::pool::Pool;
-use crate::vm::{self, Paths, Resources};
+use crate::vm::{self, Net, Paths, Resources};
 use crate::xdg;
 
 /// How long crosvm gets to create its control socket.
@@ -75,8 +74,9 @@ struct Launched {
     crosvm: Child,
     /// crosvm's arguments, to start it again when the guest reboots.
     args: Vec<OsString>,
-    /// The tap crosvm's arguments refer to, kept open for those restarts.
-    tap: Option<Arc<Tap>>,
+    /// The network crosvm's arguments refer to; a tap stays open for those
+    /// restarts.
+    net: Option<Net>,
     helpers: Vec<(&'static str, Child)>,
 }
 
@@ -245,6 +245,11 @@ impl Manager {
                 paths.wayland.display()
             )));
         }
+        if config.network == NetworkMode::Passt && !vm::in_path("passt") {
+            return Err(Error::StartFailed(
+                "[Network] Mode=passt needs passt (https://passt.top); or choose Mode=nat or none".into(),
+            ));
+        }
         if config.audio && !vm::in_path("vhost-device-sound") {
             return Err(Error::StartFailed("Audio=yes needs vhost-device-sound (see host/vhost-device-sound)".into()));
         }
@@ -254,11 +259,14 @@ impl Manager {
         }
         // Before the VM is listed as starting: this can take a moment. If
         // the start fails after all, dropping the tap removes it.
-        let tap = match config.network {
+        let net = match config.network {
             NetworkMode::None => None,
-            NetworkMode::Nat => Some(Arc::new(net::nat_tap().await.map_err(|e| {
-                Error::StartFailed(format!("no network: {e} ([Network] Mode=none starts the VM without one)"))
-            })?)),
+            NetworkMode::Passt => Some(Net::Passt),
+            NetworkMode::Nat => Some(Net::Tap(Arc::new(net::nat_tap().await.map_err(|e| {
+                Error::StartFailed(format!(
+                    "no network: {e} ([Network] Mode=passt or none start the VM without maitre-net)"
+                ))
+            })?))),
         };
 
         let (tx, rx) = mpsc::unbounded_channel();
@@ -271,12 +279,18 @@ impl Manager {
                 return Err(already_running());
             }
             let cid = inner.pool.alloc_cid().map_err(Error::NoResources)?;
-            let res = Resources { cid, net: tap, dns: inner.pool.dns().to_vec() };
+            let res = Resources { cid, net, dns: inner.pool.dns().to_vec() };
+            // A tap's address is the guest's, from the host too. passt's
+            // isn't: the host can't reach the guest there.
+            let tap = match &res.net {
+                Some(Net::Tap(tap)) => Some(&tap.info),
+                _ => None,
+            };
             let info = VmInfo {
                 state: "starting".into(),
                 cid,
-                tap: res.net.as_ref().map(|n| n.info.name.clone()).unwrap_or_default(),
-                address: res.net.as_ref().map(|n| n.info.guest.to_string()).unwrap_or_default(),
+                tap: tap.map(|t| t.name.clone()).unwrap_or_default(),
+                address: tap.map(|t| t.guest.to_string()).unwrap_or_default(),
                 user: config.user.clone(),
                 log_dir: paths.logs.display().to_string(),
                 ..VmInfo::stopped(name)
@@ -298,7 +312,11 @@ impl Manager {
         };
         self.set_state(name, self.booting_state(), launched.crosvm.id()).await;
         let info = self.info(name).unwrap();
-        let net = res.net.as_ref().map_or("no network".to_owned(), |n| format!("{} on {}", n.info.guest, n.info.name));
+        let net = match &res.net {
+            None => "no network".to_owned(),
+            Some(Net::Passt) => "network through passt".to_owned(),
+            Some(Net::Tap(tap)) => format!("{} on {}", tap.info.guest, tap.info.name),
+        };
         log(format!("{name}: started, CID {}, {net}, logs in {}", res.cid, paths.logs.display()));
         if let Ok(emitter) = self.emitter() {
             let _ = Maitre::vm_started(&emitter, info.clone()).await;
@@ -313,7 +331,7 @@ impl Manager {
     async fn launch(&self, name: &str, config: &VmConfig, res: &Resources, paths: &Paths) -> Result<Launched, Error> {
         let failed = |what: &str, e: io::Error| Error::StartFailed(format!("{what}: {e}"));
         // sockaddr_un's sun_path is 108 bytes, including the terminating NUL.
-        for socket in [paths.control_socket(), paths.sound_socket()] {
+        for socket in [paths.control_socket(), paths.sound_socket(), paths.passt_socket()] {
             if socket.as_os_str().len() >= 108 {
                 return Err(Error::StartFailed(format!("{}: socket path too long", socket.display())));
             }
@@ -337,7 +355,7 @@ impl Manager {
         if result.is_err() {
             stop_helpers(name, &mut helpers).await;
         }
-        result.map(|(crosvm, args)| Launched { crosvm, args, tap: res.net.clone(), helpers })
+        result.map(|(crosvm, args)| Launched { crosvm, args, net: res.net.clone(), helpers })
     }
 
     async fn launch_inner(
@@ -352,6 +370,11 @@ impl Manager {
         // Truncated once per start; crosvm appends after a reboot.
         let truncate = |log: &str| File::create(paths.log(log)).map(drop).map_err(failed);
 
+        if let Some(Net::Passt) = res.net {
+            truncate("passt")?;
+            let log = paths.log("passt");
+            helpers.push(("passt", vm::spawn("passt", &vm::passt_args(paths), &log, &log, None).map_err(failed)?));
+        }
         if config.audio {
             truncate("vhost-device-sound")?;
             let log = paths.log("vhost-device-sound");
@@ -373,7 +396,7 @@ impl Manager {
         truncate("console")?;
         truncate("crosvm")?;
         let args = vm::crosvm_args(name, config, res, paths, unsafe { libc::getuid() }, unsafe { libc::getgid() });
-        let tap_fd = res.net.as_ref().map(|n| n.fd.as_raw_fd());
+        let tap_fd = res.net.as_ref().and_then(Net::tap_fd);
         let mut crosvm = vm::spawn("crosvm", &args, &paths.log("console"), &paths.log("crosvm"), tap_fd).map_err(failed)?;
 
         let socket = paths.control_socket();
@@ -450,10 +473,10 @@ impl Manager {
                         break format!("the guest rebooted more than {MAX_RESETS} times in {}s", RESET_WINDOW.as_secs());
                     }
                     log(format!("{name}: the guest rebooted, starting crosvm again"));
-                    // The helpers stay: vhost-device-sound serves the next
-                    // connection, and carte reconnects.
+                    // The helpers stay: passt and vhost-device-sound serve
+                    // the next connection, and carte reconnects.
                     let _ = fs::remove_file(paths.control_socket());
-                    let tap_fd = launched.tap.as_ref().map(|n| n.fd.as_raw_fd());
+                    let tap_fd = launched.net.as_ref().and_then(Net::tap_fd);
                     match vm::spawn("crosvm", &launched.args, &paths.log("console"), &paths.log("crosvm"), tap_fd) {
                         Ok(child) => {
                             launched.crosvm = child;

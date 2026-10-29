@@ -25,6 +25,12 @@ pub const CONFIG_PATH: &str = "/etc/garnish/network.conf";
 /// by the firewall rules.
 pub const TAP_PREFIX: &str = "garnish";
 
+/// The guest's side of `[Network] Mode=passt`. Every VM has a passt of its
+/// own, so they can all have the same addresses.
+pub const PASST_GUEST: Ipv4Addr = Ipv4Addr::new(10, 0, 2, 15);
+pub const PASST_GATEWAY: Ipv4Addr = Ipv4Addr::new(10, 0, 2, 2);
+pub const PASST_NETMASK: Ipv4Addr = Ipv4Addr::new(255, 255, 255, 0);
+
 /// `/etc/garnish/network.conf`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NetConfig {

@@ -20,8 +20,9 @@ ChromeOS's food names.
 - **Isolation by default.** Guests are VMs, not containers. They can't see
   each other, get no microphone unless you allow it, and only share the host
   directory you choose.
-- **No root at runtime.** VMs run as your user. A small setuid helper,
-  locked down to what it needs, creates each VM's network device on start.
+- **No root at runtime.** VMs and their network run as your user, through
+  passt. The optional NAT mode uses a small setuid helper, locked down to
+  what it needs.
 - **Small and understandable.** Images are built with mkosi from plain config
   files; the host tools are small and talk over D-Bus.
 

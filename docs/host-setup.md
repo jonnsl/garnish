@@ -21,9 +21,16 @@ replaces `crosvm-git`. `host/crosvm/upstream-bug.md` has the details.
 
 Each VM has one setting, `[Network] Mode=` in its file:
 
-- `nat` (the default): a network device of its own, with an address, and
-  internet access through the host's
+- `passt` (the default): internet access through
+  [passt](https://passt.top), which maitred runs as you. Nothing to set up
+- `nat`: a network device of its own on the host, with an address the host
+  can reach, and internet access through the host's (below)
 - `none`: no network device
+
+The [maitre README](../vm_tools/maitre/README.md#network) compares them and
+describes passt mode. The rest of this section is about `nat`.
+
+### NAT
 
 Only root can create network devices, so maitred runs `maitre-net`, a small
 helper installed setuid root next to it, every time a VM with `Mode=nat`
@@ -75,7 +82,7 @@ maitre-net refuses to run. maitre-net has no other options: nothing the
 caller passes picks the tap's name or addresses, and it can't remove or
 change a tap.
 
-### The helper's privileges
+#### The helper's privileges
 
 maitre-net runs with root's privileges only long enough to give most of them
 up. Before it reads its configuration or touches the network, it
@@ -95,7 +102,7 @@ up. Before it reads its configuration or touches the network, it
 Its environment is ignored, and it accepts exactly one argument, `nat`.
 The code is in `vm_tools/maitre/src/bin/maitre-net/`.
 
-### systemd-networkd
+#### systemd-networkd
 
 A catch-all `.network` file (e.g. one matching `Type=ether`) would make
 systemd-networkd take over the taps and replace their addresses. The package

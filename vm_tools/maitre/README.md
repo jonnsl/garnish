@@ -2,10 +2,10 @@
 
 Runs crosvm guests for you. `maitred` is a daemon on your session bus, without
 root, that starts and stops VMs when asked to over D-Bus. It gives each one a
-vsock CID and a network device with its own address and NAT, starts crosvm
-and the programs that go with it, and takes everything back when the VM
-stops. `maitre` is the command line client. `maitre-net` is the small
-setuid-root helper that creates the network devices.
+vsock CID and a network, starts crosvm and the programs that go with it, and
+takes everything back when the VM stops. `maitre` is the command line
+client. `maitre-net` is the small setuid-root helper for VMs with NAT
+networking.
 
 It does roughly what concierge does on ChromeOS, for the images in this
 repository.
@@ -46,8 +46,8 @@ You can also run `maitred` in a terminal instead; it then logs to stderr.
 
 The unit puts `~/.cargo/bin` and `~/.local/bin` in `PATH`, where it looks for
 `crosvm`, `vhost-device-sound` and `carte`. If yours are elsewhere, change
-`Environment=PATH=` in the unit. `maitre-net` is looked up in `PATH` too; a
-copy that isn't setuid root is skipped.
+`Environment=PATH=` in the unit. `passt` and `maitre-net` are looked up in
+`PATH` too; a copy of maitre-net that isn't setuid root is skipped.
 
 Requires Rust 1.88 or newer. Dependencies: `zbus`, `tokio`, `serde`,
 `futures-util`, `libc`.
@@ -104,7 +104,7 @@ one systemd and mkosi use:
 | `[Machine] Wayland=` | `yes` | GPU with `GpuContextTypes` and the host's Wayland socket, for sommelier |
 | `[Machine] GpuContextTypes=` | `cross-domain` | list; add `virgl2` only if crosvm has virglrenderer |
 | `[Machine] ExtraArguments=` | | list, passed to `crosvm run` |
-| `[Network] Mode=` | `nat` | `nat`: a network device with an address and NAT to the outside; `none`: no network |
+| `[Network] Mode=` | `passt` | `passt`: through passt, as you; `nat`: a network device of its own on the host; `none`: no network. See [Network](#network) |
 | `[Guest] User=` | your user name | the image's `GUEST_USER`: home mount and `maitre ssh` |
 | `[Guest] UID=`, `GID=` | `1000`, the UID | the guest user's IDs, for the shared home |
 | `[Guest] AppMenu=` | `yes` | run `carte sync` while the VM is up |
@@ -115,8 +115,8 @@ systemd.firstboot=off video=Virtual-1:d`. maitred adds to it:
 
 - `systemd.hostname=<name>`: the guest is named after its configuration file.
   sommelier and carte-agent use the hostname as the VM's name
-- with `Mode=nat`, `ip=<guest>::<host>:255.255.255.252::eth0:off:<dns>`
-  and `net.ifnames=0`: the guest's address, gateway and DNS servers
+- with a network, `ip=<guest>::<gateway>:<netmask>::eth0:off:<dns>` and
+  `net.ifnames=0`: the guest's address, gateway and DNS servers
 - with `SharedHome=`, `systemd.mount-extra=` to mount it over
   `/home/<User>` (`nofail`: if the mount fails, the guest boots with the home
   from the image)
@@ -140,6 +140,36 @@ A VM gets the lowest free CID. It is given back when the VM stops, so a VM's
 CID can change between runs; `maitre list` shows the current one.
 
 ## Network
+
+`[Network] Mode=` picks one of three:
+
+| Mode | The guest | Needs |
+|---|---|---|
+| `passt` (default) | reaches the outside and the host's other addresses; the host can't reach it over the network | `passt` |
+| `nat` | has an address the host can reach, and reaches the outside through NAT | `maitre-net`, setuid root |
+| `none` | has no network device | |
+
+In every mode the host reaches the guest over vsock: `maitre ssh`, the
+application menu and Wayland don't need a network.
+
+### passt
+
+With `Mode=passt`, maitred starts [passt](https://passt.top) as you, next to
+crosvm, and crosvm connects to it as a vhost-user network device
+(`--vhost-user type=net,socket=passt.sock`). passt has no network device on
+the host: it turns the guest's connections into ordinary sockets of its own,
+as if the guest's programs ran on the host as you. Nothing needs root or
+setup, and VMs can't reach each other, as each has a passt of its own.
+
+Every guest is 10.0.2.15/24 with gateway 10.0.2.2. These addresses only exist
+between the guest and its passt. passt runs with `--no-map-gw`: by default,
+connections to the gateway address would go to the host's loopback, where
+services that trust local users listen. The guest can still reach the host's
+other addresses, like any program on the LAN. No ports are forwarded to the
+guest. passt stays up across guest reboots and stops with the VM; it logs
+to `passt.log`.
+
+### NAT
 
 With `[Network] Mode=nat`, maitred runs `maitre-net nat` before it starts the
 VM. The helper creates tap `garnish<n>` for the lowest free /30 of the
@@ -166,8 +196,9 @@ To start a VM, maitred
 
 1. reads and checks its configuration,
 2. with `Mode=nat`, gets a tap from `maitre-net`, and takes a CID,
-3. starts `vhost-device-sound` (with `Audio=yes`) and `carte sync --cid <cid>`
-   (with `AppMenu=yes`, if `carte` is installed),
+3. starts `passt` (with `Mode=passt`), `vhost-device-sound` (with
+   `Audio=yes`) and `carte sync --cid <cid>` (with `AppMenu=yes`, if `carte`
+   is installed),
 4. starts `crosvm run` and waits for its control socket.
 
 `StartVm` returns after step 4, with the VM `booting`. If crosvm exits
@@ -206,6 +237,7 @@ Each VM has a directory, `~/.local/state/garnish/<name>/`, with:
 |---|---|
 | `console.log` | the guest's serial console |
 | `crosvm.log` | crosvm's own messages |
+| `passt.log` | with `Mode=passt` |
 | `vhost-device-sound.log` | with `Audio=yes` |
 | `carte.log` | with `AppMenu=yes` |
 
@@ -255,8 +287,8 @@ Anything running as your user can call these, just as it could run crosvm.
 - an interactive serial console
 - fixed CIDs or addresses for a VM
 - more than two DNS servers
-- network modes other than `nat` (e.g. a bridge to the host's network), and
-  IPv6 for the guests
+- a bridge to the host's network, and port forwarding to passt guests
+- IPv6 settings for the guests: maitred gives them only IPv4 addresses
 - a limit on how many taps one user can hold: anyone can run maitre-net, and
   each tap takes one of the subnet's /30s until it is closed
 - noticing a CID taken by a crosvm that maitred didn't start (the start then

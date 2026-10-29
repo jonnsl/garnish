@@ -66,7 +66,8 @@ check() {
 
 package_garnish-host() {
   pkgdesc='Runs crosvm guests for the user over D-Bus, with their applications in the host menu'
-  depends=(gcc-libs glibc)
+  # passt: [Network] Mode=passt, the default.
+  depends=(gcc-libs glibc passt)
   optdepends=('crosvm: runs the VMs (needed, but often built by hand)'
               'vhost-device-sound: Audio=yes (host/vhost-device-sound, with --no-capture)'
               'openssh: maitre ssh'

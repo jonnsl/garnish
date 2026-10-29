@@ -12,8 +12,8 @@ namespace Salle {
         public const int64 DEFAULT_MEMORY_MIB = 4096;
         public const int DEFAULT_UID = 1000;
         public const string DEFAULT_GPU_CONTEXT_TYPES = "cross-domain";
-        /* [Network] Mode=: "nat" or "none" */
-        public const string DEFAULT_NETWORK_MODE = "nat";
+        /* [Network] Mode=: "passt", "nat" or "none" */
+        public const string DEFAULT_NETWORK_MODE = "passt";
         /* Smallest amount of memory maitre accepts */
         public const int64 MIN_MEMORY_MIB = 128;
 
