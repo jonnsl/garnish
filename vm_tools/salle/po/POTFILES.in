@@ -6,8 +6,11 @@ src/dialogs/log-dialog.blp
 src/dialogs/log-dialog.vala
 src/dialogs/vm-dialog.blp
 src/dialogs/vm-dialog.vala
+src/models/app-catalog.vala
 src/models/vm-config.vala
 src/models/vm.vala
+src/pages/apps-page.blp
+src/pages/apps-page.vala
 src/pages/vm-page.blp
 src/pages/vm-page.vala
 src/services/ini-file.vala

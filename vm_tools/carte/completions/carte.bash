@@ -22,24 +22,40 @@ _carte_apps()
     done
 }
 
+# The applications a VM has taken out of the menu
+_carte_hidden()
+{
+    local f=${XDG_CONFIG_HOME:-$HOME/.config}/carte/$1.hidden
+    [[ -f $f ]] && grep -v '^#' "$f"
+}
+
 _carte()
 {
     local cur prev words cword
     _init_completion || return
 
     if ((cword == 1)); then
-        COMPREPLY=($(compgen -W 'sync launch remove' -- "$cur"))
+        COMPREPLY=($(compgen -W 'sync launch hide show remove' -- "$cur"))
         return
     fi
 
     case ${words[1]} in
         sync)
-            ((cword == 2)) && COMPREPLY=($(compgen -W '--cid' -- "$cur"))
+            case $cword in
+                2) COMPREPLY=($(compgen -W '--cid' -- "$cur")) ;;
+                4) COMPREPLY=($(compgen -W '--no-menu' -- "$cur")) ;;
+            esac
             ;;
-        launch)
+        launch | hide)
             case $cword in
                 2) COMPREPLY=($(compgen -W "$(_carte_vms)" -- "$cur")) ;;
                 3) COMPREPLY=($(compgen -W "$(_carte_apps "${words[2]}")" -- "$cur")) ;;
+            esac
+            ;;
+        show)
+            case $cword in
+                2) COMPREPLY=($(compgen -W "$(_carte_vms)" -- "$cur")) ;;
+                3) COMPREPLY=($(compgen -W "$(_carte_hidden "${words[2]}")" -- "$cur")) ;;
             esac
             ;;
         remove)

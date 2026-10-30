@@ -382,12 +382,17 @@ impl Manager {
             let child = vm::spawn("vhost-device-sound", &vm::sound_args(config, paths), &props, &log, &log, None).map_err(failed)?;
             helpers.push(("vhost-device-sound", child));
         }
-        if config.app_menu {
+        // Without AppMenu, carte still keeps the list of the guest's
+        // applications, which Salle shows.
+        if config.app_menu || config.wayland {
             if vm::in_path("carte") {
                 truncate("carte")?;
                 let log = paths.log("carte");
                 // Waits for the guest's carte-agent, and reconnects if it restarts.
-                let args = ["sync".into(), "--cid".into(), res.cid.to_string().into()];
+                let mut args: Vec<OsString> = vec!["sync".into(), "--cid".into(), res.cid.to_string().into()];
+                if !config.app_menu {
+                    args.push("--no-menu".into());
+                }
                 helpers.push(("carte", vm::spawn("carte", &args, &[], &log, &log, None).map_err(failed)?));
             } else {
                 log(format!("{name}: carte isn't installed, the guest's applications won't be in the menu"));

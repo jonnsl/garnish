@@ -5,6 +5,7 @@
     <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
     <file preprocess="xml-stripblanks">dialogs/log-dialog.ui</file>
     <file preprocess="xml-stripblanks">dialogs/vm-dialog.ui</file>
+    <file preprocess="xml-stripblanks">pages/apps-page.ui</file>
     <file preprocess="xml-stripblanks">pages/vm-page.ui</file>
     <file preprocess="xml-stripblanks">widgets/vm-row.ui</file>
     <file>style.css</file>

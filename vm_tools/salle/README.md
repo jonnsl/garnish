@@ -14,13 +14,13 @@ mkosi.
 ## Building
 
 Dependencies: `meson`, `valac`, `blueprint-compiler`, `gtk4 >= 4.18`,
-`libadwaita-1 >= 1.8`, `libpulse` (with its GLib main loop). At runtime, maitred (see its README, Install).
+`libadwaita-1 >= 1.8`, `libpulse` (with its GLib main loop), `json-glib`. At runtime, maitred (see its README, Install).
 
 ```sh
 meson setup build -Dprofile=development
 ninja -C build
 GSETTINGS_SCHEMA_DIR=build/data ./build/src/salle
-meson test -C build   # the configuration file code, desktop file, metainfo and schema
+meson test -C build   # the configuration file and app list code, desktop file, metainfo and schema
 ```
 
 On Arch, `makepkg -si` in `host/garnish` builds and installs it from this
@@ -61,6 +61,11 @@ build-aux/check-style.sh --fix   # reformat in place
   stream to come back (as long as Salle is open). The guest's own output
   should stay at full volume (`garnish-guest` starts it there), since the
   host can only turn it down.
+- **Apps**: for a VM with `Wayland=yes`, the guest's graphical apps, from
+  the list carte keeps (`~/.local/share/carte/apps/<vm>.json`), so it's there
+  while the VM is off too, once it has run. With `AppMenu=yes`, each app has
+  a switch for whether it's in the host's App Menu: `carte hide` or `carte
+  show`, which apply right away, running or not.
 - **New and Edit**: one dialog for the common settings (disk image, CPUs,
   memory, network, Wayland, app menu, sound, microphone, shared home, guest
   user) and, under Advanced, kernel, initrd, extra kernel parameters, GPU
@@ -92,11 +97,14 @@ changes the main file, so a drop-in still wins. The parser follows maitre's
 | `src/services/ini-file.vala` | the configuration file format, edited in place |
 | `src/models/vm-config.vala` | a VM's settings: defaults, loading, saving the changes |
 | `src/models/vm.vala` | a VM and its state |
+| `src/models/app-catalog.vala` | a VM's apps, from carte's files |
 | `src/services/maitre.vala` | the D-Bus client and the list of VMs |
 | `src/vm-actions.vala` | start, stop, edit, delete and the rest, with their dialogs |
 | `src/window.*` | the sidebar and the page of the selected VM |
 | `src/pages/vm-page.*` | a VM's state, connection details, settings summary and logs |
+| `src/pages/apps-page.*` | a VM's apps, with their App Menu switches |
 | `src/dialogs/vm-dialog.*` | creating a VM and editing its settings |
 | `src/dialogs/log-dialog.*` | the log viewer |
 | `src/widgets/vm-row.*` | a VM in the sidebar |
 | `tests/test-config.vala` | tests for the configuration file code |
+| `tests/test-apps.vala` | tests for reading carte's app list |

@@ -45,8 +45,9 @@ install -Dm644 completions/carte.bash ~/.local/share/bash-completion/completions
 install -Dm644 completions/_carte ~/.local/share/zsh/site-functions/_carte
 ```
 
-[maitred](../maitre/README.md) runs `carte sync` for every VM it starts if
-`carte` is in its `PATH` (`AppMenu=no` turns it off) and logs to
+[maitred](../maitre/README.md) runs `carte sync` for every VM it starts with
+`AppMenu=yes` or `Wayland=yes` (adding `--no-menu` with `AppMenu=no`) if
+`carte` is in its `PATH`, and logs to
 `~/.local/state/garnish/<name>/carte.log`.
 
 Builds with Rust 1.85 or newer. Dependencies: `libc`, `serde`, `serde_json`.
@@ -55,16 +56,22 @@ Builds with Rust 1.85 or newer. Dependencies: `libc`, `serde`, `serde_json`.
 
 ```sh
 carte sync --cid 3          # follow the VM at CID 3 until killed
+carte sync --cid 3 --no-menu  # the same, but only keep the list of applications
 carte launch debian org.gnome.Calculator
-carte remove debian         # delete debian's launchers and icons
+carte hide debian org.gnome.Calculator   # take it out of the menu
+carte show debian org.gnome.Calculator   # put it back
+carte remove debian         # delete debian's launchers, icons and list
 ```
 
 `carte sync` waits for the agent, retrying every second, and reconnects when
 the agent restarts or the VM reboots. On every change in the guest it:
 
-- writes `~/.local/share/applications/carte-<vm>.<id>.desktop`,
 - fetches the icon into `~/.local/share/carte/icons/<vm>/<id>.{png,svg}`,
-- removes the launchers and icons of applications that are gone.
+- saves the list in `~/.local/share/carte/apps/<vm>.json` (see
+  [The list](#the-list)),
+- writes `~/.local/share/applications/carte-<vm>.<id>.desktop`, except for
+  hidden applications and with `--no-menu`,
+- removes the launchers and icons of applications that are gone or hidden.
 
 GNOME picks the files up immediately. Files are replaced atomically and only
 when their content changed. While connected, it records the CID in
@@ -73,6 +80,26 @@ when their content changed. While connected, it records the CID in
 Each launcher runs `carte launch <vm> <id>`. Launchers stay when the VM stops,
 so applications pinned to the dash stay too. Starting one while the VM is off
 shows a notification (`notify-send`).
+
+## The list
+
+The host keeps the last list from the agent in
+`~/.local/share/carte/apps/<vm>.json`, so a VM's applications can be shown
+while it's off (Salle does). It stays when the VM stops:
+
+```json
+{"vm": "debian", "menu": true, "apps": [
+  {"id": "org.gnome.Calculator", "name": {"": "Calculator"}, ...,
+   "icon_file": "/home/me/.local/share/carte/icons/debian/org.gnome.Calculator.svg"}]}
+```
+
+An application is the agent's (see [Protocol](#protocol)) plus `icon_file`,
+the fetched icon, if any. `menu` is false when `sync` ran with `--no-menu`.
+
+`~/.config/carte/<vm>.hidden` lists the applications left out of the menu,
+one ID per line. `carte hide` and `carte show` edit it and update the
+launchers from the saved list at once, also while the VM is off (but not
+with `menu` false); `sync` reads it on every change.
 
 ## What gets exported
 
@@ -180,6 +207,7 @@ and only accepts requests from the host.
 | `src/icons.rs`          | icon theme lookup |
 | `src/inotify.rs`        | recursive directory watching |
 | `src/menu.rs`           | the host's `.desktop` files |
+| `src/catalog.rs`        | the saved list and the hidden applications |
 | `src/xdg.rs`            | XDG base directories |
 | `completions/`          | bash and zsh completions for `carte` |
 | `src/bin/carte-agent.rs`| the guest agent |

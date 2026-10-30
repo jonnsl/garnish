@@ -1,0 +1,41 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SalleAppsPage: Adw.NavigationPage {
+  title: _("Apps");
+  tag: "apps";
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Stack stack {
+      transition-type: crossfade;
+
+      StackPage {
+        name: "list";
+
+        child: Adw.PreferencesPage {
+          Adw.PreferencesGroup group {
+            ListBox list {
+              selection-mode: none;
+
+              styles [
+                "boxed-list",
+              ]
+            }
+          }
+        };
+      }
+
+      StackPage {
+        name: "empty";
+
+        child: Adw.StatusPage empty_status {
+          icon-name: "view-app-grid-symbolic";
+          title: _("No Apps");
+        };
+      }
+    };
+  };
+}

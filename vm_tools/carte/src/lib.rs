@@ -6,6 +6,7 @@
 //! into .desktop files in the host's application menu that launch the guest's
 //! applications. Both sides talk over vsock, see [`proto`].
 
+pub mod catalog;
 pub mod desktop;
 pub mod icons;
 pub mod inotify;

@@ -17,11 +17,21 @@ _carte_apps() {
   _describe -t apps 'application' apps
 }
 
+# The applications a VM has taken out of the menu
+_carte_hidden() {
+  local f=${XDG_CONFIG_HOME:-$HOME/.config}/carte/$1.hidden
+  local -a apps
+  [[ -f $f ]] && apps=(${(f)"$(grep -v '^#' $f)"})
+  _describe -t apps 'hidden application' apps
+}
+
 _carte() {
   local -a subcommands
   subcommands=(
     'sync:put the applications of a VM in the menu and keep them up to date'
     'launch:start an application in a running VM'
+    'hide:take an application out of the menu'
+    'show:put a hidden application back in the menu'
     'remove:remove the applications of a VM from the menu'
   )
 
@@ -35,12 +45,19 @@ _carte() {
       case $CURRENT in
         3) compadd -- --cid ;;
         4) _message 'vsock CID' ;;
+        5) compadd -- --no-menu ;;
       esac
       ;;
-    launch)
+    launch|hide)
       case $CURRENT in
         3) _carte_vms ;;
         4) _carte_apps $words[3] ;;
+      esac
+      ;;
+    show)
+      case $CURRENT in
+        3) _carte_vms ;;
+        4) _carte_hidden $words[3] ;;
       esac
       ;;
     remove)

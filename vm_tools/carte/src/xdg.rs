@@ -16,6 +16,11 @@ pub fn data_home() -> PathBuf {
     absolute_var("XDG_DATA_HOME").unwrap_or_else(|| home().join(".local/share"))
 }
 
+/// $XDG_CONFIG_HOME, by default ~/.config.
+pub fn config_home() -> PathBuf {
+    absolute_var("XDG_CONFIG_HOME").unwrap_or_else(|| home().join(".config"))
+}
+
 /// $XDG_DATA_HOME followed by $XDG_DATA_DIRS, most important first.
 pub fn data_dirs() -> Vec<PathBuf> {
     let mut dirs = vec![data_home()];

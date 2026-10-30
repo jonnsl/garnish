@@ -19,7 +19,7 @@ pkgrel=1
 arch=(x86_64 aarch64)
 url='https://github.com/jonnsl/garnish'
 license=(GPL-3.0-or-later)
-makedepends=(cargo meson vala blueprint-compiler glib2 gtk4 libadwaita libpulse)
+makedepends=(cargo meson vala blueprint-compiler glib2 gtk4 libadwaita libpulse json-glib)
 checkdepends=(appstream desktop-file-utils)
 
 _tools="$startdir/../../vm_tools"
@@ -106,7 +106,7 @@ package_garnish-host() {
 
 package_salle() {
   pkgdesc='Create, configure, start and stop crosvm virtual machines run by maitred'
-  depends=(glib2 gtk4 libadwaita libpulse hicolor-icon-theme)
+  depends=(glib2 gtk4 libadwaita libpulse json-glib hicolor-icon-theme)
   optdepends=('garnish-host: runs the VMs (needed)'
               'openssh: connect to the VMs'
               'xdg-terminal-exec: open a terminal with ssh into a VM')

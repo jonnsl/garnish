@@ -24,6 +24,8 @@ namespace Salle {
         [GtkChild] private unowned Adw.ActionRow volume_row;
         [GtkChild] private unowned Gtk.Scale volume_scale;
         [GtkChild] private unowned Gtk.ToggleButton mute_button;
+        [GtkChild] private unowned Adw.PreferencesGroup apps_group;
+        [GtkChild] private unowned Adw.ActionRow apps_row;
         [GtkChild] private unowned Adw.PreferencesGroup settings_group;
         [GtkChild] private unowned Adw.ActionRow image_row;
         [GtkChild] private unowned Adw.ActionRow hardware_row;
@@ -34,6 +36,8 @@ namespace Salle {
         public Vm vm { get; construct; }
 
         private bool audio = false;
+        private bool app_menu = false;
+        private AppCatalog catalog;
         /* Set while the controls show the mixer's values, so that doesn't
          * count as a change */
         private bool showing_volume = false;
@@ -44,6 +48,8 @@ namespace Salle {
 
         construct {
             terminal_button.visible = VmActions.terminal_available ();
+            catalog = new AppCatalog (vm.name);
+            catalog.changed.connect (update_apps_row);
             vm.notify.connect (update_state);
             Maitre.get_default ().config_changed.connect (on_config_changed);
             Mixer.get_default ().changed.connect (on_mixer_changed);
@@ -60,6 +66,8 @@ namespace Salle {
             Maitre.get_default ().config_changed.disconnect (on_config_changed);
             Mixer.get_default ().changed.disconnect (on_mixer_changed);
             Mixer.get_default ().notify["available"].disconnect (update_sound_group);
+            catalog.changed.disconnect (update_apps_row);
+            catalog.dispose ();
             dispose_template (typeof (VmPage));
             base.dispose ();
         }
@@ -128,6 +136,7 @@ namespace Salle {
                     show_problem (e.message);
                 }
                 settings_group.visible = false;
+                apps_group.visible = false;
                 return;
             }
             settings_group.visible = true;
@@ -156,6 +165,9 @@ namespace Salle {
             if (config.wayland && config.app_menu) {
                 features += _("App Menu");
             }
+            apps_group.visible = config.wayland;
+            app_menu = config.app_menu;
+            update_apps_row ();
             if (config.notifications) {
                 features += _("Notifications");
             }
@@ -170,6 +182,20 @@ namespace Salle {
             user_row.subtitle = "%s (%d)".printf (config.effective_user, config.uid);
 
             show_problem (config.problem () ?? config.missing_files ());
+        }
+
+        private void update_apps_row () {
+            var n = catalog.apps.length;
+            if (!catalog.listed) {
+                apps_row.subtitle = _("Listed once the virtual machine has started");
+            } else if (app_menu) {
+                apps_row.subtitle = Utils.join_dot ({
+                    ngettext ("%u App", "%u Apps", n).printf (n),
+                    _("%u in the App Menu").printf (catalog.count_shown ()),
+                });
+            } else {
+                apps_row.subtitle = ngettext ("%u App", "%u Apps", n).printf (n);
+            }
         }
 
         private void update_sound_group () {
@@ -219,6 +245,14 @@ namespace Salle {
         private void on_copy_address_clicked () {
             Utils.copy_to_clipboard (this, vm.address);
             VmActions.toast (this, _("IP address copied"));
+        }
+
+        [GtkCallback]
+        private void on_apps_activated () {
+            var nav = get_ancestor (typeof (Adw.NavigationView)) as Adw.NavigationView;
+            if (nav != null) {
+                nav.push (new AppsPage (vm, catalog));
+            }
         }
 
         [GtkCallback]

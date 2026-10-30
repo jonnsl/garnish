@@ -141,7 +141,13 @@ namespace Salle {
             selected = vm;
             if (vm != null) {
                 vm.notify["state"].connect (update_actions);
-                split_view.content = new VmPage (vm);
+                // A navigation view of its own, for the VM's subpages
+                var page = new VmPage (vm);
+                var nav = new Adw.NavigationView ();
+                nav.add (page);
+                var content = new Adw.NavigationPage (nav, page.title) { tag = "vm" };
+                page.bind_property ("title", content, "title");
+                split_view.content = content;
             } else if (!in_destruction ()) {
                 split_view.content = placeholder_page;
                 split_view.show_content = false;

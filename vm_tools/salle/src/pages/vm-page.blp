@@ -294,6 +294,26 @@ template $SalleVmPage: Adw.NavigationPage {
             }
           }
 
+          Adw.PreferencesGroup apps_group {
+            Adw.ActionRow apps_row {
+              title: _("Apps");
+              activatable: true;
+              activated => $on_apps_activated();
+
+              [prefix]
+              Image {
+                icon-name: "view-app-grid-symbolic";
+                accessible-role: presentation;
+              }
+
+              [suffix]
+              Image {
+                icon-name: "go-next-symbolic";
+                accessible-role: presentation;
+              }
+            }
+          }
+
           Adw.PreferencesGroup settings_group {
             title: _("Settings");
 

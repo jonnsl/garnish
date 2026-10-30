@@ -810,3 +810,56 @@ msgstr "Silenciar"
 #: src/pages/vm-page.vala:193
 msgid "Applies when the guest next plays sound"
 msgstr "Aplicado quando o convidado tocar som de novo"
+
+#: src/pages/apps-page.blp:5 src/pages/vm-page.blp:753
+msgid "Apps"
+msgstr "Aplicativos"
+
+#: src/pages/apps-page.blp:36
+msgid "No Apps"
+msgstr "Nenhum aplicativo"
+
+#: src/pages/apps-page.vala:59
+msgid "The guest has no graphical apps installed"
+msgstr "O convidado não tem aplicativos gráficos instalados"
+
+#: src/pages/apps-page.vala:60
+msgid "They show up here once the virtual machine has started"
+msgstr "Eles aparecem aqui depois que a máquina virtual tiver iniciado"
+
+#: src/pages/apps-page.vala:62
+msgid "Choose which apps are in your App Menu"
+msgstr "Escolha quais aplicativos ficam no seu menu de aplicativos"
+
+#: src/pages/apps-page.vala:63
+msgid ""
+"Turn on “Add Apps to the App Menu” in the settings to launch them from your "
+"desktop"
+msgstr ""
+"Ative “Adicionar aplicativos ao menu de aplicativos” nas configurações para "
+"abri-los pela sua área de trabalho"
+
+#: src/pages/apps-page.vala:126
+#, c-format
+msgid "Can’t change the App Menu: %s"
+msgstr "Não foi possível alterar o menu de aplicativos: %s"
+
+#: src/models/app-catalog.vala:80
+msgid "carte failed"
+msgstr "o carte falhou"
+
+#: src/pages/vm-page.vala:211
+msgid "Listed once the virtual machine has started"
+msgstr "Listados depois que a máquina virtual tiver iniciado"
+
+#: src/pages/vm-page.vala:214 src/pages/vm-page.vala:218
+#, c-format
+msgid "%u App"
+msgid_plural "%u Apps"
+msgstr[0] "%u aplicativo"
+msgstr[1] "%u aplicativos"
+
+#: src/pages/vm-page.vala:215
+#, c-format
+msgid "%u in the App Menu"
+msgstr "%u no menu de aplicativos"

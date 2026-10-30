@@ -11,3 +11,8 @@ test('config', find_program('sh'),
     'HOME=/home/me',
   ],
 )
+
+test('apps', executable('test-apps', 'test-apps.vala',
+  dependencies: core_dep,
+  vala_args: ['--target-glib=2.80'],
+))

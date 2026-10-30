@@ -8,13 +8,18 @@ use std::process::{Command, ExitCode};
 use std::thread;
 use std::time::Duration;
 
-use carte::proto::{self, App, AppList, Reply, Request};
+use carte::catalog::{self, Catalog, CatalogApp};
+use carte::proto::{self, AppList, Reply, Request};
 use carte::{menu, vsock, xdg};
 
 const USAGE: &str = "\
-usage: carte sync --cid <cid>      put the applications of the VM at <cid> in the
-                                  application menu and keep them up to date
+usage: carte sync --cid <cid> [--no-menu]
+                                  put the applications of the VM at <cid> in the
+                                  application menu and keep them up to date;
+                                  with --no-menu, only keep their list
        carte launch <vm> <app-id>  start an application in a running VM
+       carte hide <vm> <app-id>    take an application out of the menu
+       carte show <vm> <app-id>    put it back
        carte remove <vm>           remove a VM's applications from the menu";
 
 const RETRY: Duration = Duration::from_secs(1);
@@ -26,11 +31,13 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let result = match args[..] {
-        ["sync", "--cid", cid] => match cid.parse() {
-            Ok(cid) => sync(cid),
+        ["sync", "--cid", cid] | ["sync", "--cid", cid, "--no-menu"] => match cid.parse() {
+            Ok(cid) => sync(cid, args.len() == 3),
             Err(_) => Err(format!("invalid CID {cid}")),
         },
         ["launch", vm, id] => launch(vm, id),
+        ["hide", vm, id] => set_hidden(vm, id, true),
+        ["show", vm, id] => set_hidden(vm, id, false),
         ["remove", vm] => remove(vm),
         _ => {
             eprintln!("{USAGE}");
@@ -54,20 +61,24 @@ fn check_vm(vm: &str) -> Result<(), String> {
     }
 }
 
+fn check_id(id: &str) -> Result<(), String> {
+    if proto::is_valid_id(id) {
+        Ok(())
+    } else {
+        Err(format!("invalid application ID {id:?}"))
+    }
+}
+
 /// Where `sync` records the CID of a running VM, for `launch`.
 fn cid_file(vm: &str) -> PathBuf {
     xdg::runtime_dir().join("carte").join(format!("{vm}.cid"))
-}
-
-fn icon_dir(vm: &str) -> PathBuf {
-    xdg::data_home().join("carte/icons").join(vm)
 }
 
 fn applications_dir() -> PathBuf {
     xdg::data_home().join("applications")
 }
 
-fn sync(cid: u32) -> Result<(), String> {
+fn sync(cid: u32, menu: bool) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| format!("finding the carte binary: {e}"))?;
     let mut waiting = false;
     loop {
@@ -85,7 +96,7 @@ fn sync(cid: u32) -> Result<(), String> {
         waiting = false;
         eprintln!("carte: connected to CID {cid}");
         let mut vm = None;
-        let result = follow(&conn, cid, &exe, &mut vm);
+        let result = follow(&conn, cid, &exe, menu, &mut vm);
         if let Some(vm) = vm {
             remove_cid_file(&vm, cid);
         }
@@ -112,7 +123,7 @@ fn remove_cid_file(vm: &str, cid: u32) {
 
 /// Applies application lists from the agent until the connection ends.
 /// `vm` is set to the VM's name once it is known.
-fn follow(conn: &File, cid: u32, exe: &Path, vm: &mut Option<String>) -> io::Result<()> {
+fn follow(conn: &File, cid: u32, exe: &Path, menu: bool, vm: &mut Option<String>) -> io::Result<()> {
     proto::send(&mut &*conn, &Request::Watch)?;
     let mut reader = BufReader::new(conn);
     while let Some(list) = proto::recv::<AppList>(&mut reader)? {
@@ -128,56 +139,80 @@ fn follow(conn: &File, cid: u32, exe: &Path, vm: &mut Option<String>) -> io::Res
             fs::write(&path, format!("{cid}\n"))?;
             *vm = Some(list.vm.clone());
         }
-        export(cid, &list, exe);
+        export(cid, &list, exe, menu);
     }
     Ok(())
 }
 
-/// Writes the .desktop files and icons for `list` and removes those of
-/// applications that are gone.
-fn export(cid: u32, list: &AppList, exe: &Path) {
+/// Fetches the icons for `list`, records it in the catalog, and updates the
+/// menu: launchers for the applications that aren't hidden, none at all
+/// without `menu`.
+fn export(cid: u32, list: &AppList, exe: &Path, menu: bool) {
     let vm = &list.vm;
-    let apps: Vec<&App> = list
-        .apps
-        .iter()
-        .filter(|app| {
-            let ok = proto::is_valid_id(&app.id) && app.name.contains_key("");
-            if !ok {
-                eprintln!("carte: {vm}: skipping invalid application {:?}", app.id);
-            }
-            ok
-        })
-        .collect();
-
-    let icons = icon_dir(vm);
-    let apps_dir = applications_dir();
-    for dir in [&icons, &apps_dir] {
-        if let Err(e) = fs::create_dir_all(dir) {
-            eprintln!("carte: creating {}: {e}", dir.display());
-            return;
-        }
+    let icons = catalog::icon_dir(vm);
+    if let Err(e) = fs::create_dir_all(&icons) {
+        eprintln!("carte: creating {}: {e}", icons.display());
+        return;
     }
 
-    // Icons first, so they're there when GNOME reads the .desktop files.
     let mut fetcher = IconFetcher::new(cid);
     let mut icon_files = HashSet::new();
-    let mut desktop_files = HashSet::new();
-    for app in &apps {
+    let mut apps = Vec::new();
+    for app in &list.apps {
+        if !proto::is_valid_id(&app.id) || !app.name.contains_key("") {
+            eprintln!("carte: {vm}: skipping invalid application {:?}", app.id);
+            continue;
+        }
         let icon = app.icon.as_ref().and_then(|_| update_icon(&mut fetcher, &icons, &app.id));
         if let Some(icon) = &icon {
             icon_files.insert(icon.file_name().unwrap().to_owned());
         }
-        let name = menu::file_name(vm, &app.id);
-        let text = menu::render(vm, app, icon.as_deref(), exe);
-        if let Err(e) = write_if_changed(&apps_dir.join(&name), text.as_bytes()) {
-            eprintln!("carte: writing {name}: {e}");
-        }
-        desktop_files.insert(name);
+        apps.push(CatalogApp { app: app.clone(), icon_file: icon });
     }
-
-    remove_others(&apps_dir, |name| is_vms_desktop_file(&apps_dir, vm, name), &desktop_files);
     remove_others(&icons, |_| true, &icon_files);
-    eprintln!("carte: {vm}: {} applications", desktop_files.len());
+
+    let catalog = Catalog { vm: vm.clone(), menu, apps };
+    if let Err(e) = write_catalog(&catalog) {
+        eprintln!("carte: {vm}: writing the catalog: {e}");
+    }
+    // After the icons, so they're there when GNOME reads the .desktop files.
+    let shown = update_menu(&catalog, exe);
+    eprintln!("carte: {vm}: {} applications, {shown} in the menu", catalog.apps.len());
+}
+
+fn write_catalog(catalog: &Catalog) -> io::Result<()> {
+    let path = catalog::catalog_file(&catalog.vm);
+    fs::create_dir_all(path.parent().unwrap())?;
+    write_if_changed(&path, &serde_json::to_vec(catalog)?)
+}
+
+fn read_hidden(vm: &str) -> std::collections::BTreeSet<String> {
+    fs::read_to_string(catalog::hidden_file(vm)).map(|t| catalog::parse_hidden(&t)).unwrap_or_default()
+}
+
+/// Writes the launchers of the catalog's applications that aren't hidden and
+/// removes the VM's others. Returns how many there are.
+fn update_menu(catalog: &Catalog, exe: &Path) -> usize {
+    let vm = &catalog.vm;
+    let apps_dir = applications_dir();
+    let mut desktop_files = HashSet::new();
+    if catalog.menu {
+        if let Err(e) = fs::create_dir_all(&apps_dir) {
+            eprintln!("carte: creating {}: {e}", apps_dir.display());
+            return 0;
+        }
+        let hidden = read_hidden(vm);
+        for entry in catalog.apps.iter().filter(|a| !hidden.contains(&a.app.id)) {
+            let name = menu::file_name(vm, &entry.app.id);
+            let text = menu::render(vm, &entry.app, entry.icon_file.as_deref(), exe);
+            if let Err(e) = write_if_changed(&apps_dir.join(&name), text.as_bytes()) {
+                eprintln!("carte: writing {name}: {e}");
+            }
+            desktop_files.insert(name);
+        }
+    }
+    remove_others(&apps_dir, |name| is_vms_desktop_file(&apps_dir, vm, name), &desktop_files);
+    desktop_files.len()
 }
 
 /// Fetches the icon of `id` into `dir` and returns its path. Keeps the
@@ -287,9 +322,7 @@ fn launch(vm: &str, id: &str) -> Result<(), String> {
 
 fn try_launch(vm: &str, id: &str) -> Result<(), String> {
     check_vm(vm)?;
-    if !proto::is_valid_id(id) {
-        return Err(format!("invalid application ID {id:?}"));
-    }
+    check_id(id)?;
     let cid = read_cid(&cid_file(vm)).ok_or_else(|| format!("{vm} is not running"))?;
     let conn = vsock::connect(cid, proto::AGENT_PORT).map_err(|e| format!("connecting to {vm} (CID {cid}): {e}"))?;
     vsock::set_timeout(&conn, TIMEOUT).map_err(|e| e.to_string())?;
@@ -304,12 +337,45 @@ fn try_launch(vm: &str, id: &str) -> Result<(), String> {
     }
 }
 
+/// Adds `id` to the VM's hidden applications or takes it out, and updates
+/// the menu from the catalog, so it applies also while the VM is off.
+fn set_hidden(vm: &str, id: &str, hide: bool) -> Result<(), String> {
+    check_vm(vm)?;
+    check_id(id)?;
+    let path = catalog::hidden_file(vm);
+    let mut hidden = read_hidden(vm);
+    let changed = if hide { hidden.insert(id.to_owned()) } else { hidden.remove(id) };
+    if changed {
+        fs::create_dir_all(path.parent().unwrap())
+            .and_then(|()| write_if_changed(&path, catalog::format_hidden(&hidden).as_bytes()))
+            .map_err(|e| format!("writing {}: {e}", path.display()))?;
+    }
+    match fs::read(catalog::catalog_file(vm)) {
+        Ok(data) => {
+            let catalog: Catalog = serde_json::from_slice(&data).map_err(|e| format!("reading the catalog: {e}"))?;
+            if catalog.vm != vm {
+                return Err(format!("the catalog of {vm} is for {}", catalog.vm));
+            }
+            let exe = std::env::current_exe().map_err(|e| format!("finding the carte binary: {e}"))?;
+            update_menu(&catalog, &exe);
+        }
+        // Never synced: the next sync reads the hidden file.
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+        Err(e) => return Err(format!("reading the catalog: {e}")),
+    }
+    Ok(())
+}
+
 fn remove(vm: &str) -> Result<(), String> {
     check_vm(vm)?;
     let apps_dir = applications_dir();
     let none: HashSet<String> = HashSet::new();
     remove_others(&apps_dir, |name| is_vms_desktop_file(&apps_dir, vm, name), &none);
-    match fs::remove_dir_all(icon_dir(vm)) {
+    match fs::remove_file(catalog::catalog_file(vm)) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(format!("removing the catalog: {e}")),
+        _ => {}
+    }
+    match fs::remove_dir_all(catalog::icon_dir(vm)) {
         Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(format!("removing icons: {e}")),
         _ => {}
     }

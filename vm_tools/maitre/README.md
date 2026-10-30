@@ -107,7 +107,7 @@ one systemd and mkosi use:
 | `[Network] Mode=` | `passt` | `passt`: through passt, as you; `nat`: a network device of its own on the host; `none`: no network. See [Network](#network) |
 | `[Guest] User=` | your user name | the image's `GUEST_USER`: home mount and `maitre ssh` |
 | `[Guest] UID=`, `GID=` | `1000`, the UID | the guest user's IDs, for the shared home |
-| `[Guest] AppMenu=` | `yes` | run `carte sync` while the VM is up |
+| `[Guest] AppMenu=` | `yes` | run `carte sync` while the VM is up; with `Wayland=yes` and `AppMenu=no`, `carte sync --no-menu`, which only keeps the list of applications (for Salle) |
 | `[Guest] Notifications=` | `yes` | run `sonnette relay` while the VM is up: the guest's notifications show on the host |
 
 The default kernel command line is the image's (`KernelCommandLine=` in
@@ -198,8 +198,9 @@ To start a VM, maitred
 1. reads and checks its configuration,
 2. with `Mode=nat`, gets a tap from `maitre-net`, and takes a CID,
 3. starts `passt` (with `Mode=passt`), `vhost-device-sound` (with
-   `Audio=yes`), `carte sync --cid <cid>` (with `AppMenu=yes`, if `carte`
-   is installed) and `sonnette relay --cid <cid>` (with `Notifications=yes`,
+   `Audio=yes`), `carte sync --cid <cid>` (with `AppMenu=yes` or
+   `Wayland=yes`, adding `--no-menu` without `AppMenu`, if `carte` is
+   installed) and `sonnette relay --cid <cid>` (with `Notifications=yes`,
    if `sonnette` is installed),
 4. starts `crosvm run` and waits for its control socket.
 
@@ -247,7 +248,7 @@ Each VM has a directory, `~/.local/state/garnish/<name>/`, with:
 | `crosvm.log` | crosvm's own messages |
 | `passt.log` | with `Mode=passt` |
 | `vhost-device-sound.log` | with `Audio=yes` |
-| `carte.log` | with `AppMenu=yes` |
+| `carte.log` | with `AppMenu=yes` or `Wayland=yes` |
 | `sonnette.log` | with `Notifications=yes` |
 
 They are emptied on every start. After a guest reboot crosvm writes to the
