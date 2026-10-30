@@ -102,6 +102,7 @@ one systemd and mkosi use:
 | `[Machine] Audio=` | `no` | virtio-snd through vhost-device-sound |
 | `[Machine] Microphone=` | `no` | lets the guest record from your default input |
 | `[Machine] Wayland=` | `yes` | GPU with `GpuContextTypes` and the host's Wayland socket, for sommelier |
+| `[Machine] Clipboard=` | `both` | which way copied data may go: `both`; `to-host` (the host can paste what the guest copies, not the other way round); `from-host` (the reverse); `none`. Anything but `both` runs [videur](../videur/README.md) between crosvm and the host's Wayland socket. Copy and paste inside the guest works either way |
 | `[Machine] GpuContextTypes=` | `cross-domain` | list; add `virgl2` only if crosvm has virglrenderer |
 | `[Machine] ExtraArguments=` | | list, passed to `crosvm run` |
 | `[Network] Mode=` | `passt` | `passt`: through passt, as you; `nat`: a network device of its own on the host; `none`: no network. See [Network](#network) |
@@ -200,8 +201,9 @@ To start a VM, maitred
 3. starts `passt` (with `Mode=passt`), `vhost-device-sound` (with
    `Audio=yes`), `carte sync --cid <cid>` (with `AppMenu=yes` or
    `Wayland=yes`, adding `--no-menu` without `AppMenu`, if `carte` is
-   installed) and `sonnette relay --cid <cid>` (with `Notifications=yes`,
-   if `sonnette` is installed),
+   installed), `sonnette relay --cid <cid>` (with `Notifications=yes`,
+   if `sonnette` is installed) and `videur` (with `Wayland=yes` and
+   `Clipboard=` other than `both`; it has to be installed),
 4. starts `crosvm run` and waits for its control socket.
 
 vhost-device-sound gets `PIPEWIRE_PROPS` naming its playback stream after
@@ -250,6 +252,7 @@ Each VM has a directory, `~/.local/state/garnish/<name>/`, with:
 | `vhost-device-sound.log` | with `Audio=yes` |
 | `carte.log` | with `AppMenu=yes` or `Wayland=yes` |
 | `sonnette.log` | with `Notifications=yes` |
+| `videur.log` | with `Clipboard=` other than `both` |
 
 They are emptied on every start. After a guest reboot crosvm writes to the
 end of them. Sockets are in `$XDG_RUNTIME_DIR/garnish/<name>/`.

@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use tokio::process::{Child, Command};
 
-use crate::config::VmConfig;
+use crate::config::{Clipboard, VmConfig};
 use crate::net::{self, Tap};
 
 /// crosvm's exit status (with --extended-status) when the guest reboots.
@@ -79,6 +79,12 @@ impl Paths {
         self.runtime.join("passt.sock")
     }
 
+    /// videur's: the Wayland socket crosvm gets when the clipboard is
+    /// restricted.
+    pub fn videur_socket(&self) -> PathBuf {
+        self.runtime.join("wayland.sock")
+    }
+
     pub fn log(&self, name: &str) -> PathBuf {
         self.logs.join(format!("{name}.log"))
     }
@@ -144,7 +150,10 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
         args.push("--gpu".into());
         args.push(format!("context-types={}", config.gpu_context_types.join(":")).into());
         args.push("--wayland-sock".into());
-        args.push(paths.wayland.clone().into());
+        args.push(match config.clipboard {
+            Clipboard::Both => paths.wayland.clone().into(),
+            _ => paths.videur_socket().into(),
+        });
     }
     // crosvm waits up to --vhost-user-connect-timeout-ms for the sockets
     // of vhost-user devices to appear.
@@ -198,6 +207,19 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
 
 /// passt's arguments. It stays up while crosvm restarts after a guest
 /// reboot, and serves the next connection.
+/// videur's arguments: between crosvm and the host's Wayland socket, it
+/// lets through only the clipboard data `[Machine] Clipboard=` allows.
+pub fn videur_args(config: &VmConfig, paths: &Paths) -> Vec<OsString> {
+    vec![
+        "--display".into(),
+        paths.wayland.clone().into(),
+        "--listen".into(),
+        paths.videur_socket().into(),
+        "--clipboard".into(),
+        config.clipboard.as_str().into(),
+    ]
+}
+
 pub fn passt_args(paths: &Paths) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec!["--foreground".into(), "--vhost-user".into(), "--socket".into()];
     args.push(paths.passt_socket().into());
@@ -421,6 +443,23 @@ mod tests {
         for absent in ["--gpu", "--wayland-sock", "--net", "--shared-dir", "--vhost-user"] {
             assert!(!args.iter().any(|a| a == absent), "{absent} in {args:?}");
         }
+    }
+
+    #[test]
+    fn clipboard_through_videur() {
+        let c = config("[Boot]\nImage=d.raw\n[Machine]\nClipboard=to-host\n");
+        let res = Resources { cid: 3, net: None, dns: vec![] };
+        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        let i = args.iter().position(|a| a == "--wayland-sock").unwrap();
+        assert_eq!(args[i + 1], "/run/user/1000/garnish/debian/wayland.sock");
+        assert_eq!(strings(videur_args(&c, &paths())), [
+            "--display",
+            "/run/user/1000/wayland-0",
+            "--listen",
+            "/run/user/1000/garnish/debian/wayland.sock",
+            "--clipboard",
+            "to-host",
+        ]);
     }
 
     #[test]

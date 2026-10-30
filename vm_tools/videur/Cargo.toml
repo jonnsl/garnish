@@ -1,0 +1,14 @@
+[package]
+name = "videur"
+version = "0.1.0"
+edition = "2024"
+description = "A Wayland proxy that controls what crosvm guests may copy and paste"
+rust-version = "1.88"
+license = "GPL-3.0-or-later"
+publish = false
+
+[dependencies]
+rustix = { version = "1", features = ["event", "net"] }
+
+[profile.release]
+strip = true

@@ -17,7 +17,7 @@ use tokio::time::{Instant, sleep, sleep_until, timeout};
 use zbus::object_server::SignalEmitter;
 use zbus::{Connection, interface};
 
-use crate::config::{self, DaemonConfig, NetworkMode, VmConfig};
+use crate::config::{self, Clipboard, DaemonConfig, NetworkMode, VmConfig};
 use crate::dbus::{Error, OBJECT_PATH, VmInfo};
 use crate::ini;
 use crate::net;
@@ -245,6 +245,13 @@ impl Manager {
                 paths.wayland.display()
             )));
         }
+        // Not silently: the clipboard would be open.
+        if config.wayland && config.clipboard != Clipboard::Both && !vm::in_path("videur") {
+            return Err(Error::StartFailed(format!(
+                "Clipboard={} needs videur (vm_tools/videur); or set Clipboard=both",
+                config.clipboard.as_str()
+            )));
+        }
         if config.network == NetworkMode::Passt && !vm::in_path("passt") {
             return Err(Error::StartFailed(
                 "[Network] Mode=passt needs passt (https://passt.top); or choose Mode=nat or none".into(),
@@ -331,7 +338,7 @@ impl Manager {
     async fn launch(&self, name: &str, config: &VmConfig, res: &Resources, paths: &Paths) -> Result<Launched, Error> {
         let failed = |what: &str, e: io::Error| Error::StartFailed(format!("{what}: {e}"));
         // sockaddr_un's sun_path is 108 bytes, including the terminating NUL.
-        for socket in [paths.control_socket(), paths.sound_socket(), paths.passt_socket()] {
+        for socket in [paths.control_socket(), paths.sound_socket(), paths.passt_socket(), paths.videur_socket()] {
             if socket.as_os_str().len() >= 108 {
                 return Err(Error::StartFailed(format!("{}: socket path too long", socket.display())));
             }
@@ -408,6 +415,28 @@ impl Manager {
             } else {
                 log(format!("{name}: sonnette isn't installed, the guest's notifications won't be shown"));
             }
+        }
+
+        if config.wayland && config.clipboard != Clipboard::Both {
+            truncate("videur")?;
+            let log = paths.log("videur");
+            let mut child = vm::spawn("videur", &vm::videur_args(config, paths), &[], &log, &log, None).map_err(failed)?;
+            // crosvm connects to it when the guest's sommelier starts, but
+            // a missing socket would only show up then.
+            let socket = paths.videur_socket();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !socket.exists() {
+                if child.try_wait().map_err(failed)?.is_some() || Instant::now() > deadline {
+                    let _ = child.kill().await;
+                    return Err(Error::StartFailed(format!(
+                        "videur didn't start, end of {}:\n{}",
+                        log.display(),
+                        vm::log_tail(&log, 5)
+                    )));
+                }
+                sleep(Duration::from_millis(20)).await;
+            }
+            helpers.push(("videur", child));
         }
 
         truncate("console")?;

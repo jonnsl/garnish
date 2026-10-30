@@ -40,6 +40,7 @@ other than x86-64.
 | [Salle](vm_tools/salle/README.md) | host | a GTK app to create, edit, start and stop VMs and read their logs |
 | [carte](vm_tools/carte/README.md) | guest + host | puts the guest's applications in the host's application menu |
 | [sonnette](vm_tools/sonnette/README.md) | guest + host | shows the guest's desktop notifications on the host |
+| [videur](vm_tools/videur/README.md) | host | controls which way the guest's clipboard goes |
 
 ## Salle
 

@@ -28,6 +28,7 @@ pub struct VmConfig {
     pub audio: bool,
     pub microphone: bool,
     pub wayland: bool,
+    pub clipboard: Clipboard,
     pub gpu_context_types: Vec<String>,
     pub extra_args: Vec<String>,
 
@@ -36,6 +37,35 @@ pub struct VmConfig {
     pub gid: u32,
     pub app_menu: bool,
     pub notifications: bool,
+}
+
+/// `[Machine] Clipboard=`: which way copied data may go between the guest
+/// and the host. Anything but `Both` puts videur between crosvm and the
+/// host's Wayland socket.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Clipboard {
+    Both,
+    /// The host may paste what the guest copies, not the other way round.
+    ToHost,
+    /// The guest may paste what the host copies, not the other way round.
+    FromHost,
+    None,
+}
+
+impl Clipboard {
+    /// The value, as in the configuration and on videur's command line.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Clipboard::Both => "both",
+            Clipboard::ToHost => "to-host",
+            Clipboard::FromHost => "from-host",
+            Clipboard::None => "none",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Clipboard> {
+        [Clipboard::Both, Clipboard::ToHost, Clipboard::FromHost, Clipboard::None].into_iter().find(|c| c.as_str() == s)
+    }
 }
 
 /// `[Network] Mode=`: how the guest is connected.
@@ -105,6 +135,7 @@ impl VmConfig {
         let mut audio = false;
         let mut microphone = false;
         let mut wayland = true;
+        let mut clipboard = Clipboard::Both;
         let mut gpu_context_types = vec!["cross-domain".to_owned()];
         let mut extra_args = Vec::new();
         let mut guest_user = None;
@@ -148,6 +179,13 @@ impl VmConfig {
                 ("Machine", "Audio") => audio = !empty && bool_value(e)?,
                 ("Machine", "Microphone") => microphone = !empty && bool_value(e)?,
                 ("Machine", "Wayland") => wayland = empty || bool_value(e)?,
+                ("Machine", "Clipboard") => {
+                    clipboard = if empty {
+                        Clipboard::Both
+                    } else {
+                        Clipboard::parse(&e.value).ok_or_else(|| e.error("expected both, to-host, from-host or none"))?
+                    };
+                }
                 ("Machine", "GpuContextTypes") => {
                     gpu_context_types = if empty { vec!["cross-domain".to_owned()] } else { words(e)? };
                 }
@@ -195,6 +233,7 @@ impl VmConfig {
             audio,
             microphone,
             wayland,
+            clipboard,
             gpu_context_types,
             extra_args,
             user: guest_user,
@@ -311,6 +350,16 @@ mod tests {
         assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, NetworkMode::Passt, false, true));
         assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications), ("me", 1000, 1000, true, true));
         assert_eq!(c.gpu_context_types, ["cross-domain"]);
+        assert_eq!(c.clipboard, Clipboard::Both);
+    }
+
+    #[test]
+    fn clipboard() {
+        for (value, mode) in [("to-host", Clipboard::ToHost), ("from-host", Clipboard::FromHost), ("none", Clipboard::None), ("", Clipboard::Both)] {
+            let c = vm(&format!("[Boot]\nImage=d.raw\n[Machine]\nClipboard={value}\n")).unwrap();
+            assert_eq!(c.clipboard, mode);
+        }
+        assert!(vm("[Boot]\nImage=d.raw\n[Machine]\nClipboard=yes\n").unwrap_err().contains("expected both"));
     }
 
     #[test]
