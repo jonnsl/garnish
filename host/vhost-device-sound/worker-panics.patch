@@ -1,22 +1,3 @@
-diff --git a/src/audio_backends/alsa.rs b/src/audio_backends/alsa.rs
-index 68c6f11..cace3e0 100644
---- a/src/audio_backends/alsa.rs
-+++ b/src/audio_backends/alsa.rs
-@@ -936,11 +936,11 @@ mod tests {
-                 backend.start(0).unwrap();
-                 // start -> stop | VALID
-                 backend.stop(0).unwrap();
--                // stop -> prepare | INVALID
--                backend.prepare(0).unwrap_err();
-                 // stop -> set_parameters | INVALID
-                 backend.set_parameters(0, request).unwrap_err();
--                // stop -> release | VALID
-+                // stop -> prepare | VALID (Linux sends it after a pause)
-+                backend.prepare(0).unwrap();
-+                // prepare -> release | VALID
-                 backend.release(0).unwrap();
-             }
- 
 diff --git a/src/audio_backends/pipewire.rs b/src/audio_backends/pipewire.rs
 index 7625c08..2e39396 100644
 --- a/src/audio_backends/pipewire.rs
@@ -243,38 +224,3 @@ index 2e5579b..65967b8 100644
      #[test]
      fn test_sound_thread_failure() {
          crate::init_logger();
-diff --git a/src/stream.rs b/src/stream.rs
-index 23337d3..d65200f 100644
---- a/src/stream.rs
-+++ b/src/stream.rs
-@@ -147,10 +147,12 @@ impl PCMState {
-         Self::SetParameters | Self::Prepare | Self::Release
-     );
- 
-+    // Also from Stop: Linux's driver sends PREPARE after a pause without a
-+    // RELEASE in between.
-     set_new_state!(
-         prepare,
-         Self::Prepare,
--        Self::SetParameters | Self::Prepare | Self::Release
-+        Self::SetParameters | Self::Prepare | Self::Release | Self::Stop
-     );
- 
-     set_new_state!(start, Self::Start, Self::Prepare | Self::Stop);
-@@ -584,14 +586,8 @@ mod tests {
-             ))
-         );
- 
--        let result = state.prepare();
--        assert_eq!(
--            result,
--            Err(Error::InvalidStateTransition(
--                PCMState::Stop,
--                PCMState::Prepare
--            ))
--        );
-+        // Valid: Linux sends PREPARE after a pause without a RELEASE.
-+        state.prepare().unwrap();
-     }
- 
-     #[test]

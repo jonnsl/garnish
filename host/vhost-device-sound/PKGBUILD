@@ -13,7 +13,7 @@
 
 pkgname=vhost-device-sound
 pkgver=0.3.0
-pkgrel=4
+pkgrel=5
 pkgdesc='virtio-sound device backend using the vhost-user protocol'
 arch=(x86_64)
 url='https://github.com/rust-vmm/vhost-device'
@@ -28,7 +28,7 @@ source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgn
 sha256sums=('d5066471ca6bc631f92b3cd265509d3134ff3483a8768e9f67676923878d7bce'
             '98a7ebb99f5b6d7fcadde90c202bd49eb0534768afb94d513c11f92568cfeec5'
             '84ca65970b09dd2b6dac7950d5e0610b88d52b0f4317b60f2342f32f55031b9b'
-            'a8d0ec12618759c0abbcddefdb7fb5ec311dba9b7a525d94b1fdad6d4affa6d7')
+            '2653f3d5ef22872b22c652960ff87672c3ef917345687d5a7512808e028286af')
 
 _features=(--no-default-features --features pw-backend,alsa-backend)
 
