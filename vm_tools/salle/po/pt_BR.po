@@ -737,7 +737,7 @@ msgstr "Comando SSH copiado"
 msgid "Can’t open a terminal: %s"
 msgstr "Não foi possível abrir um terminal: %s"
 
-#: src/vm-actions.vala:203
+#: src/pages/apps-page.vala:183 src/vm-actions.vala:203
 #, c-format
 msgid "Can’t open %s: %s"
 msgstr "Não foi possível abrir %s: %s"
@@ -831,14 +831,6 @@ msgstr "Eles aparecem aqui depois que a máquina virtual tiver iniciado"
 msgid "Choose which apps are in your App Menu"
 msgstr "Escolha quais aplicativos ficam no seu menu de aplicativos"
 
-#: src/pages/apps-page.vala:63
-msgid ""
-"Turn on “Add Apps to the App Menu” in the settings to launch them from your "
-"desktop"
-msgstr ""
-"Ative “Adicionar aplicativos ao menu de aplicativos” nas configurações para "
-"abri-los pela sua área de trabalho"
-
 #: src/pages/apps-page.vala:126
 #, c-format
 msgid "Can’t change the App Menu: %s"
@@ -863,3 +855,15 @@ msgstr[1] "%u aplicativos"
 #, c-format
 msgid "%u in the App Menu"
 msgstr "%u no menu de aplicativos"
+
+#: src/pages/apps-page.vala:89
+msgid "_Done"
+msgstr "_Concluído"
+
+#: src/pages/apps-page.blp:15
+msgid "Choose Which Apps Are in the App Menu"
+msgstr "Escolher quais aplicativos ficam no menu de aplicativos"
+
+#: src/pages/apps-page.vala:110
+msgid "Start the virtual machine to open its apps"
+msgstr "Inicie a máquina virtual para abrir os aplicativos dela"

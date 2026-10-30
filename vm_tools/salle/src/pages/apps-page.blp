@@ -7,7 +7,14 @@ template $SalleAppsPage: Adw.NavigationPage {
 
   child: Adw.ToolbarView {
     [top]
-    Adw.HeaderBar {}
+    Adw.HeaderBar {
+      [end]
+      ToggleButton edit_button {
+        label: _("_Edit");
+        use-underline: true;
+        tooltip-text: _("Choose Which Apps Are in the App Menu");
+      }
+    }
 
     content: Stack stack {
       transition-type: crossfade;

@@ -47,10 +47,15 @@ _carte()
             esac
             ;;
         launch | hide)
-            case $cword in
-                2) COMPREPLY=($(compgen -W "$(_carte_vms)" -- "$cur")) ;;
-                3) COMPREPLY=($(compgen -W "$(_carte_apps "${words[2]}")" -- "$cur")) ;;
-            esac
+            # launch --no-notify <vm> <id>
+            local i=2
+            [[ ${words[1]} == launch && ${words[2]} == --no-notify ]] && i=3
+            if ((cword == i)); then
+                COMPREPLY=($(compgen -W "$(_carte_vms)" -- "$cur"))
+                [[ ${words[1]} == launch && $i == 2 ]] && COMPREPLY+=($(compgen -W '--no-notify' -- "$cur"))
+            elif ((cword == i + 1)); then
+                COMPREPLY=($(compgen -W "$(_carte_apps "${words[i]}")" -- "$cur"))
+            fi
             ;;
         show)
             case $cword in

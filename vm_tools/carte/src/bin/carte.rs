@@ -17,7 +17,9 @@ usage: carte sync --cid <cid> [--no-menu]
                                   put the applications of the VM at <cid> in the
                                   application menu and keep them up to date;
                                   with --no-menu, only keep their list
-       carte launch <vm> <app-id>  start an application in a running VM
+       carte launch [--no-notify] <vm> <app-id>
+                                  start an application in a running VM; errors
+                                  go to a notification too, unless --no-notify
        carte hide <vm> <app-id>    take an application out of the menu
        carte show <vm> <app-id>    put it back
        carte remove <vm>           remove a VM's applications from the menu";
@@ -35,7 +37,8 @@ fn main() -> ExitCode {
             Ok(cid) => sync(cid, args.len() == 3),
             Err(_) => Err(format!("invalid CID {cid}")),
         },
-        ["launch", vm, id] => launch(vm, id),
+        ["launch", vm, id] => launch(vm, id, true),
+        ["launch", "--no-notify", vm, id] => launch(vm, id, false),
         ["hide", vm, id] => set_hidden(vm, id, true),
         ["show", vm, id] => set_hidden(vm, id, false),
         ["remove", vm] => remove(vm),
@@ -309,10 +312,10 @@ fn remove_others(dir: &Path, ours: impl Fn(&str) -> bool, keep: &HashSet<impl As
     }
 }
 
-fn launch(vm: &str, id: &str) -> Result<(), String> {
+fn launch(vm: &str, id: &str, notify: bool) -> Result<(), String> {
     let result = try_launch(vm, id);
     // Started from the application menu, nobody sees stderr.
-    if let Err(e) = &result {
+    if let (true, Err(e)) = (notify, &result) {
         let _ = Command::new("notify-send")
             .args(["--app-name=carte", &format!("Could not start {id}"), e])
             .status();

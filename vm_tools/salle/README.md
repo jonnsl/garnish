@@ -63,9 +63,10 @@ build-aux/check-style.sh --fix   # reformat in place
   host can only turn it down.
 - **Apps**: for a VM with `Wayland=yes`, the guest's graphical apps, from
   the list carte keeps (`~/.local/share/carte/apps/<vm>.json`), so it's there
-  while the VM is off too, once it has run. With `AppMenu=yes`, each app has
-  a switch for whether it's in the host's App Menu: `carte hide` or `carte
-  show`, which apply right away, running or not.
+  while the VM is off too, once it has run. Clicking one in a running VM
+  opens it (`carte launch`). With `AppMenu=yes`, Edit gives each app a switch
+  for whether it's in the host's App Menu: `carte hide` or `carte show`,
+  which apply right away, running or not.
 - **New and Edit**: one dialog for the common settings (disk image, CPUs,
   memory, network, Wayland, app menu, sound, microphone, shared home, guest
   user) and, under Advanced, kernel, initrd, extra kernel parameters, GPU
@@ -102,7 +103,7 @@ changes the main file, so a drop-in still wins. The parser follows maitre's
 | `src/vm-actions.vala` | start, stop, edit, delete and the rest, with their dialogs |
 | `src/window.*` | the sidebar and the page of the selected VM |
 | `src/pages/vm-page.*` | a VM's state, connection details, settings summary and logs |
-| `src/pages/apps-page.*` | a VM's apps, with their App Menu switches |
+| `src/pages/apps-page.*` | a VM's apps, to open them or choose those in the App Menu |
 | `src/dialogs/vm-dialog.*` | creating a VM and editing its settings |
 | `src/dialogs/log-dialog.*` | the log viewer |
 | `src/widgets/vm-row.*` | a VM in the sidebar |

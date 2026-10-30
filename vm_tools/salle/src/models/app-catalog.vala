@@ -112,9 +112,18 @@ namespace Salle {
             load ();
         }
 
+        /* Opens an app in the running VM */
+        public async void launch (string id) throws Error {
+            yield run ({ "carte", "launch", "--no-notify", vm_name, id });
+        }
+
         private async void run_carte (string id, bool hidden) throws Error {
-            var proc = new Subprocess.newv ({ "carte", hidden ? "hide" : "show", vm_name, id },
-                                            SubprocessFlags.STDOUT_SILENCE | SubprocessFlags.STDERR_PIPE);
+            yield run ({ "carte", hidden ? "hide" : "show", vm_name, id });
+        }
+
+        /* Runs carte; its message on failure becomes the error's */
+        private async void run (string[] argv) throws Error {
+            var proc = new Subprocess.newv (argv, SubprocessFlags.STDOUT_SILENCE | SubprocessFlags.STDERR_PIPE);
             string? stderr_text;
             yield proc.communicate_utf8_async (null, null, null, out stderr_text);
             if (!proc.get_successful ()) {

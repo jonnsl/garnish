@@ -58,6 +58,7 @@ Builds with Rust 1.85 or newer. Dependencies: `libc`, `serde`, `serde_json`.
 carte sync --cid 3          # follow the VM at CID 3 until killed
 carte sync --cid 3 --no-menu  # the same, but only keep the list of applications
 carte launch debian org.gnome.Calculator
+carte launch --no-notify debian org.gnome.Calculator  # errors only on stderr
 carte hide debian org.gnome.Calculator   # take it out of the menu
 carte show debian org.gnome.Calculator   # put it back
 carte remove debian         # delete debian's launchers, icons and list
@@ -79,7 +80,8 @@ when their content changed. While connected, it records the CID in
 
 Each launcher runs `carte launch <vm> <id>`. Launchers stay when the VM stops,
 so applications pinned to the dash stay too. Starting one while the VM is off
-shows a notification (`notify-send`).
+shows a notification (`notify-send`). With `--no-notify`, which Salle uses
+since it shows errors itself, errors only go to stderr.
 
 ## The list
 

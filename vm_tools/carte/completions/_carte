@@ -49,10 +49,15 @@ _carte() {
       esac
       ;;
     launch|hide)
-      case $CURRENT in
-        3) _carte_vms ;;
-        4) _carte_apps $words[3] ;;
-      esac
+      # launch --no-notify <vm> <id>
+      local i=3
+      [[ $words[2] == launch && $words[3] == --no-notify ]] && i=4
+      if (( CURRENT == i )); then
+        _carte_vms
+        [[ $words[2] == launch && $i == 3 ]] && compadd -- --no-notify
+      elif (( CURRENT == i + 1 )); then
+        _carte_apps $words[i]
+      fi
       ;;
     show)
       case $CURRENT in
