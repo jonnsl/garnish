@@ -146,6 +146,15 @@ unless the VM has `Microphone=yes`. Then the guest can record from your
 default input. This is enforced on the host, so guest root can't turn it back
 on.
 
+The package also patches bugs in vhost-device-sound 0.3.0 that stopped all
+of a VM's sound until it was restarted: the PipeWire backend could deadlock
+when the guest opened or closed its microphone during playback, and the
+thread that serves the guest panicked on a buffer sent as a stream stopped,
+which apps like Discord trigger often. It also fills capture buffers one
+guest period at a time; they came in bursts as big as the host's quantum,
+so small buffers overran. Rebuild with `makepkg -sfi` if you installed an
+older build.
+
 ```sh
 ./check-host-audio.sh                          # host prerequisites (read-only)
 (cd host/vhost-device-sound && makepkg -si)    # Arch package, patched

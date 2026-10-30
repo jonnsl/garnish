@@ -4,10 +4,16 @@
 # feature upstream) is left out so gstreamer isn't needed.
 # no-capture.patch adds --no-capture: the guest gets no input stream, so it
 # can't record from the host's microphone.
+# pipewire-fixes.patch fixes a deadlock that stopped all of a VM's sound when
+# the guest opened or closed its microphone during playback, and runs each
+# stream one guest period per cycle so small capture buffers don't overrun.
+# worker-panics.patch keeps the thread that serves the guest alive when the
+# guest sends a buffer as it stops a stream, or a request the backend thinks
+# is out of order; it panicked, and the VM's sound stopped until a restart.
 
 pkgname=vhost-device-sound
 pkgver=0.3.0
-pkgrel=2
+pkgrel=4
 pkgdesc='virtio-sound device backend using the vhost-user protocol'
 arch=(x86_64)
 url='https://github.com/rust-vmm/vhost-device'
@@ -16,15 +22,21 @@ depends=(alsa-lib gcc-libs glibc libpipewire)
 # clang: bindgen for pipewire-sys/libspa-sys
 makedepends=(cargo clang pkgconf)
 source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate"
-        no-capture.patch)
+        no-capture.patch
+        pipewire-fixes.patch
+        worker-panics.patch)
 sha256sums=('d5066471ca6bc631f92b3cd265509d3134ff3483a8768e9f67676923878d7bce'
-            '98a7ebb99f5b6d7fcadde90c202bd49eb0534768afb94d513c11f92568cfeec5')
+            '98a7ebb99f5b6d7fcadde90c202bd49eb0534768afb94d513c11f92568cfeec5'
+            '84ca65970b09dd2b6dac7950d5e0610b88d52b0f4317b60f2342f32f55031b9b'
+            'a8d0ec12618759c0abbcddefdb7fb5ec311dba9b7a525d94b1fdad6d4affa6d7')
 
 _features=(--no-default-features --features pw-backend,alsa-backend)
 
 prepare() {
   cd "$pkgname-$pkgver"
   patch -Np1 -i ../no-capture.patch
+  patch -Np1 -i ../pipewire-fixes.patch
+  patch -Np1 -i ../worker-panics.patch
   export RUSTUP_TOOLCHAIN=stable
   cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
 }
