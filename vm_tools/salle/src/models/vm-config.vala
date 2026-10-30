@@ -14,6 +14,8 @@ namespace Salle {
         public const string DEFAULT_GPU_CONTEXT_TYPES = "cross-domain";
         /* [Network] Mode=: "passt", "nat" or "none" */
         public const string DEFAULT_NETWORK_MODE = "passt";
+        /* [Machine] Clipboard=: "both", "to-host", "from-host" or "none" */
+        public const string DEFAULT_CLIPBOARD = "both";
         /* Smallest amount of memory maitre accepts */
         public const int64 MIN_MEMORY_MIB = 128;
 
@@ -34,6 +36,7 @@ namespace Salle {
         public bool audio { get; set; default = false; }
         public bool microphone { get; set; default = false; }
         public bool wayland { get; set; default = true; }
+        public string clipboard { get; set; default = DEFAULT_CLIPBOARD; }
         public string gpu_context_types { get; set; default = DEFAULT_GPU_CONTEXT_TYPES; }
         public string extra_args { get; set; default = ""; }
 
@@ -145,6 +148,9 @@ namespace Salle {
                 break;
             case "Machine/Wayland":
                 wayland = empty || (IniFile.parse_bool (v) ?? wayland);
+                break;
+            case "Machine/Clipboard":
+                clipboard = empty ? DEFAULT_CLIPBOARD : v;
                 break;
             case "Machine/GpuContextTypes":
                 gpu_context_types = empty ? DEFAULT_GPU_CONTEXT_TYPES : v;
@@ -303,6 +309,8 @@ namespace Salle {
             put (file, is_new, "Machine", "Audio", bool_value (audio), audio != old.audio);
             put (file, is_new, "Machine", "Microphone", bool_value (microphone), microphone != old.microphone);
             put (file, is_new, "Machine", "Wayland", bool_value (wayland), wayland != old.wayland);
+            put (file, false, "Machine", "Clipboard", clipboard != DEFAULT_CLIPBOARD ? clipboard : null,
+                 clipboard != old.clipboard);
             put (file, false, "Machine", "GpuContextTypes",
                  gpu_context_types != DEFAULT_GPU_CONTEXT_TYPES ? gpu_context_types : null,
                  gpu_context_types != old.gpu_context_types);

@@ -2,6 +2,9 @@ namespace Salle {
     /* Creates a VM, or edits the settings of one */
     [GtkTemplate (ui = "/org/garnish/Salle/dialogs/vm-dialog.ui")]
     public class VmDialog : Adw.Dialog {
+        /* [Machine] Clipboard= for each choice of clipboard_row, in order */
+        private const string[] CLIPBOARD_VALUES = { "both", "to-host", "from-host", "none" };
+
         [GtkChild] private unowned Adw.ToastOverlay toast_overlay;
         [GtkChild] private unowned Gtk.Button save_button;
         [GtkChild] private unowned Adw.Banner banner;
@@ -14,6 +17,7 @@ namespace Salle {
         [GtkChild] private unowned Gtk.CheckButton network_nat_check;
         [GtkChild] private unowned Gtk.CheckButton network_none_check;
         [GtkChild] private unowned Adw.SwitchRow wayland_row;
+        [GtkChild] private unowned Adw.ComboRow clipboard_row;
         [GtkChild] private unowned Adw.SwitchRow app_menu_row;
         [GtkChild] private unowned Adw.SwitchRow notifications_row;
         [GtkChild] private unowned Adw.SwitchRow audio_row;
@@ -76,6 +80,13 @@ namespace Salle {
             network_nat_check.active = config.network_mode == "nat";
             network_none_check.active = config.network_mode == "none";
             wayland_row.active = config.wayland;
+            // A value Salle doesn't know selects nothing, and is kept
+            clipboard_row.selected = Gtk.INVALID_LIST_POSITION;
+            for (uint i = 0; i < CLIPBOARD_VALUES.length; i++) {
+                if (CLIPBOARD_VALUES[i] == config.clipboard) {
+                    clipboard_row.selected = i;
+                }
+            }
             app_menu_row.active = config.app_menu;
             notifications_row.active = config.notifications;
             audio_row.active = config.audio;
@@ -143,6 +154,9 @@ namespace Salle {
                 c.network_mode = "none";
             }
             c.wayland = wayland_row.active;
+            if (clipboard_row.selected < CLIPBOARD_VALUES.length) {
+                c.clipboard = CLIPBOARD_VALUES[clipboard_row.selected];
+            }
             c.app_menu = app_menu_row.active;
             c.notifications = notifications_row.active;
             c.audio = audio_row.active;

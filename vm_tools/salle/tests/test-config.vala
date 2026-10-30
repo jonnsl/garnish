@@ -116,7 +116,7 @@ void test_helpers () {
 void test_load () {
     write_vm ("load", "[Boot]\nImage=images/debian.raw\nKernelCommandLineExtra=a\nKernelCommandLineExtra=\n"
               + "KernelCommandLineExtra=b \"c d\"\n[Machine]\nTitle=Débian (work)\nCPUs=2\nMemory=8G\n"
-              + "Audio=yes\nSharedHome=~/share\n[Network]\nMode=none\n[Guest]\nUser=guest\nGID=5\n");
+              + "Audio=yes\nSharedHome=~/share\nClipboard=from-host\n[Network]\nMode=none\n[Guest]\nUser=guest\nGID=5\n");
     DirUtils.create_with_parents (VmConfig.path_for ("load") + ".d", 0755);
     try {
         FileUtils.set_contents (VmConfig.path_for ("load") + ".d/10-more.conf", "[Machine]\nCPUs=3\n");
@@ -129,7 +129,7 @@ void test_load () {
     assert (c.cmdline_extra == "b \"c d\"");
     assert (c.title == "Débian (work)" && c.display_name == "Débian (work)");
     assert (c.cpus == 3 && c.memory_mib == 8192 && c.network_mode == "none" && c.audio && !c.microphone && c.wayland);
-    assert (c.shared_home == "/home/me/share");
+    assert (c.shared_home == "/home/me/share" && c.clipboard == "from-host");
     assert (c.user == "guest" && c.uid == 1000 && c.app_menu && c.notifications);
     assert (c.has_dropins);
     assert (c.problem () == null);
@@ -171,17 +171,20 @@ void test_save_changes () {
     c.shared_home = "/srv/home";
     c.extra_args = "--x";
     c.title = "Work";
+    c.clipboard = "none";
     save_vm (c);
     assert (read_vm ("edit") == "[Boot]\n# the image\nImage=images/debian.raw\nKernelCommandLine=root=/dev/vda\n"
             + "[Machine]\nCPUs=8\n  # an indented comment\nAudio=no\nTitle=Work\nSharedHome=/srv/home\n"
-            + "ExtraArguments=--x\n");
+            + "Clipboard=none\nExtraArguments=--x\n");
 
     // A second save starts from what the first wrote
     c.shared_home = null;
     c.title = null;
+    c.clipboard = VmConfig.DEFAULT_CLIPBOARD;
     save_vm (c);
     var again = load_vm ("edit");
     assert (again.title == null && !read_vm ("edit").contains ("Title="));
+    assert (again.clipboard == "both" && !read_vm ("edit").contains ("Clipboard="));
     assert (again.shared_home == null && again.cpus == 8 && again.extra_args == "--x");
 }
 

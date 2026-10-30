@@ -143,6 +143,21 @@ template $SalleVmDialog: Adw.Dialog {
             subtitle: _("Show the guest’s app windows on your desktop");
           }
 
+          Adw.ComboRow clipboard_row {
+            title: _("Copy and Paste");
+            subtitle: _("Between the guest and your desktop");
+            sensitive: bind wayland_row.active;
+
+            model: StringList {
+              strings [
+                _("Both Ways"),
+                _("To Desktop Only"),
+                _("From Desktop Only"),
+                _("Off"),
+              ]
+            };
+          }
+
           Adw.SwitchRow app_menu_row {
             title: _("Add Apps to the App Menu");
             subtitle: _("Launch the guest’s apps from your desktop while it runs");

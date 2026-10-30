@@ -68,7 +68,7 @@ build-aux/check-style.sh --fix   # reformat in place
   for whether it's in the host's App Menu: `carte hide` or `carte show`,
   which apply right away, running or not.
 - **New and Edit**: one dialog for the common settings (disk image, CPUs,
-  memory, network, Wayland, app menu, sound, microphone, shared home, guest
+  memory, network, Wayland, clipboard, app menu, sound, microphone, shared home, guest
   user) and, under Advanced, kernel, initrd, extra kernel parameters, GPU
   context types and extra crosvm arguments. The kernel and initrd default to
   the files next to the image, as in maitred.

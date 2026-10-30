@@ -162,6 +162,21 @@ namespace Salle {
             if (config.wayland) {
                 features += _("Graphical Apps");
             }
+            if (config.wayland) {
+                switch (config.clipboard) {
+                case "to-host":
+                    features += _("Copy to Desktop Only");
+                    break;
+                case "from-host":
+                    features += _("Paste from Desktop Only");
+                    break;
+                case "none":
+                    features += _("No Copy and Paste");
+                    break;
+                default:
+                    break;
+                }
+            }
             if (config.wayland && config.app_menu) {
                 features += _("App Menu");
             }
