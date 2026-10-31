@@ -14,7 +14,7 @@ namespace Salle {
         private Gerant gerant;
         /* The VM whose page is shown */
         private Vm? selected;
-        /* Selects the VM from the last session once the list is in */
+        /* Whether the VM from the last session was selected, once the list was in */
         private bool restored;
 
         /* Actions that need a VM in a particular state */
@@ -62,10 +62,6 @@ namespace Salle {
 
             // Shows the page of a row the user picks, even the selected one
             vm_list.row_activated.connect (() => split_view.show_content = true);
-            close_request.connect (() => {
-                settings.set_string ("last-selected", selected != null ? selected.name : "");
-                return false;
-            });
         }
 
         public override void dispose () {
@@ -83,6 +79,16 @@ namespace Salle {
 
         public void add_toast (Adw.Toast toast) {
             toast_overlay.add_toast (toast);
+        }
+
+        /* Selects the VM from the last session; called once the first refresh is done */
+        public void restore_selection () {
+            if (restored) {
+                return;
+            }
+            restored = true;
+            show_vm (settings.get_string ("last-selected"), false);
+            on_vms_changed ();
         }
 
         /* Selects a VM; `reveal` also shows its page when only one pane fits */
@@ -116,12 +122,8 @@ namespace Salle {
                 vm_list.unselect_all ();
                 set_selected (null);
             }
-            if (!restored && !empty) {
-                restored = true;
-                show_vm (settings.get_string ("last-selected"), false);
-            }
             // Wide windows always show a VM when there is one
-            if (vm_list.get_selected_row () == null && !empty && !split_view.collapsed) {
+            if (restored && vm_list.get_selected_row () == null && !empty && !split_view.collapsed) {
                 vm_list.select_row (vm_list.get_row_at_index (0));
             }
         }
@@ -139,6 +141,10 @@ namespace Salle {
                 selected.notify["state"].disconnect (update_actions);
             }
             selected = vm;
+            // Saved as it changes, since quitting the app skips close-request
+            if (restored && !in_destruction ()) {
+                settings.set_string ("last-selected", vm != null ? vm.name : "");
+            }
             if (vm != null) {
                 vm.notify["state"].connect (update_actions);
                 // A navigation view of its own, for the VM's subpages

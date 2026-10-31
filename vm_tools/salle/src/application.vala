@@ -31,8 +31,13 @@ namespace Salle {
         public override void activate () {
             base.activate ();
             if (active_window == null) {
-                new Salle.Window (this);
-                Gerant.get_default ().refresh.begin ();
+                var window = new Salle.Window (this);
+                // VMs come in one at a time, so the last selection waits for all of them
+                var gerant = Gerant.get_default ();
+                gerant.refresh.begin ((obj, res) => {
+                    gerant.refresh.end (res);
+                    window.restore_selection ();
+                });
             }
             active_window.present ();
         }
