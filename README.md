@@ -44,11 +44,11 @@ other than x86-64.
 
 ## Salle
 
-<!-- Screenshot placeholders: add the images under docs/screenshots/. -->
-
 ![Salle's list of VMs](docs/screenshots/salle-list.png)
 
 ![Editing a VM's settings in Salle](docs/screenshots/salle-edit.png)
+
+![A VM's apps in Salle](docs/screenshots/salle-apps.png)
 
 ## Building the images
 
