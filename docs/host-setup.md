@@ -1,8 +1,8 @@
 # Host setup
 
 Details on the host side that the component READMEs don't cover: crosvm, the
-network, the shared home directory and audio. For installing maitred and
-writing VM files, see the [maitre README](../vm_tools/maitre/README.md); for
+network, the shared home directory and audio. For installing gerantd and
+writing VM files, see the [gerant README](../vm_tools/gerant/README.md); for
 the application menu, the [carte README](../vm_tools/carte/README.md).
 
 ## crosvm
@@ -22,17 +22,17 @@ replaces `crosvm-git`. `host/crosvm/upstream-bug.md` has the details.
 Each VM has one setting, `[Network] Mode=` in its file:
 
 - `passt` (the default): internet access through
-  [passt](https://passt.top), which maitred runs as you. Nothing to set up
+  [passt](https://passt.top), which gerantd runs as you. Nothing to set up
 - `nat`: a network device of its own on the host, with an address the host
   can reach, and internet access through the host's (below)
 - `none`: no network device
 
-The [maitre README](../vm_tools/maitre/README.md#network) compares them and
+The [gerant README](../vm_tools/gerant/README.md#network) compares them and
 describes passt mode. The rest of this section is about `nat`.
 
 ### NAT
 
-Only root can create network devices, so maitred runs `maitre-net`, a small
+Only root can create network devices, so gerantd runs `gerant-net`, a small
 helper installed setuid root next to it, every time a VM with `Mode=nat`
 starts. The helper
 
@@ -40,11 +40,11 @@ starts. The helper
    gets 192.168.10.(4n+1) on it and the guest 192.168.10.(4n+2),
 2. turns IPv4 forwarding on (`net.ipv4.ip_forward=1`; it stays on),
 3. loads the nftables table below, replacing any older version of it,
-4. passes the open tap to maitred over a socket and exits.
+4. passes the open tap to gerantd over a socket and exits.
 
-maitred hands the tap to crosvm as `--net tap-fd=N`. The tap isn't
+gerantd hands the tap to crosvm as `--net tap-fd=N`. The tap isn't
 persistent: the kernel removes it when the VM stops and the last descriptor
-is closed, even if maitred crashes. Nothing has to be set up after a reboot.
+is closed, even if gerantd crashes. Nothing has to be set up after a reboot.
 
 ```
 table ip garnish {
@@ -69,7 +69,7 @@ accept forwarding from and to the `garnish*` interfaces. To remove the table:
 `sudo nft delete table ip garnish`.
 
 The subnet is the same for every user of the host, so it is set by root, in
-`/etc/garnish/network.conf` (optional; `vm_tools/maitre/examples/network.conf`
+`/etc/garnish/network.conf` (optional; `vm_tools/gerant/examples/network.conf`
 has the default). Pick one that doesn't overlap a network the host is on:
 
 ```ini
@@ -78,13 +78,13 @@ Subnet=192.168.10.0/24
 ```
 
 The file has to belong to root and not be writable by anyone else, or
-maitre-net refuses to run. maitre-net has no other options: nothing the
+gerant-net refuses to run. gerant-net has no other options: nothing the
 caller passes picks the tap's name or addresses, and it can't remove or
 change a tap.
 
 #### The helper's privileges
 
-maitre-net runs with root's privileges only long enough to give most of them
+gerant-net runs with root's privileges only long enough to give most of them
 up. Before it reads its configuration or touches the network, it
 
 - becomes the user who ran it, keeping only `CAP_NET_ADMIN`: no other
@@ -100,7 +100,7 @@ up. Before it reads its configuration or touches the network, it
   meant for them, and any other call kills it
 
 Its environment is ignored, and it accepts exactly one argument, `nat`.
-The code is in `vm_tools/maitre/src/bin/maitre-net/`.
+The code is in `vm_tools/gerant/src/bin/gerant-net/`.
 
 #### systemd-networkd
 
@@ -134,14 +134,14 @@ anyway with the home from the image.
 ## Audio
 
 `Audio=yes` adds a virtio-snd card. crosvm's own sound device has no PipeWire
-backend, so maitred starts
+backend, so gerantd starts
 [vhost-device-sound](https://github.com/rust-vmm/vhost-device) as your user and
 connects crosvm to it over vhost-user. It plays into your PipeWire and stops
 when the VM stops. In the guest, PipeWire, WirePlumber and pipewire-pulse run
 in the user session, so apps see an ordinary sound card.
 
 The guest gets **no microphone** by default. `host/vhost-device-sound` builds
-the package with a patch that adds `--no-capture`, and maitred passes it
+the package with a patch that adds `--no-capture`, and gerantd passes it
 unless the VM has `Microphone=yes`. Then the guest can record from your
 default input. This is enforced on the host, so guest root can't turn it back
 on.
@@ -159,8 +159,8 @@ older build.
 ./check-host-audio.sh                          # host prerequisites (read-only)
 (cd host/vhost-device-sound && makepkg -si)    # Arch package, patched
 # Audio=yes in ~/.config/garnish/vms/debian.conf, then:
-maitre start debian
-maitre ssh debian speaker-test -c 2 -t wav -l 1
+gerant start debian
+gerant ssh debian speaker-test -c 2 -t wav -l 1
 ```
 
 The host needs PipeWire with a session manager (WirePlumber) running.
@@ -173,4 +173,4 @@ desktop's sound settings, where it shows by its title. WirePlumber remembers
 it per VM. The host can only turn the guest's sound down, so the guest's own
 output should be at full volume. The `garnish-guest` package starts it
 there, but a guest that saved another volume before keeps it. Fix that once
-with `maitre ssh debian wpctl set-volume @DEFAULT_AUDIO_SINK@ 1.0`.
+with `gerant ssh debian wpctl set-volume @DEFAULT_AUDIO_SINK@ 1.0`.

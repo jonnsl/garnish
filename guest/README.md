@@ -8,7 +8,7 @@ distribution (Arch, Debian, Ubuntu, Fedora):
   `sommelier.service`, enabled for every user.
 - **`garnish-guest`**: `carte-agent` (from `vm_tools/carte`) and
   `sonnette-agent` (from `vm_tools/sonnette`) with their user units,
-  `maitre-ready.service`, and the Wayland environment
+  `gerant-ready.service`, and the Wayland environment
   (`/etc/profile.d/garnish-wayland.sh`,
   `/usr/lib/environment.d/50-garnish-wayland.conf`), and a WirePlumber
   setting that starts the sound output at full volume, since the host sets
@@ -88,7 +88,7 @@ guest/update-guest.sh debian-vm
 
 `update-guest.sh VM [DIR]` asks the guest for its distribution, copies the
 packages from `mkosi/mkosi.output/packages-<distribution>/` (or `DIR`) over
-`maitre ssh`, and runs `install-packages.sh` with sudo in the guest. That
+`gerant ssh`, and runs `install-packages.sh` with sudo in the guest. That
 installs them with pacman, apt or rpm (reinstalling when the version is the
 same), and removes what older images put in `/usr/local/bin` and `/etc`
 before these packages existed, since the copies in `/etc` would hide the

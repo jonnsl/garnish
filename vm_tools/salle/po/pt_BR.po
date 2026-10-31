@@ -64,8 +64,8 @@ msgid ""
 msgstr "O Salle permite criar, configurar, iniciar e parar máquinas virtuais crosvm, ver como elas estão e se conectar a elas."
 
 #: data/org.garnish.Salle.metainfo.xml.in.in:10
-msgid "It is a front end for maitred, which runs the virtual machines."
-msgstr "Ele é uma interface para o maitred, que executa as máquinas virtuais."
+msgid "It is a front end for gerantd, which runs the virtual machines."
+msgstr "Ele é uma interface para o gerantd, que executa as máquinas virtuais."
 
 #: data/org.garnish.Salle.metainfo.xml.in.in:13
 msgid "Jonnathan Soares"
@@ -81,8 +81,8 @@ msgid "translator-credits"
 msgstr "Jonnathan Soares <jonnsl@hotmail.com>"
 
 #: src/application.vala:51
-msgid "A front end for maitred, which runs crosvm virtual machines."
-msgstr "Uma interface para o maitred, que executa máquinas virtuais crosvm."
+msgid "A front end for gerantd, which runs crosvm virtual machines."
+msgstr "Uma interface para o gerantd, que executa máquinas virtuais crosvm."
 
 #: src/dialogs/log-dialog.blp:14 src/pages/vm-page.blp:313
 msgid "Console"
@@ -135,8 +135,8 @@ msgid "Name"
 msgstr "Nome"
 
 #: src/dialogs/vm-dialog.blp:40
-msgid "For files and the maitre command"
-msgstr "Para os arquivos e o comando maitre"
+msgid "For files and the gerant command"
+msgstr "Para os arquivos e o comando gerant"
 
 #: src/dialogs/vm-dialog.blp:45
 msgid "Title"
@@ -639,24 +639,24 @@ msgstr "barra invertida no final"
 msgid "unterminated quote"
 msgstr "aspas não fechadas"
 
-#: src/services/maitre.vala:280
+#: src/services/gerant.vala:280
 #, c-format
 msgid "Can’t remove %s"
 msgstr "Não foi possível remover %s"
 
-#: src/services/maitre.vala:291
+#: src/services/gerant.vala:291
 msgid ""
-"maitred isn’t installed, or the session bus hasn’t noticed it yet. See the "
-"maitre README (Install)."
-msgstr "O maitred não está instalado, ou o barramento de sessão ainda não o percebeu. Veja o README do maitre (Install)."
+"gerantd isn’t installed, or the session bus hasn’t noticed it yet. See the "
+"gerant README (Install)."
+msgstr "O gerantd não está instalado, ou o barramento de sessão ainda não o percebeu. Veja o README do gerant (Install)."
 
-#: src/services/maitre.vala:296
-msgid "maitred didn’t start. See “journalctl --user -u maitred”."
-msgstr "O maitred não iniciou. Veja “journalctl --user -u maitred”."
+#: src/services/gerant.vala:296
+msgid "gerantd didn’t start. See “journalctl --user -u gerantd”."
+msgstr "O gerantd não iniciou. Veja “journalctl --user -u gerantd”."
 
-#: src/services/maitre.vala:299
-msgid "maitred didn’t answer in time"
-msgstr "O maitred não respondeu a tempo"
+#: src/services/gerant.vala:299
+msgid "gerantd didn’t answer in time"
+msgstr "O gerantd não respondeu a tempo"
 
 #: src/shortcuts-dialog.blp:6
 msgid "General"

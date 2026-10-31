@@ -29,7 +29,7 @@ namespace Salle {
         construct {
             catalog.changed.connect (update);
             catalog.failed.connect (on_failed);
-            Maitre.get_default ().config_changed.connect (on_config_changed);
+            Gerant.get_default ().config_changed.connect (on_config_changed);
             vm.notify["state"].connect (update);
             edit_button.toggled.connect (on_edit_toggled);
             load_config ();
@@ -38,7 +38,7 @@ namespace Salle {
         public override void dispose () {
             catalog.changed.disconnect (update);
             catalog.failed.disconnect (on_failed);
-            Maitre.get_default ().config_changed.disconnect (on_config_changed);
+            Gerant.get_default ().config_changed.disconnect (on_config_changed);
             vm.notify["state"].disconnect (update);
             // Their handlers hold the page
             switches.length = 0;

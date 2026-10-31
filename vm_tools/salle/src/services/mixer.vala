@@ -3,7 +3,7 @@ namespace Salle {
      * Each VM's sound volume, set on the host through PipeWire's PulseAudio
      * server.
      *
-     * maitred names vhost-device-sound's playback stream garnish.<vm>. That
+     * gerantd names vhost-device-sound's playback stream garnish.<vm>. That
      * stream only exists while the guest has its sound card open, and the
      * guest closes it a few seconds after it goes quiet. When it comes back,
      * WirePlumber gives it the volume it had last; a change made while it's
@@ -259,7 +259,7 @@ namespace Salle {
 
         /*
          * The volume WirePlumber saved for the VM, to show while its stream
-         * is gone. Best effort: the file is WirePlumber's own. maitred sets
+         * is gone. Best effort: the file is WirePlumber's own. gerantd sets
          * application.id, which WirePlumber keys the volume by, and
          * WirePlumber stores linear volumes, which are cubed from the
          * percentages people see.

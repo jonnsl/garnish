@@ -45,8 +45,8 @@ legacy=(
     /etc/systemd/user/sommelier.service
     /etc/systemd/user/default.target.wants/carte-agent.service
     /etc/systemd/user/carte-agent.service
-    /etc/systemd/system/multi-user.target.wants/maitre-ready.service
-    /etc/systemd/system/maitre-ready.service
+    /etc/systemd/system/multi-user.target.wants/gerant-ready.service
+    /etc/systemd/system/gerant-ready.service
     /etc/profile.d/crosvm-wayland.sh
     /etc/environment.d/50-crosvm-wayland.conf
 )

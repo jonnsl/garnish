@@ -11,7 +11,7 @@ namespace Salle {
         [GtkChild] private unowned Gtk.Button placeholder_button;
 
         private Settings settings;
-        private Maitre maitre;
+        private Gerant gerant;
         /* The VM whose page is shown */
         private Vm? selected;
         /* Selects the VM from the last session once the list is in */
@@ -51,12 +51,12 @@ namespace Salle {
             };
             add_action_entries (entries, this);
 
-            maitre = Maitre.get_default ();
-            vm_list.bind_model (maitre.vms, (item) => new VmRow ((Vm) item));
-            maitre.vms.items_changed.connect (on_vms_changed);
-            maitre.notify["available"].connect (update_banner);
-            maitre.notify["error-message"].connect (update_banner);
-            maitre.vm_stopped.connect (on_vm_stopped);
+            gerant = Gerant.get_default ();
+            vm_list.bind_model (gerant.vms, (item) => new VmRow ((Vm) item));
+            gerant.vms.items_changed.connect (on_vms_changed);
+            gerant.notify["available"].connect (update_banner);
+            gerant.notify["error-message"].connect (update_banner);
+            gerant.vm_stopped.connect (on_vm_stopped);
             update_banner ();
             on_vms_changed ();
 
@@ -69,10 +69,10 @@ namespace Salle {
         }
 
         public override void dispose () {
-            maitre.vms.items_changed.disconnect (on_vms_changed);
-            maitre.notify["available"].disconnect (update_banner);
-            maitre.notify["error-message"].disconnect (update_banner);
-            maitre.vm_stopped.disconnect (on_vm_stopped);
+            gerant.vms.items_changed.disconnect (on_vms_changed);
+            gerant.notify["available"].disconnect (update_banner);
+            gerant.notify["error-message"].disconnect (update_banner);
+            gerant.vm_stopped.disconnect (on_vm_stopped);
             set_selected (null);
             base.dispose ();
         }
@@ -87,12 +87,12 @@ namespace Salle {
 
         /* Selects a VM; `reveal` also shows its page when only one pane fits */
         public void show_vm (string name, bool reveal = true) {
-            var vm = maitre.find (name);
+            var vm = gerant.find (name);
             if (vm == null) {
                 return;
             }
             uint pos;
-            if (maitre.vms.find (vm, out pos)) {
+            if (gerant.vms.find (vm, out pos)) {
                 vm_list.select_row (vm_list.get_row_at_index ((int) pos));
                 if (reveal) {
                     split_view.show_content = true;
@@ -101,18 +101,18 @@ namespace Salle {
         }
 
         private void update_banner () {
-            unavailable_banner.title = maitre.error_message ?? "";
-            unavailable_banner.revealed = !maitre.available && maitre.error_message != null;
+            unavailable_banner.title = gerant.error_message ?? "";
+            unavailable_banner.revealed = !gerant.available && gerant.error_message != null;
         }
 
         private void on_vms_changed () {
-            var empty = maitre.vms.get_n_items () == 0;
+            var empty = gerant.vms.get_n_items () == 0;
             sidebar_stack.visible_child_name = empty ? "empty" : "list";
             placeholder_status.title = empty ? _("No Virtual Machines") : _("No Virtual Machine Selected");
             placeholder_status.description = empty ? _("Create one from an existing disk image") : null;
             placeholder_button.visible = empty;
 
-            if (selected != null && maitre.find (selected.name) != selected) {
+            if (selected != null && gerant.find (selected.name) != selected) {
                 vm_list.unselect_all ();
                 set_selected (null);
             }
@@ -189,8 +189,8 @@ namespace Salle {
         private void on_new_vm () {
             var dialog = new VmDialog (null);
             dialog.saved.connect ((name) => {
-                maitre.refresh.begin ((obj, res) => {
-                    maitre.refresh.end (res);
+                gerant.refresh.begin ((obj, res) => {
+                    gerant.refresh.end (res);
                     show_vm (name);
                 });
             });
@@ -234,7 +234,7 @@ namespace Salle {
         }
 
         private void on_refresh () {
-            maitre.refresh.begin ();
+            gerant.refresh.begin ();
         }
     }
 }

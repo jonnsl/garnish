@@ -14,7 +14,7 @@ Provides: notification-daemon
 Description: guest side of garnish
  The parts of garnish that run in a guest: carte-agent, which shows the
  guest's applications in the host's application menu, sonnette-agent, which
- shows the guest's notifications on the host, maitre-ready.service,
- which tells maitred when the guest has booted, and the environment that
+ shows the guest's notifications on the host, gerant-ready.service,
+ which tells gerantd when the guest has booted, and the environment that
  makes applications use Wayland, and starts the sound output at full
  volume, since the host sets each VM's volume.

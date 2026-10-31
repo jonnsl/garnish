@@ -12,16 +12,16 @@ _networkd_reload() {
 post_install() {
   _networkd_reload
   _reload_note
-  echo '>>> Example VM configuration: /usr/share/doc/maitre/examples/debian.conf'
+  echo '>>> Example VM configuration: /usr/share/doc/gerant/examples/debian.conf'
 }
 
 post_remove() {
-  # maitre-net's firewall rules; the taps went with the VMs.
+  # gerant-net's firewall rules; the taps went with the VMs.
   nft delete table ip garnish 2>/dev/null || true
 }
 
 post_upgrade() {
   _networkd_reload
-  echo '>>> Restart maitred to use the new version: systemctl --user restart maitred'
+  echo '>>> Restart gerantd to use the new version: systemctl --user restart gerantd'
   echo '>>> (this shuts down running VMs)'
 }

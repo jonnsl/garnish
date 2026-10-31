@@ -7,7 +7,7 @@
   <summary>Run and manage your virtual machines</summary>
   <description>
     <p>Salle lets you create, configure, start and stop crosvm virtual machines, see how they are doing, and connect to them.</p>
-    <p>It is a front end for maitred, which runs the virtual machines.</p>
+    <p>It is a front end for gerantd, which runs the virtual machines.</p>
   </description>
   <developer id="io.github.jonnsl">
     <name>Jonnathan Soares</name>

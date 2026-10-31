@@ -36,7 +36,7 @@ other than x86-64.
 |---|---|---|
 | [Guest images](mkosi/README.md) | build host | mkosi configs for Arch, Debian, Ubuntu and Fedora guests |
 | [Guest packages](guest/README.md) | guest | `sommelier` and `garnish-guest` packages for each guest distribution, also for updating running guests |
-| [maitre](vm_tools/maitre/README.md) | host | `maitred`, a session-bus daemon that starts and stops VMs, and the `maitre` CLI |
+| [gerant](vm_tools/gerant/README.md) | host | `gerantd`, a session-bus daemon that starts and stops VMs, and the `gerant` CLI |
 | [Salle](vm_tools/salle/README.md) | host | a GTK app to create, edit, start and stop VMs and read their logs |
 | [carte](vm_tools/carte/README.md) | guest + host | puts the guest's applications in the host's application menu |
 | [sonnette](vm_tools/sonnette/README.md) | guest + host | shows the guest's desktop notifications on the host |
@@ -65,8 +65,8 @@ image and how they work.
 ## Quick start
 
 1. Build an image (above).
-2. Install maitred and maitre, following the
-   [maitre README](vm_tools/maitre/README.md#install), and optionally
+2. Install gerantd and gerant, following the
+   [gerant README](vm_tools/gerant/README.md#install), and optionally
    [carte](vm_tools/carte/README.md#install),
    [sonnette](vm_tools/sonnette/README.md#install) and
    [Salle](vm_tools/salle/README.md#building). On Arch,
@@ -76,15 +76,15 @@ image and how they work.
 
 ```sh
 mkdir -p ~/.config/garnish/vms
-cp vm_tools/maitre/examples/debian.conf ~/.config/garnish/vms/   # set Image=
-maitre start debian
-maitre ssh debian
-maitre stop debian
+cp vm_tools/gerant/examples/debian.conf ~/.config/garnish/vms/   # set Image=
+gerant start debian
+gerant ssh debian
+gerant stop debian
 ```
 
 Or do the same from Salle. CPUs, memory, a shared home directory, audio and
 the application menu are set in the VM's file; the
-[maitre README](vm_tools/maitre/README.md#vm-configuration) lists them, and
+[gerant README](vm_tools/gerant/README.md#vm-configuration) lists them, and
 [docs/host-setup.md](docs/host-setup.md) covers the network, shared home and
 audio in more detail.
 

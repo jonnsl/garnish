@@ -145,7 +145,7 @@ void test_save_new () {
     c.title = "New VM";
     assert (c.problem () == null);
     save_vm (c);
-    assert (read_vm ("new") == "# Created by Salle. All settings: see the maitre README (VM configuration).\n\n"
+    assert (read_vm ("new") == "# Created by Salle. All settings: see the gerant README (VM configuration).\n\n"
             + "[Boot]\nImage=~/images/debian.raw\n\n"
             + "[Machine]\nTitle=New VM\nCPUs=4\nMemory=2G\nAudio=no\nMicrophone=no\nWayland=yes\n\n"
             + "[Network]\nMode=passt\n\n[Guest]\nUID=1000\nAppMenu=yes\nNotifications=yes\n");

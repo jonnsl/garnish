@@ -14,7 +14,7 @@ Every image comes with:
 - `carte-agent`, which puts the guest's applications in the host's application menu
 - `sonnette-agent`, the guest's notification server, which shows its
   notifications on the host
-- `maitre-ready.service`, which tells maitred on the host when the guest has
+- `gerant-ready.service`, which tells gerantd on the host when the guest has
   booted (`systemd-notify --ready` to vsock port 8891), so it can show the VM
   as running
 - the Wayland environment variables, in `/etc/profile.d/garnish-wayland.sh`
@@ -82,13 +82,13 @@ mkosi -d debian -E PASSWORDLESS_SUDO=no -E GUEST_PASSWORD=hunter2 build
 Environment=PASSWORDLESS_SUDO=no GUEST_PASSWORD=hunter2
 ```
 
-If you change `GUEST_USER`, set the same `[Guest] User=` in the VM's maitre
+If you change `GUEST_USER`, set the same `[Guest] User=` in the VM's gerant
 configuration.
 
 ## Booting
 
 crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
-maitred (`KernelCommandLine=` in the VM's file, by default the same as in
+gerantd (`KernelCommandLine=` in the VM's file, by default the same as in
 `mkosi/mkosi.conf`), not from `mkosi/mkosi.conf`. If you change one, change
 the other. The image also has an ESP with a UKI, so UEFI boot (`--bios
 OVMF.fd` in `ExtraArguments=`) works too. That path uses `KernelCommandLine=`
@@ -138,7 +138,7 @@ the build scripts can reach `vm_tools/`.
 - Applications started from the host's menu run with the user manager's
   environment, which is why the Wayland variables are also in
   `/usr/lib/environment.d/50-garnish-wayland.conf`.
-- The guest's hostname is the VM's name: maitred adds `systemd.hostname=<name>`
+- The guest's hostname is the VM's name: gerantd adds `systemd.hostname=<name>`
   to the kernel command line, `<name>` being the name of the VM's configuration.
   The hostname is appended to the application names in the host's menu, and
   it's also sommelier's VM identifier, so GNOME can match windows to their
@@ -156,7 +156,7 @@ the build scripts can reach `vm_tools/`.
 - The guest network config is written to
   `/etc/systemd/network/80-crosvm-tap.network`. It matches the virtio-net
   driver rather than any Ethernet interface, so veths created by Docker or
-  Podman inside the guest are left alone. maitred passes the
+  Podman inside the guest are left alone. gerantd passes the
   guest its address on the kernel command line (`ip=`), and
   `systemd-network-generator` in the guest configures it.
 - `KernelInitrdModules=` in `mkosi.conf` limits the initrd to the modules

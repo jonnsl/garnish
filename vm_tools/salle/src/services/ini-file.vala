@@ -6,7 +6,7 @@ namespace Salle {
     /**
      * A systemd/mkosi style configuration file that can be changed in place.
      *
-     * Parses like maitre does (vm_tools/maitre/src/ini.rs): `[Section]`
+     * Parses like gerant does (vm_tools/gerant/src/ini.rs): `[Section]`
      * headers, `Key=Value` lines, `#` and `;` comments, and values continued
      * on indented lines or after a trailing backslash. Changing a setting
      * rewrites only its own lines, so comments and settings this app doesn't

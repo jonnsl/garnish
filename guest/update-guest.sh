@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installs freshly built guest packages in a running VM, over maitre's ssh.
+# Installs freshly built guest packages in a running VM, over gerant's ssh.
 #
 #   update-guest.sh VM [DIR]
 #
@@ -20,7 +20,7 @@ vm=$1
 guest=$(cd "$(dirname "$0")" && pwd)
 repo=$(dirname "$guest")
 
-id=$(maitre ssh "$vm" cat /etc/os-release | sed -n 's/^ID=//p' | tr -d '"')
+id=$(gerant ssh "$vm" cat /etc/os-release | sed -n 's/^ID=//p' | tr -d '"')
 dir=${2:-$repo/mkosi/mkosi.output/packages-$id}
 if ! compgen -G "$dir/*.pkg.tar.zst" >/dev/null && ! compgen -G "$dir/*.deb" >/dev/null \
         && ! compgen -G "$dir/*.rpm" >/dev/null; then
@@ -29,15 +29,15 @@ if ! compgen -G "$dir/*.pkg.tar.zst" >/dev/null && ! compgen -G "$dir/*.deb" >/d
 fi
 
 echo "copying $(cd "$dir" && echo *) to $vm"
-remote=$(maitre ssh "$vm" mktemp -d)
+remote=$(gerant ssh "$vm" mktemp -d)
 tar -c -C "$dir" . -C "$guest" install-packages.sh \
-    | maitre ssh "$vm" tar -x -C "$remote"
+    | gerant ssh "$vm" tar -x -C "$remote"
 
 # ssh takes options after the host too: -t gives sudo a terminal for the
 # password.
 status=0
-maitre ssh "$vm" -t sudo bash "$remote/install-packages.sh" "$remote" || status=$?
-maitre ssh "$vm" "rm -rf $remote; systemctl --user daemon-reload"
+gerant ssh "$vm" -t sudo bash "$remote/install-packages.sh" "$remote" || status=$?
+gerant ssh "$vm" "rm -rf $remote; systemctl --user daemon-reload"
 if (( status != 0 )); then
     exit "$status"
 fi

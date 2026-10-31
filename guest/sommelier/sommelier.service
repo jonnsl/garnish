@@ -8,7 +8,7 @@ Description=Sommelier Wayland proxy
 [Service]
 # sommelier puts the VM's name in every window's app_id
 # (org.chromium.guest_os.<name>.wayland.<app_id>). The name is the hostname,
-# which maitred sets to the name of the VM's configuration; carte-agent sends
+# which gerantd sets to the name of the VM's configuration; carte-agent sends
 # the host the same name, so the host can match windows to its menu entries.
 ExecStart=/usr/bin/sommelier --parent --socket=wayland-0 --virtgpu-channel --vm-identifier=%H
 Restart=on-failure

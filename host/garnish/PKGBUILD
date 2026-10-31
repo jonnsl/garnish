@@ -1,15 +1,15 @@
 # The host side of garnish, as two packages from one build:
-# - garnish-host: maitred, the D-Bus VM manager, and maitre, its client;
-#   maitre-net, the setuid-root helper that creates the VMs' network devices;
+# - garnish-host: gerantd, the D-Bus VM manager, and gerant, its client;
+#   gerant-net, the setuid-root helper that creates the VMs' network devices;
 #   carte, the host side of the app menu; sonnette, which shows the
 #   guests' notifications; and videur, which restricts their clipboard
-# - salle: the GTK app for maitred's VMs, separate so the command line tools
+# - salle: the GTK app for gerantd's VMs, separate so the command line tools
 #   don't pull in GTK
 # Build and install both with: makepkg -si
 # Built from the working tree in vm_tools/, not from a download, so it picks
 # up uncommitted changes. carte-agent and sonnette-agent are left out: they
 # run in the guest, and come with the garnish-guest package (guest/). The user unit is installed
-# with ExecStart=/usr/bin/maitred; its PATH still has ~/.cargo/bin and
+# with ExecStart=/usr/bin/gerantd; its PATH still has ~/.cargo/bin and
 # ~/.local/bin for crosvm.
 
 pkgbase=garnish
@@ -35,7 +35,7 @@ _check_version() {
 }
 
 prepare() {
-  _check_version "$_tools/maitre/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
+  _check_version "$_tools/gerant/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
   _check_version "$_tools/carte/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
   _check_version "$_tools/sonnette/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
   _check_version "$_tools/videur/Cargo.toml" 's/^version = "\(.*\)"$/\1/p'
@@ -44,7 +44,7 @@ prepare() {
   export RUSTUP_TOOLCHAIN=stable
   local target
   target=$(rustc -vV | sed -n 's/host: //p')
-  for project in maitre carte sonnette videur; do
+  for project in gerant carte sonnette videur; do
     cargo fetch --locked --manifest-path "$_tools/$project/Cargo.toml" --target "$target"
   done
 }
@@ -52,7 +52,7 @@ prepare() {
 build() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR="$srcdir/target"
-  cargo build --frozen --release --manifest-path "$_tools/maitre/Cargo.toml"
+  cargo build --frozen --release --manifest-path "$_tools/gerant/Cargo.toml"
   cargo build --frozen --release --manifest-path "$_tools/carte/Cargo.toml" --bin carte
   cargo build --frozen --release --manifest-path "$_tools/sonnette/Cargo.toml" --bin sonnette
   cargo build --frozen --release --manifest-path "$_tools/videur/Cargo.toml"
@@ -64,7 +64,7 @@ build() {
 check() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR="$srcdir/target"
-  cargo test --frozen --manifest-path "$_tools/maitre/Cargo.toml"
+  cargo test --frozen --manifest-path "$_tools/gerant/Cargo.toml"
   cargo test --frozen --manifest-path "$_tools/carte/Cargo.toml"
   cargo test --frozen --manifest-path "$_tools/sonnette/Cargo.toml"
   cargo test --frozen --manifest-path "$_tools/videur/Cargo.toml"
@@ -78,39 +78,39 @@ package_garnish-host() {
   depends=(gcc-libs glibc passt wayland wayland-protocols)
   optdepends=('crosvm: runs the VMs (needed, but often built by hand)'
               'vhost-device-sound: Audio=yes (host/vhost-device-sound, with --no-capture)'
-              'openssh: maitre ssh'
+              'openssh: gerant ssh'
               'libnotify: notification when a launcher is started while its VM is off')
   # Formerly separate packages.
-  provides=(maitre carte)
-  conflicts=(maitre carte)
-  replaces=(maitre carte)
+  provides=(gerant carte)
+  conflicts=(gerant carte)
+  replaces=(gerant carte)
   install=garnish-host.install
   # Cargo.toml strips the release binaries, so a debug package would be empty.
   options=(!debug)
 
-  local maitre="$_tools/maitre" carte="$_tools/carte" sonnette="$_tools/sonnette" videur="$_tools/videur"
-  install -Dm755 "$srcdir"/target/release/{maitred,maitre,carte,sonnette,videur} -t "$pkgdir/usr/bin/"
+  local gerant="$_tools/gerant" carte="$_tools/carte" sonnette="$_tools/sonnette" videur="$_tools/videur"
+  install -Dm755 "$srcdir"/target/release/{gerantd,gerant,carte,sonnette,videur} -t "$pkgdir/usr/bin/"
   # setuid root: it drops everything but CAP_NET_ADMIN and seccomp-confines
-  # itself before doing anything (vm_tools/maitre/src/bin/maitre-net).
-  install -Dm4755 "$srcdir/target/release/maitre-net" -t "$pkgdir/usr/bin/"
-  install -Dm644 "$maitre/data/10-garnish.network" -t "$pkgdir/usr/lib/systemd/network/"
-  install -Dm644 "$maitre/data/maitred.service" "$pkgdir/usr/lib/systemd/user/maitred.service"
-  sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/maitred|' "$pkgdir/usr/lib/systemd/user/maitred.service"
-  install -Dm644 "$maitre/data/org.garnish.Maitre.service" -t "$pkgdir/usr/share/dbus-1/services/"
+  # itself before doing anything (vm_tools/gerant/src/bin/gerant-net).
+  install -Dm4755 "$srcdir/target/release/gerant-net" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$gerant/data/10-garnish.network" -t "$pkgdir/usr/lib/systemd/network/"
+  install -Dm644 "$gerant/data/gerantd.service" "$pkgdir/usr/lib/systemd/user/gerantd.service"
+  sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/gerantd|' "$pkgdir/usr/lib/systemd/user/gerantd.service"
+  install -Dm644 "$gerant/data/org.garnish.Gerant.service" -t "$pkgdir/usr/share/dbus-1/services/"
 
-  install -Dm644 "$maitre/completions/maitre.bash" "$pkgdir/usr/share/bash-completion/completions/maitre"
+  install -Dm644 "$gerant/completions/gerant.bash" "$pkgdir/usr/share/bash-completion/completions/gerant"
   install -Dm644 "$carte/completions/carte.bash" "$pkgdir/usr/share/bash-completion/completions/carte"
-  install -Dm644 "$maitre/completions/_maitre" "$carte/completions/_carte" -t "$pkgdir/usr/share/zsh/site-functions/"
+  install -Dm644 "$gerant/completions/_gerant" "$carte/completions/_carte" -t "$pkgdir/usr/share/zsh/site-functions/"
 
-  install -Dm644 "$maitre/README.md" "$pkgdir/usr/share/doc/maitre/README.md"
-  install -Dm644 "$maitre"/examples/*.conf -t "$pkgdir/usr/share/doc/maitre/examples/"
+  install -Dm644 "$gerant/README.md" "$pkgdir/usr/share/doc/gerant/README.md"
+  install -Dm644 "$gerant"/examples/*.conf -t "$pkgdir/usr/share/doc/gerant/examples/"
   install -Dm644 "$carte/README.md" "$pkgdir/usr/share/doc/carte/README.md"
   install -Dm644 "$sonnette/README.md" "$pkgdir/usr/share/doc/sonnette/README.md"
   install -Dm644 "$videur/README.md" "$pkgdir/usr/share/doc/videur/README.md"
 }
 
 package_salle() {
-  pkgdesc='Create, configure, start and stop crosvm virtual machines run by maitred'
+  pkgdesc='Create, configure, start and stop crosvm virtual machines run by gerantd'
   depends=(glib2 gtk4 libadwaita libpulse json-glib hicolor-icon-theme)
   optdepends=('garnish-host: runs the VMs (needed)'
               'openssh: connect to the VMs'

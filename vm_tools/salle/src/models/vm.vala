@@ -52,7 +52,7 @@ namespace Salle {
         }
     }
 
-    /* A configured VM and what maitred gave it while it runs */
+    /* A configured VM and what gerantd gave it while it runs */
     public class Vm : Object {
         public string name { get; construct; }
         public VmState state { get; set; default = VmState.STOPPED; }
@@ -116,7 +116,7 @@ namespace Salle {
             owned get { return VmConfig.path_for (name); }
         }
 
-        /* Where maitred writes the logs; they stay after the VM stops */
+        /* Where gerantd writes the logs; they stay after the VM stops */
         public string log_dir {
             owned get { return Path.build_filename (Environment.get_user_state_dir (), "garnish", name); }
         }

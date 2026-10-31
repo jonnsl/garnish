@@ -1,6 +1,6 @@
 #!/bin/bash
 # Creates the guest user and sets up sudo, sshd-vsock, the network and the
-# settings that differ per image. sommelier, carte-agent, maitre-ready and
+# settings that differ per image. sommelier, carte-agent, gerant-ready and
 # the Wayland environment come from the guest packages (guest/), which
 # mkosi installs before this runs.
 set -euo pipefail
@@ -115,7 +115,7 @@ UNIT
 fi
 
 # --- network ----------------------------------------------------------------
-# maitred gives every VM its own address with ip=... on the kernel command
+# gerantd gives every VM its own address with ip=... on the kernel command
 # line. systemd-network-generator turns that into
 # /run/systemd/network/70-eth0.network, which wins over the static fallback
 # below (80-), used when nothing is passed.

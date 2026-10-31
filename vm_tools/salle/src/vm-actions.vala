@@ -14,9 +14,9 @@ namespace Salle.VmActions {
         }
         // The row or page may be gone by the time it fails
         var parent = (Gtk.Widget) widget.get_root ();
-        Maitre.get_default ().start.begin (vm, (obj, res) => {
+        Gerant.get_default ().start.begin (vm, (obj, res) => {
             try {
-                Maitre.get_default ().start.end (res);
+                Gerant.get_default ().start.end (res);
             } catch (Error e) {
                 show_start_error (parent, vm, e);
             }
@@ -47,7 +47,7 @@ namespace Salle.VmActions {
         }
         dialog.add_response ("close", _("_Close"));
         dialog.add_response ("logs", _("Show _Logs"));
-        if (e is MaitreError.INVALID_CONFIG) {
+        if (e is GerantError.INVALID_CONFIG) {
             dialog.add_response ("edit", _("_Edit Settings"));
             dialog.default_response = "edit";
         }
@@ -67,10 +67,10 @@ namespace Salle.VmActions {
             return;
         }
         var parent = (Gtk.Widget) widget.get_root ();
-        var maitre = Maitre.get_default ();
-        maitre.shut_down.begin (vm, (obj, res) => {
+        var gerant = Gerant.get_default ();
+        gerant.shut_down.begin (vm, (obj, res) => {
             try {
-                maitre.shut_down.end (res);
+                gerant.shut_down.end (res);
             } catch (Error e) {
                 toast (parent, _("Can’t shut down %s: %s").printf (vm.display_name, e.message));
             }
@@ -94,10 +94,10 @@ namespace Salle.VmActions {
             if (response != "force-off") {
                 return;
             }
-            var maitre = Maitre.get_default ();
-            maitre.force_off.begin (vm, (obj, res) => {
+            var gerant = Gerant.get_default ();
+            gerant.force_off.begin (vm, (obj, res) => {
                 try {
-                    maitre.force_off.end (res);
+                    gerant.force_off.end (res);
                 } catch (Error e) {
                     toast (widget, _("Can’t force off %s: %s").printf (vm.display_name, e.message));
                 }
@@ -151,7 +151,7 @@ namespace Salle.VmActions {
                 return;
             }
             try {
-                Maitre.get_default ().delete (vm);
+                Gerant.get_default ().delete (vm);
             } catch (Error e) {
                 toast (widget, _("Can’t delete %s: %s").printf (vm.display_name, e.message));
             }

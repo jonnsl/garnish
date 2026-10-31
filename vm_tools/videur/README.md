@@ -1,9 +1,9 @@
 # videur
 
 A Wayland proxy between a crosvm guest and the host compositor that
-controls which way copied data may go. maitred starts one per VM with
+controls which way copied data may go. gerantd starts one per VM with
 `[Machine] Clipboard=` set to anything but `both` (see the
-[maitre README](../maitre/README.md)), and gives crosvm its socket instead
+[gerant README](../gerant/README.md)), and gives crosvm its socket instead
 of the host's.
 
 ```sh

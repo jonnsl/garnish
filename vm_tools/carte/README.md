@@ -33,7 +33,7 @@ cargo install --locked --path . --bin carte   # to ~/.cargo/bin
 ```
 
 or, on Arch, `makepkg -si` in `host/garnish` (to `/usr/bin`, with the shell
-completions; carte is in the `garnish-host` package, with maitre).
+completions; carte is in the `garnish-host` package, with gerant).
 
 Shell completions for `carte` complete subcommands, the VMs that have
 launchers, and their application IDs for `carte launch`. Without the package:
@@ -45,7 +45,7 @@ install -Dm644 completions/carte.bash ~/.local/share/bash-completion/completions
 install -Dm644 completions/_carte ~/.local/share/zsh/site-functions/_carte
 ```
 
-[maitred](../maitre/README.md) runs `carte sync` for every VM it starts with
+[gerantd](../gerant/README.md) runs `carte sync` for every VM it starts with
 `AppMenu=yes` or `Wayland=yes` (adding `--no-menu` with `AppMenu=no`) if
 `carte` is in its `PATH`, and logs to
 `~/.local/state/garnish/<name>/carte.log`.
@@ -142,7 +142,7 @@ manager's environment. That environment needs the Wayland variables
 sommelier renames the app_id of every Wayland window to
 `org.chromium.guest_os.<vm>.wayland.<app_id>`, where `<vm>` is
 its `--vm-identifier`. The guest packages start sommelier with
-`--vm-identifier=%H`, the hostname, which maitred sets to the name of the VM's
+`--vm-identifier=%H`, the hostname, which gerantd sets to the name of the VM's
 configuration (`systemd.hostname=`). The agent sends the hostname as the VM
 name, and the launchers set `StartupWMClass` to
 that renamed app_id. GNOME uses it to show a window under its launcher instead

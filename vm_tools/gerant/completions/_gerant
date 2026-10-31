@@ -1,0 +1,50 @@
+#compdef gerant
+
+# The configured VMs: ~/.config/garnish/vms/<name>.conf
+_gerant_vms() {
+  local -a vms
+  vms=(${XDG_CONFIG_HOME:-$HOME/.config}/garnish/vms/*.conf(N.:t:r))
+  _describe -t vms 'VM' vms
+}
+
+_gerant() {
+  local -a subcommands
+  subcommands=(
+    'start:start a VM'
+    'stop:shut a VM down and wait until it is off'
+    'list:list the configured VMs and what the running ones got'
+    'ssh:ssh into a running VM over vsock'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'gerant command' subcommands
+    return
+  fi
+
+  # Complete the subcommand's arguments as if it were the command
+  local cmd=$words[2]
+  shift words
+  (( CURRENT-- ))
+  case $cmd in
+    start)
+      _arguments ':VM:_gerant_vms'
+      ;;
+    stop)
+      _arguments \
+        '--force[stop crosvm without asking the guest to shut down]' \
+        ':VM:_gerant_vms'
+      ;;
+    ssh)
+      if (( CURRENT == 2 )); then
+        _gerant_vms
+      else
+        # A command to run in the guest, completed like a host command
+        shift 2 words
+        (( CURRENT -= 2 ))
+        _normal
+      fi
+      ;;
+  esac
+}
+
+_gerant "$@"

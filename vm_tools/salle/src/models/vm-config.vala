@@ -2,7 +2,7 @@ namespace Salle {
     /**
      * A VM's settings, in `<config dir>/garnish/vms/<name>.conf`.
      *
-     * Follows maitre's VmConfig (vm_tools/maitre/src/config.rs). Paths are
+     * Follows gerant's VmConfig (vm_tools/gerant/src/config.rs). Paths are
      * absolute; null means the default. Settings in drop-ins
      * (`<name>.conf.d/*.conf`) are read but saving only changes the main
      * file, and only the settings that were changed.
@@ -16,7 +16,7 @@ namespace Salle {
         public const string DEFAULT_NETWORK_MODE = "passt";
         /* [Machine] Clipboard=: "both", "to-host", "from-host" or "none" */
         public const string DEFAULT_CLIPBOARD = "both";
-        /* Smallest amount of memory maitre accepts */
+        /* Smallest amount of memory gerant accepts */
         public const int64 MIN_MEMORY_MIB = 128;
 
         public string name { get; construct; }
@@ -68,7 +68,7 @@ namespace Salle {
         }
 
         /* VM names are also the guest's hostname, file names and socket paths, so short and plain.
-         * Same rule as is_valid_name in maitre's config.rs. */
+         * Same rule as is_valid_name in gerant's config.rs. */
         public static bool is_valid_name (string name) {
             return Regex.match_simple ("^[A-Za-z0-9]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$", name);
         }
@@ -175,7 +175,7 @@ namespace Salle {
                 notifications = empty || (IniFile.parse_bool (v) ?? notifications);
                 break;
             default:
-                // Not edited here (KernelCommandLine=, GID=, ...); maitre checks them
+                // Not edited here (KernelCommandLine=, GID=, ...); gerant checks them
                 break;
             }
         }
@@ -202,12 +202,12 @@ namespace Salle {
             return c;
         }
 
-        /* The kernel maitre uses: by default the image with .vmlinuz */
+        /* The kernel gerant uses: by default the image with .vmlinuz */
         public string? effective_kernel {
             owned get { return kernel ?? (image != null ? replace_extension (image, ".vmlinuz") : null); }
         }
 
-        /* The initrd maitre uses: by default the image with .initrd, if there is one */
+        /* The initrd gerant uses: by default the image with .initrd, if there is one */
         public string? effective_initrd {
             owned get {
                 if (initrd != null || image == null) {
@@ -235,7 +235,7 @@ namespace Salle {
         }
 
         /**
-         * What keeps maitre from accepting the settings, or null. Missing
+         * What keeps gerant from accepting the settings, or null. Missing
          * files are left to {@link warning}, since they may show up later.
          */
         public string? problem () {
@@ -290,7 +290,7 @@ namespace Salle {
                     throw new IOError.EXISTS (_("There already is a virtual machine named “%s”"), name);
                 }
                 file = new IniFile.from_data (
-                    "# Created by Salle. All settings: see the maitre README (VM configuration).\n", path);
+                    "# Created by Salle. All settings: see the gerant README (VM configuration).\n", path);
             } else {
                 file = IniFile.load (path);
             }

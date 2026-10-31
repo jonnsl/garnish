@@ -32,7 +32,7 @@ namespace Salle {
             base.activate ();
             if (active_window == null) {
                 new Salle.Window (this);
-                Maitre.get_default ().refresh.begin ();
+                Gerant.get_default ().refresh.begin ();
             }
             active_window.present ();
         }
@@ -48,7 +48,7 @@ namespace Salle {
                 translator_credits = _("translator-credits"),
                 copyright = "© 2026 Jonnathan Soares",
                 license_type = Gtk.License.GPL_3_0,
-                comments = _("A front end for maitred, which runs crosvm virtual machines."),
+                comments = _("A front end for gerantd, which runs crosvm virtual machines."),
             };
             about.present (active_window);
         }

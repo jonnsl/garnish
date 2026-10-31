@@ -50,7 +50,7 @@ impl Shared {
 }
 
 fn main() {
-    // The VM's name is the hostname, which maitred sets to the name of the
+    // The VM's name is the hostname, which gerantd sets to the name of the
     // VM's configuration. sommelier names windows after it too
     // (--vm-identifier=%H in sommelier.service), so it's how the host tells
     // VMs and their windows apart.

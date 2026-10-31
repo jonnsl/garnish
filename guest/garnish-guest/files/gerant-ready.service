@@ -1,0 +1,19 @@
+[Unit]
+Description=Tell gerantd on the host that the guest has booted
+Documentation=https://www.freedesktop.org/software/systemd/man/latest/systemd-notify.html
+# gerantd shows the VM as "booting" until this runs. Booted means
+# multi-user.target is reached. The package pulls it into multi-user.target
+# with a symlink in /usr/lib/systemd/system/multi-user.target.wants/.
+After=multi-user.target
+ConditionVirtualization=vm
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# gerantd listens on vsock port 8891 on the host (CID 2); the port is
+# READY_PORT in vm_tools/gerant/src/ready.rs. systemd-notify sends
+# "READY=1" there. "-": a crosvm started without gerantd isn't listening.
+Environment=NOTIFY_SOCKET=vsock-stream:2:8891
+ExecStart=-/usr/bin/systemd-notify --ready
+# It waits for the host to close the connection.
+TimeoutStartSec=30s

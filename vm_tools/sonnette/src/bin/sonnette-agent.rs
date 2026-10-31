@@ -439,7 +439,7 @@ async fn serve_host(agent: Arc<Agent>, conn: Connection, stream: vsock::Stream) 
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
-    // The VM's name is the hostname, which maitred sets to the name of the
+    // The VM's name is the hostname, which gerantd sets to the name of the
     // VM's configuration, as carte-agent does.
     let vm = match std::fs::read_to_string("/proc/sys/kernel/hostname") {
         Ok(name) => name.trim().to_owned(),

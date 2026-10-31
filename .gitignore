@@ -8,6 +8,6 @@ authorized_keys
 mkosi.tools.manifest
 
 /vm_tools/carte/target/
-/vm_tools/maitre/target/
+/vm_tools/gerant/target/
 /vm_tools/sonnette/target/
 /vm_tools/videur/target/

@@ -39,9 +39,9 @@ cargo install --locked --path . --bin sonnette   # to ~/.cargo/bin
 ```
 
 or, on Arch, `makepkg -si` in `host/garnish` (to `/usr/bin`; sonnette is in
-the `garnish-host` package, with maitre and carte).
+the `garnish-host` package, with gerant and carte).
 
-[maitred](../maitre/README.md) runs `sonnette relay --cid <cid>` for every
+[gerantd](../gerant/README.md) runs `sonnette relay --cid <cid>` for every
 VM it starts if `sonnette` is in its `PATH` (`Notifications=no` turns it
 off), and logs to `~/.local/state/garnish/<name>/sonnette.log`.
 

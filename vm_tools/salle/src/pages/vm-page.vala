@@ -51,7 +51,7 @@ namespace Salle {
             catalog = new AppCatalog (vm.name);
             catalog.changed.connect (update_apps_row);
             vm.notify.connect (update_state);
-            Maitre.get_default ().config_changed.connect (on_config_changed);
+            Gerant.get_default ().config_changed.connect (on_config_changed);
             Mixer.get_default ().changed.connect (on_mixer_changed);
             Mixer.get_default ().notify["available"].connect (update_sound_group);
             volume_scale.value_changed.connect (on_volume_changed);
@@ -63,7 +63,7 @@ namespace Salle {
 
         public override void dispose () {
             vm.notify.disconnect (update_state);
-            Maitre.get_default ().config_changed.disconnect (on_config_changed);
+            Gerant.get_default ().config_changed.disconnect (on_config_changed);
             Mixer.get_default ().changed.disconnect (on_mixer_changed);
             Mixer.get_default ().notify["available"].disconnect (update_sound_group);
             catalog.changed.disconnect (update_apps_row);
@@ -81,7 +81,7 @@ namespace Salle {
         private void update_state () {
             title = vm.display_name;
             name_label.label = vm.display_name;
-            // The name is what maitre and the files go by
+            // The name is what gerant and the files go by
             vm_name_label.label = vm.name;
             vm_name_label.visible = vm.title != null;
 

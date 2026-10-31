@@ -1,5 +1,5 @@
 # garnish-guest for garnish's Arch guests: carte-agent, sonnette-agent,
-# maitre-ready and the Wayland environment.
+# gerant-ready and the Wayland environment.
 # Don't run makepkg here: ../build-packages.sh fills in @VERSION@ and
 # @RELEASE@ from ../versions, makes the source tarball and fetches the
 # crates, then builds this in a copy.
@@ -7,7 +7,7 @@
 pkgname=garnish-guest
 pkgver=@VERSION@
 pkgrel=@RELEASE@
-pkgdesc="Guest side of garnish: carte-agent, sonnette-agent, boot notification for maitred, Wayland environment"
+pkgdesc="Guest side of garnish: carte-agent, sonnette-agent, boot notification for gerantd, Wayland environment"
 arch=(x86_64)
 url='https://github.com/jonnsl/garnish'
 license=(GPL-3.0-or-later)
