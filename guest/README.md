@@ -78,6 +78,11 @@ sent upstream as they are.
 - `0003-compositor-drop-the-fake-surface-enter.patch`: Firefox ignored its
   saved window size and opened at 500x200, because sommelier made new
   windows enter an output before their first configure.
+- `0004-parent-forward-the-vm-identifier.patch`: windows were named
+  `org.chromium.guest_os.termina.wayland.<app_id>` instead of using the VM's
+  name, so the host couldn't match them to their launchers and showed no
+  icon. A typo kept `--vm-identifier` from reaching the per-client sommelier
+  processes.
 
 ## Updating a running guest
 

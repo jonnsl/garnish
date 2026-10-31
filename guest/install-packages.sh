@@ -37,7 +37,9 @@ case "$ID" in
 esac
 
 # What the image scripts used to install. The ones in /etc would hide the
-# packaged units and environment, so they have to go.
+# packaged units and environment, so they have to go. 60-carte.conf set
+# SOMMELIER_VM_IDENTIFIER, which sommelier now gets from the hostname; left
+# in place, it would keep the old name after the VM is renamed.
 legacy=(
     /usr/local/bin/sommelier
     /usr/local/bin/carte-agent
@@ -49,10 +51,11 @@ legacy=(
     /etc/systemd/system/gerant-ready.service
     /etc/profile.d/crosvm-wayland.sh
     /etc/environment.d/50-crosvm-wayland.conf
+    /etc/environment.d/60-carte.conf
 )
 for f in "${legacy[@]}"; do
     if [[ -e "$f" || -L "$f" ]]; then
-        echo "removing $f (now in a package)"
+        echo "removing $f (left by an older image)"
         rm -f "$f"
     fi
 done

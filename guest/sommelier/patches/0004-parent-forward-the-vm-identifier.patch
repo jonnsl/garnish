@@ -1,0 +1,23 @@
+sommelier: forward --vm-identifier to the per-client processes
+
+In --parent mode sommelier execs a child for every client and forwards
+some of its own flags. The list has "--vm-identififer", a typo, so
+--vm-identifier never reaches the children, which keep the default VM
+name, termina. Every window's app_id then reads
+org.chromium.guest_os.termina.wayland.<app_id>, which doesn't match the
+host's StartupWMClass for the VM's launchers, so the host shows the
+window with a generic icon and the raw app_id as its name.
+
+diff --git a/vm_tools/sommelier/sommelier.cc b/vm_tools/sommelier/sommelier.cc
+index 1b2815d..77ef807 100644
+--- a/vm_tools/sommelier/sommelier.cc
++++ b/vm_tools/sommelier/sommelier.cc
+@@ -4006,7 +4006,7 @@ int sl_run_parent(int argc,
+             strstr(arg, "--windowed-accelerators") == arg ||
+             strstr(arg, "--drm-device") == arg ||
+             strstr(arg, "--support-damage-buffer") == arg ||
+-            strstr(arg, "--vm-identififer") == arg ||
++            strstr(arg, "--vm-identifier") == arg ||
+             strstr(arg, "--trace-system") == arg ||
+             strstr(arg, "--virtgpu-channel") == arg ||
+             strstr(arg, "--enable-linux-dmabuf") == arg) {
