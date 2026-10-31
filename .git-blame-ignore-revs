@@ -1,0 +1,5 @@
+# Formatting-only commits, skipped by git blame (GitHub reads this file;
+# locally: git config blame.ignoreRevsFile .git-blame-ignore-revs)
+
+# Format the Rust crates with rustfmt
+25aae0e4c71484910f71d5602c88108f7e1eaaa9
