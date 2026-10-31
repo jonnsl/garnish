@@ -18,7 +18,8 @@ fn check(ret: libc::c_int) -> io::Result<libc::c_int> {
 }
 
 fn socket() -> io::Result<OwnedFd> {
-    let fd = check(unsafe { libc::socket(libc::AF_VSOCK, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) })?;
+    let fd =
+        check(unsafe { libc::socket(libc::AF_VSOCK, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) })?;
     Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
@@ -35,7 +36,13 @@ const ADDRESS_LEN: libc::socklen_t = mem::size_of::<libc::sockaddr_vm>() as libc
 pub fn connect(cid: u32, port: u32) -> io::Result<File> {
     let fd = socket()?;
     let addr = address(cid, port);
-    check(unsafe { libc::connect(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, ADDRESS_LEN) })?;
+    check(unsafe {
+        libc::connect(
+            fd.as_raw_fd(),
+            &addr as *const _ as *const libc::sockaddr,
+            ADDRESS_LEN,
+        )
+    })?;
     Ok(File::from(fd))
 }
 
@@ -65,7 +72,13 @@ impl Listener {
     pub fn bind(port: u32) -> io::Result<Self> {
         let fd = socket()?;
         let addr = address(libc::VMADDR_CID_ANY, port);
-        check(unsafe { libc::bind(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, ADDRESS_LEN) })?;
+        check(unsafe {
+            libc::bind(
+                fd.as_raw_fd(),
+                &addr as *const _ as *const libc::sockaddr,
+                ADDRESS_LEN,
+            )
+        })?;
         check(unsafe { libc::listen(fd.as_raw_fd(), 16) })?;
         Ok(Listener(fd))
     }
@@ -88,6 +101,9 @@ impl Listener {
                 result => break result?,
             }
         };
-        Ok((File::from(unsafe { OwnedFd::from_raw_fd(fd) }), addr.svm_cid))
+        Ok((
+            File::from(unsafe { OwnedFd::from_raw_fd(fd) }),
+            addr.svm_cid,
+        ))
     }
 }

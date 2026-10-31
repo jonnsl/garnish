@@ -94,18 +94,30 @@ async fn main() -> ExitCode {
 
 /// What happens on the host, in one queue.
 enum Event {
-    Closed { id: u32, reason: u32 },
-    Action { id: u32, key: String },
+    Closed {
+        id: u32,
+        reason: u32,
+    },
+    Action {
+        id: u32,
+        key: String,
+    },
     /// SIGTERM or SIGINT.
     Shutdown,
 }
 
 /// Forwards the host server's signals and our own termination to `tx`.
 /// The signal streams are always read, so they never back up.
-async fn watch_host(proxy: NotificationsProxy<'static>, tx: mpsc::UnboundedSender<Event>) -> zbus::Result<()> {
+async fn watch_host(
+    proxy: NotificationsProxy<'static>,
+    tx: mpsc::UnboundedSender<Event>,
+) -> zbus::Result<()> {
     let mut closed = proxy.receive_notification_closed().await?;
     let mut actions = proxy.receive_action_invoked().await?;
-    let (mut term, mut int) = match (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) {
+    let (mut term, mut int) = match (
+        signal(SignalKind::terminate()),
+        signal(SignalKind::interrupt()),
+    ) {
         (Ok(term), Ok(int)) => (term, int),
         (Err(e), _) | (_, Err(e)) => return Err(zbus::Error::InputOutput(e.into())),
     };
@@ -132,14 +144,18 @@ async fn watch_host(proxy: NotificationsProxy<'static>, tx: mpsc::UnboundedSende
 }
 
 async fn relay(cid: u32) -> Result<(), String> {
-    let conn = Connection::session().await.map_err(|e| format!("connecting to the session bus: {e}"))?;
+    let conn = Connection::session()
+        .await
+        .map_err(|e| format!("connecting to the session bus: {e}"))?;
     let proxy = NotificationsProxy::builder(&conn)
         .cache_properties(CacheProperties::No)
         .build()
         .await
         .map_err(|e| e.to_string())?;
     let (tx, mut events) = mpsc::unbounded_channel();
-    watch_host(proxy.clone(), tx).await.map_err(|e| format!("watching the notification server: {e}"))?;
+    watch_host(proxy.clone(), tx)
+        .await
+        .map_err(|e| format!("watching the notification server: {e}"))?;
 
     loop {
         let stream = {
@@ -199,7 +215,10 @@ struct Bucket {
 
 impl Bucket {
     fn new() -> Self {
-        Bucket { tokens: BURST, last: Instant::now() }
+        Bucket {
+            tokens: BURST,
+            last: Instant::now(),
+        }
     }
 
     fn take(&mut self, now: Instant) -> bool {
@@ -239,7 +258,11 @@ impl Session {
         }
     }
 
-    async fn run(&mut self, stream: vsock::Stream, events: &mut mpsc::UnboundedReceiver<Event>) -> io::Result<End> {
+    async fn run(
+        &mut self,
+        stream: vsock::Stream,
+        events: &mut mpsc::UnboundedReceiver<Event>,
+    ) -> io::Result<End> {
         let (reader, mut writer) = tokio::io::split(stream);
         // Reading a line isn't cancel safe, so it gets a task of its own.
         let (guest_tx, mut guest) = mpsc::channel(16);
@@ -265,12 +288,16 @@ impl Session {
         events: &mut mpsc::UnboundedReceiver<Event>,
     ) -> io::Result<End> {
         let invalid = |what: String| io::Error::new(io::ErrorKind::InvalidData, what);
-        let hello = timeout(HELLO_TIMEOUT, guest.recv()).await.map_err(|_| invalid("no hello from the agent".into()))?;
+        let hello = timeout(HELLO_TIMEOUT, guest.recv())
+            .await
+            .map_err(|_| invalid("no hello from the agent".into()))?;
         let vm = match hello {
             Some(Ok(Some(AgentMessage::Hello { vm }))) => vm,
             Some(Err(e)) => return Err(e),
             None | Some(Ok(None)) => return Ok(End::Disconnected),
-            Some(Ok(Some(other))) => return Err(invalid(format!("expected a hello, got {other:?}"))),
+            Some(Ok(Some(other))) => {
+                return Err(invalid(format!("expected a hello, got {other:?}")))
+            }
         };
         if !carte::proto::is_valid_vm(&vm) {
             return Err(invalid(format!("invalid VM name {vm:?}")));
@@ -279,13 +306,25 @@ impl Session {
         self.vm = vm;
         // Left over if an earlier relay was killed.
         let _ = fs::remove_dir_all(&self.icons);
-        DirBuilder::new().recursive(true).mode(0o700).create(&self.icons)?;
+        DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(&self.icons)?;
 
         let capabilities = match self.proxy.get_capabilities().await {
-            Ok(caps) => caps.into_iter().filter(|c| proto::SUPPORTED_CAPABILITIES.contains(&c.as_str())).collect(),
+            Ok(caps) => caps
+                .into_iter()
+                .filter(|c| proto::SUPPORTED_CAPABILITIES.contains(&c.as_str()))
+                .collect(),
             Err(e) => {
-                log(format!("{}: asking the notification server what it can do: {e}", self.vm));
-                proto::DEFAULT_CAPABILITIES.iter().map(|&c| c.to_owned()).collect()
+                log(format!(
+                    "{}: asking the notification server what it can do: {e}",
+                    self.vm
+                ));
+                proto::DEFAULT_CAPABILITIES
+                    .iter()
+                    .map(|&c| c.to_owned())
+                    .collect()
             }
         };
         proto::send(writer, &HostMessage::Hello { capabilities }).await?;
@@ -331,8 +370,14 @@ impl Session {
         let id = n.id;
         let replaces = self.to_host.get(&id).copied().unwrap_or(0);
         if replaces == 0 && !self.bucket.take(Instant::now()) {
-            log(format!("{}: too many notifications, dropping {id}", self.vm));
-            return Some(HostMessage::Closed { id, reason: proto::CLOSED_OTHER });
+            log(format!(
+                "{}: too many notifications, dropping {id}",
+                self.vm
+            ));
+            return Some(HostMessage::Closed {
+                id,
+                reason: proto::CLOSED_OTHER,
+            });
         }
         n.sanitize();
         self.remove_icons(id);
@@ -361,10 +406,17 @@ impl Session {
         // The application's carte launcher, so the server shows its name and
         // icon (it has the VM in its name), and the user can set its
         // notification settings.
-        let launcher = n.app_id.as_deref().map(|app| menu::file_name(&self.vm, app));
-        let launcher = launcher.filter(|file| xdg::data_home().join("applications").join(file).is_file());
+        let launcher = n
+            .app_id
+            .as_deref()
+            .map(|app| menu::file_name(&self.vm, app));
+        let launcher =
+            launcher.filter(|file| xdg::data_home().join("applications").join(file).is_file());
         if let Some(file) = &launcher {
-            hints.insert("desktop-entry", Value::from(file.strip_suffix(".desktop").unwrap_or(file)));
+            hints.insert(
+                "desktop-entry",
+                Value::from(file.strip_suffix(".desktop").unwrap_or(file)),
+            );
         }
 
         let app_icon = match &n.app_icon {
@@ -372,8 +424,24 @@ impl Session {
             None => String::new(),
         };
         match &n.image {
-            Some(Image::Pixels { width, height, rowstride, has_alpha, bits_per_sample, channels, data }) => {
-                let pixels = (*width, *height, *rowstride, *has_alpha, *bits_per_sample, *channels, data.clone());
+            Some(Image::Pixels {
+                width,
+                height,
+                rowstride,
+                has_alpha,
+                bits_per_sample,
+                channels,
+                data,
+            }) => {
+                let pixels = (
+                    *width,
+                    *height,
+                    *rowstride,
+                    *has_alpha,
+                    *bits_per_sample,
+                    *channels,
+                    data.clone(),
+                );
                 hints.insert("image-data", Value::Structure(Structure::from(pixels)));
             }
             Some(Image::File(file)) => {
@@ -384,11 +452,28 @@ impl Session {
             None => {}
         }
 
-        let app_name = if n.app_name.is_empty() { self.vm.clone() } else { format!("{} ({})", n.app_name, self.vm) };
-        let actions: Vec<&str> = n.actions.iter().flat_map(|a| [a.key.as_str(), a.label.as_str()]).collect();
+        let app_name = if n.app_name.is_empty() {
+            self.vm.clone()
+        } else {
+            format!("{} ({})", n.app_name, self.vm)
+        };
+        let actions: Vec<&str> = n
+            .actions
+            .iter()
+            .flat_map(|a| [a.key.as_str(), a.label.as_str()])
+            .collect();
         let result = self
             .proxy
-            .notify(&app_name, replaces, &app_icon, &n.summary, &n.body, &actions, hints, n.expire_timeout)
+            .notify(
+                &app_name,
+                replaces,
+                &app_icon,
+                &n.summary,
+                &n.body,
+                &actions,
+                hints,
+                n.expire_timeout,
+            )
             .await;
         match result {
             Ok(host_id) => {
@@ -398,13 +483,19 @@ impl Session {
                 self.to_host.insert(id, host_id);
                 self.to_guest.insert(host_id, id);
                 let from = launcher.as_deref().unwrap_or(&app_name);
-                log(format!("{}: notification {id} from {from:?} is {host_id} on the host", self.vm));
+                log(format!(
+                    "{}: notification {id} from {from:?} is {host_id} on the host",
+                    self.vm
+                ));
                 None
             }
             Err(e) => {
                 log(format!("{}: showing notification {id}: {e}", self.vm));
                 self.forget_guest(id);
-                Some(HostMessage::Closed { id, reason: proto::CLOSED_OTHER })
+                Some(HostMessage::Closed {
+                    id,
+                    reason: proto::CLOSED_OTHER,
+                })
             }
         }
     }
@@ -413,7 +504,10 @@ impl Session {
     /// if the host server won't.
     async fn close(&mut self, id: u32) -> Option<HostMessage> {
         let Some(&host_id) = self.to_host.get(&id) else {
-            return Some(HostMessage::Closed { id, reason: proto::CLOSED_BY_CALL });
+            return Some(HostMessage::Closed {
+                id,
+                reason: proto::CLOSED_BY_CALL,
+            });
         };
         // The server answers with NotificationClosed.
         match self.proxy.close_notification(host_id).await {
@@ -421,7 +515,10 @@ impl Session {
             Err(e) => {
                 log(format!("{}: closing notification {id}: {e}", self.vm));
                 self.forget(host_id);
-                Some(HostMessage::Closed { id, reason: proto::CLOSED_BY_CALL })
+                Some(HostMessage::Closed {
+                    id,
+                    reason: proto::CLOSED_BY_CALL,
+                })
             }
         }
     }
@@ -497,14 +594,20 @@ mod tests {
 
     #[test]
     fn uri() {
-        assert_eq!(file_uri(Path::new("/run/user/1000/sonnette/debian/1-icon.png")), "file:///run/user/1000/sonnette/debian/1-icon.png");
+        assert_eq!(
+            file_uri(Path::new("/run/user/1000/sonnette/debian/1-icon.png")),
+            "file:///run/user/1000/sonnette/debian/1-icon.png"
+        );
         assert_eq!(file_uri(Path::new("/a b/%")), "file:///a%20b/%25");
     }
 
     #[test]
     fn bucket() {
         let start = Instant::now();
-        let mut bucket = Bucket { tokens: BURST, last: start };
+        let mut bucket = Bucket {
+            tokens: BURST,
+            last: start,
+        };
         for _ in 0..BURST as usize {
             assert!(bucket.take(start));
         }

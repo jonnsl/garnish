@@ -32,30 +32,56 @@ pub struct Rule {
 
 impl Rule {
     pub fn any(nr: libc::c_long) -> Rule {
-        Rule { nr, fd: None, arg1: Vec::new() }
+        Rule {
+            nr,
+            fd: None,
+            arg1: Vec::new(),
+        }
     }
 
     pub fn on(nr: libc::c_long, fd: i32) -> Rule {
-        Rule { nr, fd: Some(fd), arg1: Vec::new() }
+        Rule {
+            nr,
+            fd: Some(fd),
+            arg1: Vec::new(),
+        }
     }
 
     pub fn ioctl(fd: i32, requests: &[libc::c_ulong]) -> Rule {
-        Rule { nr: libc::SYS_ioctl, fd: Some(fd), arg1: requests.iter().map(|r| *r as u32).collect() }
+        Rule {
+            nr: libc::SYS_ioctl,
+            fd: Some(fd),
+            arg1: requests.iter().map(|r| *r as u32).collect(),
+        }
     }
 
     /// Only with this second argument, on any descriptor.
     pub fn with(nr: libc::c_long, arg1: u32) -> Rule {
-        Rule { nr, fd: None, arg1: vec![arg1] }
+        Rule {
+            nr,
+            fd: None,
+            arg1: vec![arg1],
+        }
     }
 }
 
 fn stmt(code: u32, k: u32) -> libc::sock_filter {
-    libc::sock_filter { code: code as u16, jt: 0, jf: 0, k }
+    libc::sock_filter {
+        code: code as u16,
+        jt: 0,
+        jf: 0,
+        k,
+    }
 }
 
 fn jeq(k: u32, jt: usize, jf: usize) -> libc::sock_filter {
     let jump = |n: usize| u8::try_from(n).expect("seccomp jump too long");
-    libc::sock_filter { code: (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16, jt: jump(jt), jf: jump(jf), k }
+    libc::sock_filter {
+        code: (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16,
+        jt: jump(jt),
+        jf: jump(jf),
+        k,
+    }
 }
 
 fn load(offset: u32) -> libc::sock_filter {
@@ -119,12 +145,23 @@ pub fn program(rules: &[Rule]) -> Vec<libc::sock_filter> {
 /// no_new_privs.
 pub fn install(rules: &[Rule]) -> Result<(), String> {
     let program = program(rules);
-    let fprog = libc::sock_fprog { len: program.len() as u16, filter: program.as_ptr().cast_mut() };
+    let fprog = libc::sock_fprog {
+        len: program.len() as u16,
+        filter: program.as_ptr().cast_mut(),
+    };
     let ret = unsafe {
-        libc::syscall(libc::SYS_seccomp, libc::SECCOMP_SET_MODE_FILTER, 0 as libc::c_ulong, &fprog as *const _)
+        libc::syscall(
+            libc::SYS_seccomp,
+            libc::SECCOMP_SET_MODE_FILTER,
+            0 as libc::c_ulong,
+            &fprog as *const _,
+        )
     };
     if ret != 0 {
-        return Err(format!("installing the seccomp filter: {}", io::Error::last_os_error()));
+        return Err(format!(
+            "installing the seccomp filter: {}",
+            io::Error::last_os_error()
+        ));
     }
     Ok(())
 }
@@ -175,7 +212,10 @@ mod tests {
         assert_eq!(run(&p, libc::SYS_write, [2, 0, 0, 0, 0, 0]), allow);
         assert_eq!(run(&p, libc::SYS_write, [3, 0, 0, 0, 0, 0]), kill);
         assert_eq!(run(&p, libc::SYS_ioctl, [5, 0x8933, 0, 0, 0, 0]), allow);
-        assert_eq!(run(&p, libc::SYS_ioctl, [5, libc::TUNSETIFF, 0, 0, 0, 0]), allow);
+        assert_eq!(
+            run(&p, libc::SYS_ioctl, [5, libc::TUNSETIFF, 0, 0, 0, 0]),
+            allow
+        );
         assert_eq!(run(&p, libc::SYS_ioctl, [5, 0x8934, 0, 0, 0, 0]), kill);
         assert_eq!(run(&p, libc::SYS_ioctl, [4, 0x8933, 0, 0, 0, 0]), kill);
         assert_eq!(run(&p, libc::SYS_openat, [0; 6]), kill);

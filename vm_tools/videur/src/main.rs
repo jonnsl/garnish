@@ -28,17 +28,27 @@ fn args() -> Result<Args, String> {
     let mut display = None;
     let mut listen = None;
     let mut policy = None;
-    let mut protocols = vec![PathBuf::from("/usr/share/wayland"), PathBuf::from("/usr/share/wayland-protocols")];
+    let mut protocols = vec![
+        PathBuf::from("/usr/share/wayland"),
+        PathBuf::from("/usr/share/wayland-protocols"),
+    ];
     let mut it = std::env::args_os().skip(1);
     while let Some(a) = it.next() {
-        let mut value = || it.next().ok_or_else(|| format!("{} needs a value", a.to_string_lossy()));
+        let mut value = || {
+            it.next()
+                .ok_or_else(|| format!("{} needs a value", a.to_string_lossy()))
+        };
         match a.to_str() {
             Some("--display") => display = Some(PathBuf::from(value()?)),
             Some("--listen") => listen = Some(PathBuf::from(value()?)),
             Some("--protocols") => protocols.push(PathBuf::from(value()?)),
             Some("--clipboard") => {
                 let v = value()?;
-                policy = Some(v.to_str().and_then(Policy::parse).ok_or_else(|| format!("bad --clipboard {}", v.to_string_lossy()))?);
+                policy = Some(
+                    v.to_str()
+                        .and_then(Policy::parse)
+                        .ok_or_else(|| format!("bad --clipboard {}", v.to_string_lossy()))?,
+                );
             }
             Some("-h" | "--help") => {
                 println!("{USAGE}");
@@ -68,9 +78,17 @@ fn main() -> ExitCode {
         let protocols = Protocols::load(&dirs).map_err(|e| format!("reading protocols: {e}"))?;
         let filter = Filter::new(Rc::new(protocols), args.policy)?;
         let _ = std::fs::remove_file(&args.listen);
-        let listener = UnixListener::bind(&args.listen).map_err(|e| format!("{}: {e}", args.listen.display()))?;
-        eprintln!("videur: {} -> {}, clipboard {:?}", args.listen.display(), args.display.display(), args.policy);
-        Proxy::new(listener, args.display.clone(), filter).and_then(|mut p| p.run()).map_err(|e| e.to_string())
+        let listener = UnixListener::bind(&args.listen)
+            .map_err(|e| format!("{}: {e}", args.listen.display()))?;
+        eprintln!(
+            "videur: {} -> {}, clipboard {:?}",
+            args.listen.display(),
+            args.display.display(),
+            args.policy
+        );
+        Proxy::new(listener, args.display.clone(), filter)
+            .and_then(|mut p| p.run())
+            .map_err(|e| e.to_string())
     };
     match run() {
         Ok(()) => ExitCode::SUCCESS,

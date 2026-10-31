@@ -10,8 +10,8 @@ use std::path::PathBuf;
 
 use rustix::event::{PollFd, PollFlags, poll};
 use rustix::net::{
-    RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags, SendAncillaryBuffer, SendAncillaryMessage, SendFlags, recvmsg,
-    sendmsg,
+    RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags, SendAncillaryBuffer,
+    SendAncillaryMessage, SendFlags, recvmsg, sendmsg,
 };
 
 use crate::filter::{ConnId, Filter, Out};
@@ -40,7 +40,12 @@ impl Queue {
     /// Writes what the socket takes. Ok(false) if it's full.
     fn flush(&mut self, sock: &UnixStream) -> io::Result<bool> {
         while !self.bytes.is_empty() {
-            let mut n = self.fds.iter().take_while(|(at, _)| *at < self.bytes.len()).count().min(MAX_FDS);
+            let mut n = self
+                .fds
+                .iter()
+                .take_while(|(at, _)| *at < self.bytes.len())
+                .count()
+                .min(MAX_FDS);
             let end = match self.fds.get(MAX_FDS) {
                 Some((at, _)) if n == MAX_FDS => *at,
                 _ => self.bytes.len(),
@@ -55,7 +60,12 @@ impl Queue {
             if !fds.is_empty() {
                 anc.push(SendAncillaryMessage::ScmRights(&fds));
             }
-            let sent = match sendmsg(sock, &[IoSlice::new(&self.bytes[..end])], &mut anc, SendFlags::DONTWAIT | SendFlags::NOSIGNAL) {
+            let sent = match sendmsg(
+                sock,
+                &[IoSlice::new(&self.bytes[..end])],
+                &mut anc,
+                SendFlags::DONTWAIT | SendFlags::NOSIGNAL,
+            ) {
                 Ok(sent) => sent,
                 Err(rustix::io::Errno::AGAIN) => return Ok(false),
                 Err(rustix::io::Errno::INTR) => continue,
@@ -82,7 +92,12 @@ struct Side {
 impl Side {
     fn new(sock: UnixStream) -> io::Result<Side> {
         sock.set_nonblocking(true)?;
-        Ok(Side { sock, input: Vec::new(), fds: VecDeque::new(), out: Queue::default() })
+        Ok(Side {
+            sock,
+            input: Vec::new(),
+            fds: VecDeque::new(),
+            out: Queue::default(),
+        })
     }
 
     /// Reads what's there. Ok(false) at the end.
@@ -91,7 +106,12 @@ impl Side {
         let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(MAX_FDS * 2))];
         let mut anc = RecvAncillaryBuffer::new(&mut space);
         let flags = RecvFlags::DONTWAIT | RecvFlags::CMSG_CLOEXEC;
-        let got = match recvmsg(&self.sock, &mut [IoSliceMut::new(&mut buf)], &mut anc, flags) {
+        let got = match recvmsg(
+            &self.sock,
+            &mut [IoSliceMut::new(&mut buf)],
+            &mut anc,
+            flags,
+        ) {
             Ok(r) => r.bytes,
             Err(rustix::io::Errno::AGAIN | rustix::io::Errno::INTR) => return Ok(true),
             Err(e) => return Err(e.into()),
@@ -120,9 +140,19 @@ pub struct Proxy {
 }
 
 impl Proxy {
-    pub fn new(listener: UnixListener, display: PathBuf, filter: Filter<OwnedFd>) -> io::Result<Proxy> {
+    pub fn new(
+        listener: UnixListener,
+        display: PathBuf,
+        filter: Filter<OwnedFd>,
+    ) -> io::Result<Proxy> {
         listener.set_nonblocking(true)?;
-        Ok(Proxy { listener, display, filter, conns: HashMap::new(), next: 1 })
+        Ok(Proxy {
+            listener,
+            display,
+            filter,
+            conns: HashMap::new(),
+            next: 1,
+        })
     }
 
     pub fn run(&mut self) -> io::Result<()> {
@@ -178,8 +208,12 @@ impl Proxy {
             };
             let id = self.next;
             self.next += 1;
-            let conn = UnixStream::connect(&self.display)
-                .and_then(|server| Ok(Conn { client: Side::new(client)?, server: Side::new(server)? }));
+            let conn = UnixStream::connect(&self.display).and_then(|server| {
+                Ok(Conn {
+                    client: Side::new(client)?,
+                    server: Side::new(server)?,
+                })
+            });
             match conn {
                 Ok(conn) => {
                     eprintln!("videur: connection {id}");
@@ -200,12 +234,21 @@ impl Proxy {
     fn service(&mut self, id: ConnId, from_client: bool, ready: PollFlags) -> Result<(), String> {
         let who = if from_client { "guest" } else { "compositor" };
         let conn = self.conns.get_mut(&id).unwrap();
-        let side = if from_client { &mut conn.client } else { &mut conn.server };
+        let side = if from_client {
+            &mut conn.client
+        } else {
+            &mut conn.server
+        };
         if ready.contains(PollFlags::OUT) {
-            side.out.flush(&side.sock).map_err(|e| format!("writing to the {who}: {e}"))?;
+            side.out
+                .flush(&side.sock)
+                .map_err(|e| format!("writing to the {who}: {e}"))?;
         }
         if ready.intersects(PollFlags::IN | PollFlags::HUP | PollFlags::ERR) {
-            if !side.fill().map_err(|e| format!("reading from the {who}: {e}"))? {
+            if !side
+                .fill()
+                .map_err(|e| format!("reading from the {who}: {e}"))?
+            {
                 return Err(format!("the {who} hung up"));
             }
             self.process(id, from_client)?;
@@ -217,8 +260,14 @@ impl Proxy {
     fn process(&mut self, id: ConnId, from_client: bool) -> Result<(), String> {
         loop {
             let conn = self.conns.get_mut(&id).unwrap();
-            let side = if from_client { &mut conn.client } else { &mut conn.server };
-            let Some((_, _, size)) = wire::header(&side.input) else { break };
+            let side = if from_client {
+                &mut conn.client
+            } else {
+                &mut conn.server
+            };
+            let Some((_, _, size)) = wire::header(&side.input) else {
+                break;
+            };
             if size < wire::HEADER || size % 4 != 0 {
                 return Err(format!("bad message size {size}"));
             }

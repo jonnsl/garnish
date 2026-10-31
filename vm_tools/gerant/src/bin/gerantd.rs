@@ -46,14 +46,18 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<(), String> {
     let config = load_config()?;
-    let conn = Connection::session().await.map_err(|e| format!("connecting to the session bus: {e}"))?;
+    let conn = Connection::session()
+        .await
+        .map_err(|e| format!("connecting to the session bus: {e}"))?;
     // Guests say when they have booted. Without the listener (vsock ports
     // are shared by all users: another gerantd may have it) VMs are shown
     // as running once crosvm runs.
     let listener = match ready::Listener::bind(READY_PORT) {
         Ok(listener) => Some(listener),
         Err(e) => {
-            eprintln!("gerantd: can't listen on vsock port {READY_PORT} ({e}), VMs will be running as soon as crosvm is");
+            eprintln!(
+                "gerantd: can't listen on vsock port {READY_PORT} ({e}), VMs will be running as soon as crosvm is"
+            );
             None
         }
     };
@@ -67,12 +71,18 @@ async fn run() -> Result<(), String> {
         .map_err(|e| format!("serving {OBJECT_PATH}: {e}"))?;
     // The name last, so a call that activated us doesn't arrive before the
     // object is there.
-    match conn.request_name_with_flags(BUS_NAME, RequestNameFlags::DoNotQueue.into()).await {
+    match conn
+        .request_name_with_flags(BUS_NAME, RequestNameFlags::DoNotQueue.into())
+        .await
+    {
         Ok(RequestNameReply::PrimaryOwner) => {}
         Ok(_) => return Err(format!("{BUS_NAME} is taken: is gerantd already running?")),
         Err(e) => return Err(format!("requesting {BUS_NAME}: {e}")),
     }
-    eprintln!("gerantd: ready, VMs are configured in {}", xdg::config_dir().join("vms").display());
+    eprintln!(
+        "gerantd: ready, VMs are configured in {}",
+        xdg::config_dir().join("vms").display()
+    );
 
     let signal_error = |e: io::Error| format!("setting up signal handlers: {e}");
     let mut term = signal(SignalKind::terminate()).map_err(signal_error)?;

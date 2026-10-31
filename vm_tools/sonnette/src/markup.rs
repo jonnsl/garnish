@@ -37,7 +37,10 @@ mod tests {
     #[test]
     fn strips() {
         assert_eq!(strip_links_and_images("plain"), "plain");
-        assert_eq!(strip_links_and_images("<b>bold</b> <i>it</i>"), "<b>bold</b> <i>it</i>");
+        assert_eq!(
+            strip_links_and_images("<b>bold</b> <i>it</i>"),
+            "<b>bold</b> <i>it</i>"
+        );
         assert_eq!(
             strip_links_and_images(r#"see <a href="https://x">this</a>!"#),
             "see this!"

@@ -82,7 +82,10 @@ pub fn parse(msg: &[u8], args: &[Arg]) -> Result<Vec<Parsed>, String> {
                 let version = word(msg, at).ok_or("message too short")?;
                 let id = word(msg, at + 4).ok_or("message too short")?;
                 at += 8;
-                out.push(Parsed { value: Value::TypedNewId(iface, version, id), offset: at - 4 });
+                out.push(Parsed {
+                    value: Value::TypedNewId(iface, version, id),
+                    offset: at - 4,
+                });
                 continue;
             }
             Arg::String => Value::String(string(&mut at)?),
@@ -149,7 +152,12 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let m = Builder::new(2, 0).uint(7).string(b"wl_seat").uint(5).uint(9).build();
+        let m = Builder::new(2, 0)
+            .uint(7)
+            .string(b"wl_seat")
+            .uint(5)
+            .uint(9)
+            .build();
         assert_eq!(header(&m), Some((2, 0, m.len())));
         let args = parse(&m, &[Arg::Uint, Arg::NewId(None)]).unwrap();
         assert_eq!(args[0].value, Value::Uint(7));

@@ -35,19 +35,36 @@ const MAX_SHORT: usize = 256;
 /// them. Not body-hyperlinks and body-images: links would open on the host,
 /// image paths would be host paths. Not icon-multi: animations aren't
 /// forwarded.
-pub const SUPPORTED_CAPABILITIES: &[&str] =
-    &["actions", "action-icons", "body", "body-markup", "icon-static", "persistence", "sound"];
+pub const SUPPORTED_CAPABILITIES: &[&str] = &[
+    "actions",
+    "action-icons",
+    "body",
+    "body-markup",
+    "icon-static",
+    "persistence",
+    "sound",
+];
 
 /// What the agent claims before the host has said what its server can do.
-pub const DEFAULT_CAPABILITIES: &[&str] = &["actions", "body", "body-markup", "icon-static", "persistence"];
+pub const DEFAULT_CAPABILITIES: &[&str] = &[
+    "actions",
+    "body",
+    "body-markup",
+    "icon-static",
+    "persistence",
+];
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentMessage {
     /// `vm` is the VM's name, the guest's hostname, like carte's.
-    Hello { vm: String },
+    Hello {
+        vm: String,
+    },
     Notify(Box<Notification>),
-    Close { id: u32 },
+    Close {
+        id: u32,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -153,7 +170,9 @@ pub enum Image {
 
 impl ImageFile {
     pub fn is_valid(&self) -> bool {
-        (self.format == "png" || self.format == "svg") && !self.data.is_empty() && self.data.len() <= MAX_IMAGE
+        (self.format == "png" || self.format == "svg")
+            && !self.data.is_empty()
+            && self.data.len() <= MAX_IMAGE
     }
 }
 
@@ -161,7 +180,15 @@ impl Image {
     pub fn is_valid(&self) -> bool {
         match self {
             Image::File(file) => file.is_valid(),
-            &Image::Pixels { width, height, rowstride, has_alpha, bits_per_sample, channels, ref data } => {
+            &Image::Pixels {
+                width,
+                height,
+                rowstride,
+                has_alpha,
+                bits_per_sample,
+                channels,
+                ref data,
+            } => {
                 // What GdkPixbuf, which most servers load it with, accepts.
                 let side = 1..=MAX_IMAGE_SIDE;
                 if !side.contains(&width)
@@ -174,9 +201,13 @@ impl Image {
                 }
                 // All small and positive now, except rowstride.
                 let row = width as usize * channels as usize;
-                let Ok(rowstride) = usize::try_from(rowstride) else { return false };
+                let Ok(rowstride) = usize::try_from(rowstride) else {
+                    return false;
+                };
                 // The last row may be cut short to its pixels.
-                rowstride >= row && rowstride <= MAX_IMAGE && data.len() >= rowstride * (height as usize - 1) + row
+                rowstride >= row
+                    && rowstride <= MAX_IMAGE
+                    && data.len() >= rowstride * (height as usize - 1) + row
             }
         }
     }
@@ -207,7 +238,11 @@ impl Notification {
             truncate(&mut action.key, MAX_SHORT);
             truncate(&mut action.label, MAX_SHORT);
         }
-        if self.app_id.as_deref().is_some_and(|id| !carte::proto::is_valid_id(id)) {
+        if self
+            .app_id
+            .as_deref()
+            .is_some_and(|id| !carte::proto::is_valid_id(id))
+        {
             self.app_id = None;
         }
         if self.app_icon.as_ref().is_some_and(|i| !i.is_valid()) {
@@ -216,7 +251,10 @@ impl Notification {
         if self.image.as_ref().is_some_and(|i| !i.is_valid()) {
             self.image = None;
         }
-        for hint in [&mut self.hints.category, &mut self.hints.sound_name].into_iter().flatten() {
+        for hint in [&mut self.hints.category, &mut self.hints.sound_name]
+            .into_iter()
+            .flatten()
+        {
             truncate(hint, MAX_SHORT);
         }
         if self.hints.urgency.is_some_and(|u| u > 2) {
@@ -232,13 +270,18 @@ pub async fn send<T: Serialize>(w: &mut (impl AsyncWrite + Unpin), msg: &T) -> i
 }
 
 /// Reads one message. `Ok(None)` means the other side closed the connection.
-pub async fn recv<T: DeserializeOwned>(r: &mut (impl AsyncBufRead + Unpin)) -> io::Result<Option<T>> {
+pub async fn recv<T: DeserializeOwned>(
+    r: &mut (impl AsyncBufRead + Unpin),
+) -> io::Result<Option<T>> {
     let mut line = Vec::new();
     if r.take(MAX_LINE).read_until(b'\n', &mut line).await? == 0 {
         return Ok(None);
     }
     if line.last() != Some(&b'\n') {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "message too long or cut off"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "message too long or cut off",
+        ));
     }
     serde_json::from_slice(&line)
         .map(Some)
@@ -265,16 +308,30 @@ mod tests {
     fn message_format() {
         let line = serde_json::to_string(&AgentMessage::Close { id: 3 }).unwrap();
         assert_eq!(line, r#"{"type":"close","id":3}"#);
-        let msg: AgentMessage = serde_json::from_str(r#"{"type":"notify","id":1,"app_name":"a","summary":"s"}"#).unwrap();
-        let AgentMessage::Notify(n) = msg else { panic!("{msg:?}") };
+        let msg: AgentMessage =
+            serde_json::from_str(r#"{"type":"notify","id":1,"app_name":"a","summary":"s"}"#)
+                .unwrap();
+        let AgentMessage::Notify(n) = msg else {
+            panic!("{msg:?}")
+        };
         assert_eq!((n.id, n.expire_timeout, n.body.as_str()), (1, -1, ""));
-        let msg: HostMessage = serde_json::from_str(r#"{"type":"action","id":1,"key":"default"}"#).unwrap();
-        assert_eq!(msg, HostMessage::Action { id: 1, key: "default".into() });
+        let msg: HostMessage =
+            serde_json::from_str(r#"{"type":"action","id":1,"key":"default"}"#).unwrap();
+        assert_eq!(
+            msg,
+            HostMessage::Action {
+                id: 1,
+                key: "default".into()
+            }
+        );
     }
 
     #[test]
     fn image_format() {
-        let file = Image::File(ImageFile { format: "png".into(), data: b"abc".to_vec() });
+        let file = Image::File(ImageFile {
+            format: "png".into(),
+            data: b"abc".to_vec(),
+        });
         let json = serde_json::to_string(&file).unwrap();
         assert_eq!(json, r#"{"kind":"file","format":"png","data":"YWJj"}"#);
         assert_eq!(serde_json::from_str::<Image>(&json).unwrap(), file);
@@ -283,12 +340,27 @@ mod tests {
     #[tokio::test]
     async fn round_trip() {
         let mut buf = Vec::new();
-        let n = Notification { id: 7, summary: "hi".into(), image: Some(pixels(1, 1, 4, 4)), ..Default::default() };
-        send(&mut buf, &AgentMessage::Notify(Box::new(n.clone()))).await.unwrap();
-        send(&mut buf, &AgentMessage::Close { id: 7 }).await.unwrap();
+        let n = Notification {
+            id: 7,
+            summary: "hi".into(),
+            image: Some(pixels(1, 1, 4, 4)),
+            ..Default::default()
+        };
+        send(&mut buf, &AgentMessage::Notify(Box::new(n.clone())))
+            .await
+            .unwrap();
+        send(&mut buf, &AgentMessage::Close { id: 7 })
+            .await
+            .unwrap();
         let mut r = &buf[..];
-        assert_eq!(recv::<AgentMessage>(&mut r).await.unwrap(), Some(AgentMessage::Notify(Box::new(n))));
-        assert_eq!(recv::<AgentMessage>(&mut r).await.unwrap(), Some(AgentMessage::Close { id: 7 }));
+        assert_eq!(
+            recv::<AgentMessage>(&mut r).await.unwrap(),
+            Some(AgentMessage::Notify(Box::new(n)))
+        );
+        assert_eq!(
+            recv::<AgentMessage>(&mut r).await.unwrap(),
+            Some(AgentMessage::Close { id: 7 })
+        );
         assert_eq!(recv::<AgentMessage>(&mut r).await.unwrap(), None);
         let mut cut = &b"{\"type\":"[..];
         assert!(recv::<AgentMessage>(&mut cut).await.is_err());
@@ -309,8 +381,16 @@ mod tests {
             *channels = 3;
         }
         assert!(!wrong_channels.is_valid());
-        assert!(!Image::File(ImageFile { format: "xpm".into(), data: b"x".to_vec() }).is_valid());
-        assert!(!Image::File(ImageFile { format: "png".into(), data: vec![0; MAX_IMAGE + 1] }).is_valid());
+        assert!(!Image::File(ImageFile {
+            format: "xpm".into(),
+            data: b"x".to_vec()
+        })
+        .is_valid());
+        assert!(!Image::File(ImageFile {
+            format: "png".into(),
+            data: vec![0; MAX_IMAGE + 1]
+        })
+        .is_valid());
     }
 
     #[test]
@@ -319,8 +399,16 @@ mod tests {
             app_name: "é".repeat(200),
             app_id: Some("../evil".into()),
             body: r#"<b>x</b> <a href="file:///">y</a>"#.into(),
-            actions: (0..20).map(|i| Action { key: i.to_string(), label: "l".into() }).collect(),
-            hints: Hints { urgency: Some(9), ..Default::default() },
+            actions: (0..20)
+                .map(|i| Action {
+                    key: i.to_string(),
+                    label: "l".into(),
+                })
+                .collect(),
+            hints: Hints {
+                urgency: Some(9),
+                ..Default::default()
+            },
             image: Some(pixels(2, 2, 4, 4)),
             ..Default::default()
         };

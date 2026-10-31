@@ -11,25 +11,44 @@ const SIZES: &[u32] = &[1024, 512, 256, 192, 128, 96, 72, 64, 48, 32, 24, 16];
 pub fn find(icon: &str, size: u32, data_dirs: &[PathBuf]) -> Option<(PathBuf, &'static str)> {
     let path = Path::new(icon);
     if path.is_absolute() {
-        return format_of(path).filter(|_| path.is_file()).map(|f| (path.to_owned(), f));
+        return format_of(path)
+            .filter(|_| path.is_file())
+            .map(|f| (path.to_owned(), f));
     }
     if icon.contains('/') {
         return None;
     }
-    let name = icon.strip_suffix(".png").or_else(|| icon.strip_suffix(".svg")).unwrap_or(icon);
+    let name = icon
+        .strip_suffix(".png")
+        .or_else(|| icon.strip_suffix(".svg"))
+        .unwrap_or(icon);
 
     // The requested size, a scalable icon, then larger sizes from the
     // closest up, then smaller ones from the closest down.
-    let mut candidates = vec![format!("{size}x{size}/apps/{name}.png"), format!("scalable/apps/{name}.svg")];
+    let mut candidates = vec![
+        format!("{size}x{size}/apps/{name}.png"),
+        format!("scalable/apps/{name}.svg"),
+    ];
     let larger = SIZES.iter().rev().filter(|&&s| s > size);
     let smaller = SIZES.iter().filter(|&&s| s < size);
-    candidates.extend(larger.chain(smaller).map(|s| format!("{s}x{s}/apps/{name}.png")));
+    candidates.extend(
+        larger
+            .chain(smaller)
+            .map(|s| format!("{s}x{s}/apps/{name}.png")),
+    );
 
     let themed = THEMES.iter().flat_map(|theme| {
-        data_dirs.iter().map(move |dir| dir.join("icons").join(theme)).filter(|d| d.is_dir())
+        data_dirs
+            .iter()
+            .map(move |dir| dir.join("icons").join(theme))
+            .filter(|d| d.is_dir())
     });
     for theme_dir in themed {
-        if let Some(found) = candidates.iter().map(|c| theme_dir.join(c)).find(|p| p.is_file()) {
+        if let Some(found) = candidates
+            .iter()
+            .map(|c| theme_dir.join(c))
+            .find(|p| p.is_file())
+        {
             let format = format_of(&found)?;
             return Some((found, format));
         }

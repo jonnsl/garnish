@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use crate::ini::{self, Entry};
 
 /// Keep in sync with KernelCommandLine= in mkosi/mkosi.conf.
-pub const DEFAULT_CMDLINE: &str = "root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual-1:d";
+pub const DEFAULT_CMDLINE: &str =
+    "root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual-1:d";
 
 /// `<config dir>/vms/<name>.conf`.
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +65,14 @@ impl Clipboard {
     }
 
     pub fn parse(s: &str) -> Option<Clipboard> {
-        [Clipboard::Both, Clipboard::ToHost, Clipboard::FromHost, Clipboard::None].into_iter().find(|c| c.as_str() == s)
+        [
+            Clipboard::Both,
+            Clipboard::ToHost,
+            Clipboard::FromHost,
+            Clipboard::None,
+        ]
+        .into_iter()
+        .find(|c| c.as_str() == s)
     }
 }
 
@@ -115,7 +123,13 @@ fn words(e: &Entry) -> Result<Vec<String>, String> {
 }
 
 fn unknown(e: &Entry) -> String {
-    format!("{}:{}: unknown setting [{}] {}=", e.file.display(), e.line, e.section, e.key)
+    format!(
+        "{}:{}: unknown setting [{}] {}=",
+        e.file.display(),
+        e.line,
+        e.section,
+        e.key
+    )
 }
 
 impl VmConfig {
@@ -166,7 +180,8 @@ impl VmConfig {
                     memory = if empty {
                         4 << 30
                     } else {
-                        ini::parse_size(&e.value).ok_or_else(|| e.error("expected a size, e.g. 4G or 512M"))?
+                        ini::parse_size(&e.value)
+                            .ok_or_else(|| e.error("expected a size, e.g. 4G or 512M"))?
                     };
                     if memory < 128 << 20 {
                         return Err(e.error("must be at least 128M (a plain number is in bytes)"));
@@ -183,11 +198,16 @@ impl VmConfig {
                     clipboard = if empty {
                         Clipboard::Both
                     } else {
-                        Clipboard::parse(&e.value).ok_or_else(|| e.error("expected both, to-host, from-host or none"))?
+                        Clipboard::parse(&e.value)
+                            .ok_or_else(|| e.error("expected both, to-host, from-host or none"))?
                     };
                 }
                 ("Machine", "GpuContextTypes") => {
-                    gpu_context_types = if empty { vec!["cross-domain".to_owned()] } else { words(e)? };
+                    gpu_context_types = if empty {
+                        vec!["cross-domain".to_owned()]
+                    } else {
+                        words(e)?
+                    };
                 }
                 ("Machine", "ExtraArguments") if empty => extra_args.clear(),
                 ("Machine", "ExtraArguments") => extra_args.extend(words(e)?),
@@ -196,7 +216,8 @@ impl VmConfig {
                     network = if empty {
                         NetworkMode::Passt
                     } else {
-                        NetworkMode::parse(&e.value).ok_or_else(|| e.error("expected passt, nat or none"))?
+                        NetworkMode::parse(&e.value)
+                            .ok_or_else(|| e.error("expected passt, nat or none"))?
                     };
                 }
 
@@ -214,9 +235,14 @@ impl VmConfig {
         // next to <name>.raw.
         let kernel = kernel.unwrap_or_else(|| image.with_extension("vmlinuz"));
         // Explicitly set, it has to exist; the default is optional.
-        let initrd = initrd.or_else(|| Some(image.with_extension("initrd")).filter(|p| p.is_file()));
+        let initrd =
+            initrd.or_else(|| Some(image.with_extension("initrd")).filter(|p| p.is_file()));
         let guest_user = guest_user.unwrap_or_else(|| user.to_owned());
-        if guest_user.is_empty() || !guest_user.chars().all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c)) {
+        if guest_user.is_empty()
+            || !guest_user
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+        {
             return Err(format!("[Guest] User={guest_user}: not a valid user name"));
         }
         Ok(VmConfig {
@@ -259,7 +285,10 @@ impl VmConfig {
         if let Some(dir) = &self.shared_home
             && !dir.is_dir()
         {
-            return Err(format!("[Machine] SharedHome={}: not a directory", dir.display()));
+            return Err(format!(
+                "[Machine] SharedHome={}: not a directory",
+                dir.display()
+            ));
         }
         Ok(())
     }
@@ -300,25 +329,41 @@ impl DaemonConfig {
                     let (lo, hi) = e.value.split_once('-').unwrap_or((&e.value, &e.value));
                     let (lo, hi): (u32, u32) = match (lo.trim().parse(), hi.trim().parse()) {
                         (Ok(lo), Ok(hi)) if 3 <= lo && lo <= hi && hi < u32::MAX => (lo, hi),
-                        _ => return Err(e.error("expected a range like 3-99 (CIDs below 3 are reserved)")),
+                        _ => {
+                            return Err(
+                                e.error("expected a range like 3-99 (CIDs below 3 are reserved)")
+                            );
+                        }
                     };
                     config.cids = lo..=hi;
                 }
                 ("Pool", "Subnet" | "TapPrefix") => {
-                    return Err(e.error(format!("the guest networks are set in {} now", crate::net::CONFIG_PATH)));
+                    return Err(e.error(format!(
+                        "the guest networks are set in {} now",
+                        crate::net::CONFIG_PATH
+                    )));
                 }
                 ("Pool", "DNS") if empty => dns = Some(Vec::new()),
                 ("Pool", "DNS") => {
                     let dns = dns.get_or_insert_with(Vec::new);
                     for word in words(e)? {
-                        dns.push(word.parse().map_err(|_| e.error(format!("{word}: not an IPv4 address")))?);
+                        dns.push(
+                            word.parse()
+                                .map_err(|_| e.error(format!("{word}: not an IPv4 address")))?,
+                        );
                     }
                     if dns.len() > 2 {
-                        return Err(e.error("at most two servers (the ip= kernel parameter has room for two)"));
+                        return Err(e.error(
+                            "at most two servers (the ip= kernel parameter has room for two)",
+                        ));
                     }
                 }
                 ("Manager", "StopTimeoutSec") => {
-                    config.stop_timeout_secs = if empty { default.stop_timeout_secs } else { number(e)? };
+                    config.stop_timeout_secs = if empty {
+                        default.stop_timeout_secs
+                    } else {
+                        number(e)?
+                    };
                 }
                 _ => return Err(unknown(e)),
             }
@@ -347,19 +392,37 @@ mod tests {
         assert_eq!(c.initrd, None);
         assert_eq!(c.cmdline, DEFAULT_CMDLINE);
         assert_eq!(c.title, None);
-        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio, c.wayland), (4, 4096, NetworkMode::Passt, false, true));
-        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications), ("me", 1000, 1000, true, true));
+        assert_eq!(
+            (c.cpus, c.memory_mib, c.network, c.audio, c.wayland),
+            (4, 4096, NetworkMode::Passt, false, true)
+        );
+        assert_eq!(
+            (c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications),
+            ("me", 1000, 1000, true, true)
+        );
         assert_eq!(c.gpu_context_types, ["cross-domain"]);
         assert_eq!(c.clipboard, Clipboard::Both);
     }
 
     #[test]
     fn clipboard() {
-        for (value, mode) in [("to-host", Clipboard::ToHost), ("from-host", Clipboard::FromHost), ("none", Clipboard::None), ("", Clipboard::Both)] {
-            let c = vm(&format!("[Boot]\nImage=d.raw\n[Machine]\nClipboard={value}\n")).unwrap();
+        for (value, mode) in [
+            ("to-host", Clipboard::ToHost),
+            ("from-host", Clipboard::FromHost),
+            ("none", Clipboard::None),
+            ("", Clipboard::Both),
+        ] {
+            let c = vm(&format!(
+                "[Boot]\nImage=d.raw\n[Machine]\nClipboard={value}\n"
+            ))
+            .unwrap();
             assert_eq!(c.clipboard, mode);
         }
-        assert!(vm("[Boot]\nImage=d.raw\n[Machine]\nClipboard=yes\n").unwrap_err().contains("expected both"));
+        assert!(
+            vm("[Boot]\nImage=d.raw\n[Machine]\nClipboard=yes\n")
+                .unwrap_err()
+                .contains("expected both")
+        );
     }
 
     #[test]
@@ -373,28 +436,65 @@ mod tests {
         assert_eq!(c.kernel, Path::new("/k"));
         assert_eq!(c.cmdline_extra, ["c", "d e"]);
         assert_eq!(c.title.as_deref(), Some("Débian (work)"));
-        assert_eq!((c.cpus, c.memory_mib, c.network, c.audio), (2, 8192, NetworkMode::None, true));
-        assert_eq!(c.shared_home.as_deref(), Some(Path::new("/home/me/vm/home")));
+        assert_eq!(
+            (c.cpus, c.memory_mib, c.network, c.audio),
+            (2, 8192, NetworkMode::None, true)
+        );
+        assert_eq!(
+            c.shared_home.as_deref(),
+            Some(Path::new("/home/me/vm/home"))
+        );
         assert_eq!(c.gpu_context_types, ["cross-domain", "virgl2"]);
         assert_eq!(c.extra_args, ["--x"]);
-        assert_eq!((c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications), ("alice", 1001, 1001, false, false));
+        assert_eq!(
+            (c.user.as_str(), c.uid, c.gid, c.app_menu, c.notifications),
+            ("alice", 1001, 1001, false, false)
+        );
     }
 
     #[test]
     fn errors() {
         assert!(vm("[Machine]\nCPUs=2\n").unwrap_err().contains("Image="));
-        assert!(vm("[Boot]\nImage=a\nImgae=b\n").unwrap_err().contains("unknown setting [Boot] Imgae="));
-        assert!(vm("[Boot]\nImage=a\n[Machine]\nMemory=4096\n").unwrap_err().contains("128M"));
-        assert!(vm("[Boot]\nImage=a\n[Machine]\nAudio=maybe\n").unwrap_err().contains("test.conf:4"));
-        assert!(vm("[Boot]\nImage=a\n[Network]\nMode=bridge\n").unwrap_err().contains("passt, nat or none"));
-        assert_eq!(vm("[Boot]\nImage=a\n[Network]\nMode=nat\n").unwrap().network, NetworkMode::Nat);
-        assert!(vm("[Boot]\nImage=a\n[Machine]\nNetwork=yes\n").unwrap_err().contains("[Network] Mode="));
+        assert!(
+            vm("[Boot]\nImage=a\nImgae=b\n")
+                .unwrap_err()
+                .contains("unknown setting [Boot] Imgae=")
+        );
+        assert!(
+            vm("[Boot]\nImage=a\n[Machine]\nMemory=4096\n")
+                .unwrap_err()
+                .contains("128M")
+        );
+        assert!(
+            vm("[Boot]\nImage=a\n[Machine]\nAudio=maybe\n")
+                .unwrap_err()
+                .contains("test.conf:4")
+        );
+        assert!(
+            vm("[Boot]\nImage=a\n[Network]\nMode=bridge\n")
+                .unwrap_err()
+                .contains("passt, nat or none")
+        );
+        assert_eq!(
+            vm("[Boot]\nImage=a\n[Network]\nMode=nat\n")
+                .unwrap()
+                .network,
+            NetworkMode::Nat
+        );
+        assert!(
+            vm("[Boot]\nImage=a\n[Machine]\nNetwork=yes\n")
+                .unwrap_err()
+                .contains("[Network] Mode=")
+        );
     }
 
     #[test]
     fn examples() {
         let c = vm(include_str!("../examples/debian.conf")).unwrap();
-        assert_eq!(c.image, Path::new("/home/me/src/mkosi_experiments/mkosi/mkosi.output/debian.raw"));
+        assert_eq!(
+            c.image,
+            Path::new("/home/me/src/mkosi_experiments/mkosi/mkosi.output/debian.raw")
+        );
         let d = daemon(include_str!("../examples/gerantd.conf")).unwrap();
         assert_eq!(d, DaemonConfig::default());
     }
@@ -425,6 +525,10 @@ mod tests {
         assert_eq!(d.dns, [Ipv4Addr::new(10, 0, 0, 1)]);
         assert!(daemon("[Pool]\nDNS=\n").unwrap().dns.is_empty());
         assert!(daemon("[Pool]\nCIDs=2-5\n").is_err());
-        assert!(daemon("[Pool]\nSubnet=10.0.0.0/24\n").unwrap_err().contains("/etc/garnish/network.conf"));
+        assert!(
+            daemon("[Pool]\nSubnet=10.0.0.0/24\n")
+                .unwrap_err()
+                .contains("/etc/garnish/network.conf")
+        );
     }
 }

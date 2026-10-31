@@ -4,11 +4,15 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 pub fn home() -> PathBuf {
-    env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"))
+    env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"))
 }
 
 fn absolute_var(name: &str) -> Option<PathBuf> {
-    env::var_os(name).map(PathBuf::from).filter(|p| p.is_absolute())
+    env::var_os(name)
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
 }
 
 /// $XDG_DATA_HOME, by default ~/.local/share.

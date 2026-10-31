@@ -13,7 +13,10 @@ pub struct Pool {
 
 impl Pool {
     pub fn new(config: DaemonConfig) -> Pool {
-        Pool { config, cids: BTreeSet::new() }
+        Pool {
+            config,
+            cids: BTreeSet::new(),
+        }
     }
 
     pub fn dns(&self) -> &[Ipv4Addr] {
@@ -27,7 +30,13 @@ impl Pool {
             .cids
             .clone()
             .find(|cid| !self.cids.contains(cid))
-            .ok_or_else(|| format!("all CIDs ({}-{}) are in use", self.config.cids.start(), self.config.cids.end()))?;
+            .ok_or_else(|| {
+                format!(
+                    "all CIDs ({}-{}) are in use",
+                    self.config.cids.start(),
+                    self.config.cids.end()
+                )
+            })?;
         self.cids.insert(cid);
         Ok(cid)
     }
@@ -43,7 +52,10 @@ mod tests {
 
     #[test]
     fn cids() {
-        let mut p = Pool::new(DaemonConfig { cids: 3..=5, ..DaemonConfig::default() });
+        let mut p = Pool::new(DaemonConfig {
+            cids: 3..=5,
+            ..DaemonConfig::default()
+        });
         assert_eq!(p.alloc_cid(), Ok(3));
         assert_eq!(p.alloc_cid(), Ok(4));
         assert_eq!(p.alloc_cid(), Ok(5));

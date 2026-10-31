@@ -54,7 +54,8 @@ impl Batch {
     }
 
     fn attr(&mut self, ty: u16, data: &[u8]) {
-        self.buf.extend_from_slice(&((NLA_HDRLEN + data.len()) as u16).to_ne_bytes());
+        self.buf
+            .extend_from_slice(&((NLA_HDRLEN + data.len()) as u16).to_ne_bytes());
         self.buf.extend_from_slice(&ty.to_ne_bytes());
         self.buf.extend_from_slice(data);
         self.pad();
@@ -86,13 +87,22 @@ pub struct Netlink {
 
 impl Netlink {
     pub fn open(protocol: libc::c_int) -> Result<Netlink, String> {
-        let fd = unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW | libc::SOCK_CLOEXEC, protocol) };
+        let fd = unsafe {
+            libc::socket(
+                libc::AF_NETLINK,
+                libc::SOCK_RAW | libc::SOCK_CLOEXEC,
+                protocol,
+            )
+        };
         if fd < 0 {
             return Err(format!("netlink socket: {}", io::Error::last_os_error()));
         }
         let fd = unsafe { OwnedFd::from_raw_fd(fd) };
         // Don't wait forever for a reply.
-        let timeout = libc::timeval { tv_sec: 5, tv_usec: 0 };
+        let timeout = libc::timeval {
+            tv_sec: 5,
+            tv_usec: 0,
+        };
         let ret = unsafe {
             libc::setsockopt(
                 fd.as_raw_fd(),
@@ -117,7 +127,10 @@ impl Netlink {
     pub fn send(&self, batch: &Batch) -> Result<(), io::Error> {
         let mut addr: libc::sockaddr_nl = unsafe { mem::zeroed() };
         addr.nl_family = libc::AF_NETLINK as libc::sa_family_t;
-        let mut iov = libc::iovec { iov_base: batch.buf.as_ptr().cast_mut().cast(), iov_len: batch.buf.len() };
+        let mut iov = libc::iovec {
+            iov_base: batch.buf.as_ptr().cast_mut().cast(),
+            iov_len: batch.buf.len(),
+        };
         let mut msg: libc::msghdr = unsafe { mem::zeroed() };
         msg.msg_name = (&raw mut addr).cast();
         msg.msg_namelen = mem::size_of_val(&addr) as libc::socklen_t;
@@ -143,7 +156,9 @@ impl Netlink {
                     return Err(io::Error::other("malformed netlink reply"));
                 }
                 if ty == libc::NLMSG_ERROR as u16 && len >= NLMSG_HDRLEN + 4 {
-                    let error = i32::from_ne_bytes(rest[NLMSG_HDRLEN..NLMSG_HDRLEN + 4].try_into().unwrap());
+                    let error = i32::from_ne_bytes(
+                        rest[NLMSG_HDRLEN..NLMSG_HDRLEN + 4].try_into().unwrap(),
+                    );
                     if error != 0 {
                         return Err(io::Error::from_raw_os_error(-error));
                     }
@@ -169,9 +184,18 @@ pub fn configure_tap(rtnl: &Netlink, tap: &NatTap, index: u32) -> Result<(), Str
     let mut batch = Batch::default();
 
     // struct ifaddrmsg
-    let mut ifaddr = vec![libc::AF_INET as u8, tap.prefix_len, 0, libc::RT_SCOPE_UNIVERSE];
+    let mut ifaddr = vec![
+        libc::AF_INET as u8,
+        tap.prefix_len,
+        0,
+        libc::RT_SCOPE_UNIVERSE,
+    ];
     ifaddr.extend_from_slice(&index.to_ne_bytes());
-    batch.begin(RTM_NEWADDR, flags | (libc::NLM_F_CREATE | libc::NLM_F_EXCL) as u16, &ifaddr);
+    batch.begin(
+        RTM_NEWADDR,
+        flags | (libc::NLM_F_CREATE | libc::NLM_F_EXCL) as u16,
+        &ifaddr,
+    );
     batch.attr(IFA_LOCAL, &tap.host.octets());
     batch.attr(IFA_ADDRESS, &tap.host.octets());
     let broadcast = u32::from(tap.host) | !u32::from(tap.netmask());
@@ -186,7 +210,8 @@ pub fn configure_tap(rtnl: &Netlink, tap: &NatTap, index: u32) -> Result<(), Str
     batch.begin(RTM_NEWLINK, flags, &ifinfo);
     batch.end();
 
-    rtnl.send(&batch).map_err(|e| format!("configuring {}: {e}", tap.name))
+    rtnl.send(&batch)
+        .map_err(|e| format!("configuring {}: {e}", tap.name))
 }
 
 // nftables, from linux/netfilter/nf_tables.h and linux/netfilter/nfnetlink.h.
@@ -261,7 +286,11 @@ enum Expr<'a> {
 impl Batch {
     fn nft_begin(&mut self, ty: u16, flags: u16) {
         let nfgenmsg = [libc::NFPROTO_IPV4 as u8, 0, 0, 0];
-        self.begin((libc::NFNL_SUBSYS_NFTABLES as u16) << 8 | ty, libc::NLM_F_REQUEST as u16 | flags, &nfgenmsg);
+        self.begin(
+            (libc::NFNL_SUBSYS_NFTABLES as u16) << 8 | ty,
+            libc::NLM_F_REQUEST as u16 | flags,
+            &nfgenmsg,
+        );
     }
 
     fn nft_table(&mut self, ty: u16, flags: u16) {
@@ -283,7 +312,10 @@ impl Batch {
     }
 
     fn nft_rule(&mut self, chain: &str, exprs: &[Expr], flags: u16) {
-        self.nft_begin(NFT_MSG_NEWRULE, (libc::NLM_F_CREATE | libc::NLM_F_APPEND) as u16 | flags);
+        self.nft_begin(
+            NFT_MSG_NEWRULE,
+            (libc::NLM_F_CREATE | libc::NLM_F_APPEND) as u16 | flags,
+        );
         self.attr_str(NFTA_RULE_TABLE, TABLE);
         self.attr_str(NFTA_RULE_CHAIN, chain);
         self.nested(NFTA_RULE_EXPRESSIONS, |b| {
@@ -319,7 +351,9 @@ impl Batch {
                 b.attr_be32(NFTA_BITWISE_SREG, NFT_REG_1);
                 b.attr_be32(NFTA_BITWISE_DREG, NFT_REG_1);
                 b.attr_be32(NFTA_BITWISE_LEN, 4);
-                b.nested(NFTA_BITWISE_MASK, |b| b.attr(NFTA_DATA_VALUE, &mask.octets()));
+                b.nested(NFTA_BITWISE_MASK, |b| {
+                    b.attr(NFTA_DATA_VALUE, &mask.octets())
+                });
                 b.nested(NFTA_BITWISE_XOR, |b| b.attr(NFTA_DATA_VALUE, &[0; 4]));
             }
             Expr::Cmp(op, data) => {
@@ -331,7 +365,9 @@ impl Batch {
             Expr::Drop => {
                 b.attr_be32(NFTA_IMMEDIATE_DREG, NFT_REG_VERDICT);
                 b.nested(NFTA_IMMEDIATE_DATA, |b| {
-                    b.nested(NFTA_DATA_VERDICT, |b| b.attr_be32(NFTA_VERDICT_CODE, NF_DROP));
+                    b.nested(NFTA_DATA_VERDICT, |b| {
+                        b.attr_be32(NFTA_VERDICT_CODE, NF_DROP)
+                    });
                 });
             }
         });
@@ -360,19 +396,28 @@ pub fn nat_ruleset(config: &NetConfig) -> Batch {
     let subnet = config.subnet.octets();
     let taps = TAP_PREFIX.as_bytes();
     let mut batch = Batch::default();
-    batch.begin(NFNL_MSG_BATCH_BEGIN, libc::NLM_F_REQUEST as u16, &[
-        libc::AF_UNSPEC as u8,
-        0,
-        // res_id: the subsystem, big-endian
-        0,
-        libc::NFNL_SUBSYS_NFTABLES as u8,
-    ]);
+    batch.begin(
+        NFNL_MSG_BATCH_BEGIN,
+        libc::NLM_F_REQUEST as u16,
+        &[
+            libc::AF_UNSPEC as u8,
+            0,
+            // res_id: the subsystem, big-endian
+            0,
+            libc::NFNL_SUBSYS_NFTABLES as u8,
+        ],
+    );
     batch.end();
     // Creating the table first makes the delete work if there was none.
     batch.nft_table(NFT_MSG_NEWTABLE, libc::NLM_F_CREATE as u16);
     batch.nft_table(NFT_MSG_DELTABLE, 0);
     batch.nft_table(NFT_MSG_NEWTABLE, libc::NLM_F_CREATE as u16);
-    batch.nft_chain("postrouting", "nat", NF_INET_POST_ROUTING, NF_IP_PRI_NAT_SRC);
+    batch.nft_chain(
+        "postrouting",
+        "nat",
+        NF_INET_POST_ROUTING,
+        NF_IP_PRI_NAT_SRC,
+    );
     batch.nft_chain("forward", "filter", NF_INET_FORWARD, NF_IP_PRI_FILTER);
     batch.nft_rule(
         "postrouting",
@@ -410,7 +455,16 @@ pub fn nat_ruleset(config: &NetConfig) -> Batch {
         ],
         libc::NLM_F_ACK as u16,
     );
-    batch.begin(NFNL_MSG_BATCH_END, libc::NLM_F_REQUEST as u16, &[libc::AF_UNSPEC as u8, 0, 0, libc::NFNL_SUBSYS_NFTABLES as u8]);
+    batch.begin(
+        NFNL_MSG_BATCH_END,
+        libc::NLM_F_REQUEST as u16,
+        &[
+            libc::AF_UNSPEC as u8,
+            0,
+            0,
+            libc::NFNL_SUBSYS_NFTABLES as u8,
+        ],
+    );
     batch.end();
     batch
 }

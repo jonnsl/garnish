@@ -110,7 +110,9 @@ enum Role<F> {
     Registry,
     Offer(OfferState<F>),
     /// A guest source; `destroyed` once the guest destroyed it.
-    Source { destroyed: bool },
+    Source {
+        destroyed: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -151,10 +153,17 @@ const SERVER_ID_START: u32 = 0xff00_0000;
 
 impl<F> Filter<F> {
     pub fn new(protocols: Rc<Protocols>, policy: Policy) -> Result<Self, String> {
-        let display = protocols.find("wl_display").ok_or("no wl_display protocol (is wayland.xml installed?)")?;
+        let display = protocols
+            .find("wl_display")
+            .ok_or("no wl_display protocol (is wayland.xml installed?)")?;
         let mut kinds = HashMap::new();
         for (family, device, offer, source) in [
-            (Family::Clipboard, "wl_data_device", "wl_data_offer", "wl_data_source"),
+            (
+                Family::Clipboard,
+                "wl_data_device",
+                "wl_data_offer",
+                "wl_data_source",
+            ),
             (
                 Family::Primary,
                 "zwp_primary_selection_device_v1",
@@ -162,20 +171,45 @@ impl<F> Filter<F> {
                 "zwp_primary_selection_source_v1",
             ),
         ] {
-            for (name, kind) in [(device, Kind::Device(family)), (offer, Kind::Offer(family)), (source, Kind::Source(family))] {
+            for (name, kind) in [
+                (device, Kind::Device(family)),
+                (offer, Kind::Offer(family)),
+                (source, Kind::Source(family)),
+            ] {
                 if let Some(id) = protocols.find(name) {
                     kinds.insert(id, kind);
                 }
             }
         }
         let registry = protocols.find("wl_registry");
-        Ok(Filter { protocols, policy, kinds, registry, display, conns: HashMap::new(), selection: [None; 2], drag: None })
+        Ok(Filter {
+            protocols,
+            policy,
+            kinds,
+            registry,
+            display,
+            conns: HashMap::new(),
+            selection: [None; 2],
+            drag: None,
+        })
     }
 
     pub fn open(&mut self, conn: ConnId) {
         let mut objects = HashMap::new();
-        objects.insert(1, Object { iface: self.display, role: Role::Plain });
-        self.conns.insert(conn, Conn { objects, globals: HashMap::new() });
+        objects.insert(
+            1,
+            Object {
+                iface: self.display,
+                role: Role::Plain,
+            },
+        );
+        self.conns.insert(
+            conn,
+            Conn {
+                objects,
+                globals: HashMap::new(),
+            },
+        );
     }
 
     pub fn close(&mut self, conn: ConnId) {
@@ -192,32 +226,58 @@ impl<F> Filter<F> {
     pub fn fds_needed(&self, conn: ConnId, from_client: bool, msg: &[u8]) -> Result<usize, String> {
         let (object, opcode, _) = wire::header(msg).ok_or("short header")?;
         let c = self.conns.get(&conn).ok_or("unknown connection")?;
-        let obj = c.objects.get(&object).ok_or_else(|| format!("message for unknown object {object}"))?;
+        let obj = c
+            .objects
+            .get(&object)
+            .ok_or_else(|| format!("message for unknown object {object}"))?;
         Ok(self.message(obj.iface, from_client, opcode)?.fds())
     }
 
-    fn message(&self, iface: IfaceId, request: bool, opcode: u16) -> Result<&crate::protocol::Message, String> {
+    fn message(
+        &self,
+        iface: IfaceId,
+        request: bool,
+        opcode: u16,
+    ) -> Result<&crate::protocol::Message, String> {
         let i = self.protocols.get(iface);
         let list = if request { &i.requests } else { &i.events };
         list.get(opcode as usize).ok_or_else(|| {
-            format!("{} {} {opcode} isn't in the protocol", i.name, if request { "request" } else { "event" })
+            format!(
+                "{} {} {opcode} isn't in the protocol",
+                i.name,
+                if request { "request" } else { "event" }
+            )
         })
     }
 
     fn opcode(&self, iface: IfaceId, request: bool, name: &str) -> u16 {
         let i = self.protocols.get(iface);
         let list = if request { &i.requests } else { &i.events };
-        list.iter().position(|m| m.name == name).expect("message the filter relies on") as u16
+        list.iter()
+            .position(|m| m.name == name)
+            .expect("message the filter relies on") as u16
     }
 
     /// A message from the guest (`from_client`) or the compositor, with
     /// its file descriptors. Returns what to send instead.
-    pub fn handle(&mut self, conn: ConnId, from_client: bool, msg: Vec<u8>, fds: Vec<F>) -> Result<Vec<Out<F>>, String> {
-        if from_client { self.request(conn, msg, fds) } else { self.event(conn, msg, fds) }
+    pub fn handle(
+        &mut self,
+        conn: ConnId,
+        from_client: bool,
+        msg: Vec<u8>,
+        fds: Vec<F>,
+    ) -> Result<Vec<Out<F>>, String> {
+        if from_client {
+            self.request(conn, msg, fds)
+        } else {
+            self.event(conn, msg, fds)
+        }
     }
 
     fn conn(&mut self, conn: ConnId) -> Result<&mut Conn<F>, String> {
-        self.conns.get_mut(&conn).ok_or_else(|| "unknown connection".into())
+        self.conns
+            .get_mut(&conn)
+            .ok_or_else(|| "unknown connection".into())
     }
 
     fn role_for(&self, iface: IfaceId) -> Role<F> {
@@ -230,15 +290,29 @@ impl<F> Filter<F> {
     }
 
     /// Adds the objects a message creates.
-    fn create(&mut self, conn: ConnId, from_client: bool, args: &[Arg], values: &[wire::Parsed]) -> Result<(), String> {
+    fn create(
+        &mut self,
+        conn: ConnId,
+        from_client: bool,
+        args: &[Arg],
+        values: &[wire::Parsed],
+    ) -> Result<(), String> {
         for (arg, v) in args.iter().zip(values) {
             let (iface, id) = match (arg, &v.value) {
-                (Arg::NewId(Some(name)), Value::NewId(id)) => {
-                    (self.protocols.find(name).ok_or_else(|| format!("unknown interface {name}"))?, *id)
-                }
+                (Arg::NewId(Some(name)), Value::NewId(id)) => (
+                    self.protocols
+                        .find(name)
+                        .ok_or_else(|| format!("unknown interface {name}"))?,
+                    *id,
+                ),
                 (Arg::NewId(None), Value::TypedNewId(name, _, id)) => {
                     let name = String::from_utf8_lossy(name);
-                    (self.protocols.find(&name).ok_or_else(|| format!("unknown interface {name}"))?, *id)
+                    (
+                        self.protocols
+                            .find(&name)
+                            .ok_or_else(|| format!("unknown interface {name}"))?,
+                        *id,
+                    )
                 }
                 _ => continue,
             };
@@ -271,11 +345,19 @@ impl<F> Filter<F> {
 
     fn request(&mut self, conn: ConnId, msg: Vec<u8>, fds: Vec<F>) -> Result<Vec<Out<F>>, String> {
         let (object, opcode, _) = wire::header(&msg).ok_or("short header")?;
-        let obj = self.conn(conn)?.objects.get(&object).ok_or_else(|| format!("request for unknown object {object}"))?;
+        let obj = self
+            .conn(conn)?
+            .objects
+            .get(&object)
+            .ok_or_else(|| format!("request for unknown object {object}"))?;
         let iface = obj.iface;
         let given_owner = match &obj.role {
             Role::Offer(OfferState::Given { owner }) => Some(*owner),
-            Role::Offer(_) => return Err(format!("request for offer {object}, which the guest wasn't given")),
+            Role::Offer(_) => {
+                return Err(format!(
+                    "request for offer {object}, which the guest wasn't given"
+                ));
+            }
             _ => None,
         };
         let is_registry = matches!(obj.role, Role::Registry);
@@ -285,12 +367,21 @@ impl<F> Filter<F> {
         let values = wire::parse(&msg, &args)?;
 
         if is_registry && name == "bind" {
-            let Value::Uint(global) = values[0].value else { unreachable!() };
-            let Value::TypedNewId(ref want, version, _) = values[1].value else { unreachable!() };
+            let Value::Uint(global) = values[0].value else {
+                unreachable!()
+            };
+            let Value::TypedNewId(ref want, version, _) = values[1].value else {
+                unreachable!()
+            };
             let g = self.conn(conn)?.globals.get(&global);
-            let ok = g.is_some_and(|g| !g.hidden && g.iface.as_bytes() == want.as_slice() && version <= g.version);
+            let ok = g.is_some_and(|g| {
+                !g.hidden && g.iface.as_bytes() == want.as_slice() && version <= g.version
+            });
             if !ok {
-                return Err(format!("bind to global {global} ({}) v{version}, which it wasn't offered", String::from_utf8_lossy(want)));
+                return Err(format!(
+                    "bind to global {global} ({}) v{version}, which it wasn't offered",
+                    String::from_utf8_lossy(want)
+                ));
             }
         }
         self.create(conn, true, &args, &values)?;
@@ -304,7 +395,11 @@ impl<F> Filter<F> {
             (Some(Kind::Device(f)), "set_selection") => self.selection[f as usize] = source_arg(0),
             (Some(Kind::Device(Family::Clipboard)), "start_drag") => self.drag = source_arg(0),
             (Some(Kind::Source(_)), "destroy") => {
-                if let Some(Object { role: Role::Source { destroyed }, .. }) = self.conn(conn)?.objects.get_mut(&object) {
+                if let Some(Object {
+                    role: Role::Source { destroyed },
+                    ..
+                }) = self.conn(conn)?.objects.get_mut(&object)
+                {
                     *destroyed = true;
                 }
                 self.forget_source(SourceRef { conn, id: object });
@@ -318,7 +413,11 @@ impl<F> Filter<F> {
                     Some(s) if self.source_alive(s) => {
                         let source = self.conns[&s.conn].objects[&s.id].iface;
                         let send = self.opcode(source, false, "send");
-                        vec![Out::ToClient(s.conn, Builder::new(s.id, send).string(mime).build(), fds)]
+                        vec![Out::ToClient(
+                            s.conn,
+                            Builder::new(s.id, send).string(mime).build(),
+                            fds,
+                        )]
                     }
                     // Gone since: nothing to paste. Dropping the descriptor
                     // ends the paste.
@@ -332,9 +431,18 @@ impl<F> Filter<F> {
         Ok(vec![Out::ToServer(conn, msg, fds)])
     }
 
-    fn event(&mut self, conn: ConnId, mut msg: Vec<u8>, fds: Vec<F>) -> Result<Vec<Out<F>>, String> {
+    fn event(
+        &mut self,
+        conn: ConnId,
+        mut msg: Vec<u8>,
+        fds: Vec<F>,
+    ) -> Result<Vec<Out<F>>, String> {
         let (object, opcode, _) = wire::header(&msg).ok_or("short header")?;
-        let obj = self.conn(conn)?.objects.get(&object).ok_or_else(|| format!("event for unknown object {object}"))?;
+        let obj = self
+            .conn(conn)?
+            .objects
+            .get(&object)
+            .ok_or_else(|| format!("event for unknown object {object}"))?;
         let iface = obj.iface;
         let is_registry = matches!(obj.role, Role::Registry);
         let desc = self.message(iface, false, opcode)?;
@@ -354,28 +462,53 @@ impl<F> Filter<F> {
         }
 
         if iface == self.display && name == "delete_id" {
-            let Value::Uint(id) = values[0].value else { unreachable!() };
-            if self.conn(conn)?.objects.remove(&id).is_some_and(|o| matches!(o.role, Role::Source { .. })) {
+            let Value::Uint(id) = values[0].value else {
+                unreachable!()
+            };
+            if self
+                .conn(conn)?
+                .objects
+                .remove(&id)
+                .is_some_and(|o| matches!(o.role, Role::Source { .. }))
+            {
                 self.forget_source(SourceRef { conn, id });
             }
         } else if is_registry && name == "global" {
-            let Value::Uint(global) = values[0].value else { unreachable!() };
+            let Value::Uint(global) = values[0].value else {
+                unreachable!()
+            };
             let Value::String(Some(ref iface_name)) = values[1].value else {
                 return Err("global without an interface".into());
             };
-            let Value::Uint(version) = values[2].value else { unreachable!() };
+            let Value::Uint(version) = values[2].value else {
+                unreachable!()
+            };
             let iface_name = String::from_utf8_lossy(iface_name).into_owned();
             let known = self.protocols.find(&iface_name);
             let hidden = known.is_none() || ALWAYS_HIDDEN.contains(&iface_name.as_str());
             let version = known.map_or(0, |k| version.min(self.protocols.get(k).version));
             wire::set_word(&mut msg, values[2].offset, version);
-            self.conn(conn)?.globals.insert(global, Global { iface: iface_name, version, hidden });
+            self.conn(conn)?.globals.insert(
+                global,
+                Global {
+                    iface: iface_name,
+                    version,
+                    hidden,
+                },
+            );
             if hidden {
                 return Ok(Vec::new());
             }
         } else if is_registry && name == "global_remove" {
-            let Value::Uint(global) = values[0].value else { unreachable!() };
-            if self.conn(conn)?.globals.remove(&global).is_none_or(|g| g.hidden) {
+            let Value::Uint(global) = values[0].value else {
+                unreachable!()
+            };
+            if self
+                .conn(conn)?
+                .globals
+                .remove(&global)
+                .is_none_or(|g| g.hidden)
+            {
                 return Ok(Vec::new());
             }
         }
@@ -385,9 +518,13 @@ impl<F> Filter<F> {
             // The offer stays held until it's used: its data_offer event
             // was held with it.
             (Some(Kind::Device(_)), "data_offer") => {
-                let Value::NewId(offer) = values[0].value else { unreachable!() };
+                let Value::NewId(offer) = values[0].value else {
+                    unreachable!()
+                };
                 let o = self.conn(conn)?.objects.get_mut(&offer).unwrap();
-                let Role::Offer(OfferState::Pending(held)) = &mut o.role else { unreachable!() };
+                let Role::Offer(OfferState::Pending(held)) = &mut o.role else {
+                    unreachable!()
+                };
                 held.push((msg, fds));
                 return Ok(Vec::new());
             }
@@ -404,7 +541,9 @@ impl<F> Filter<F> {
                 // descriptor gives it nothing.
                 return Ok(Vec::new());
             }
-            (Some(Kind::Source(_)), "cancelled" | "dnd_finished") => self.forget_source(SourceRef { conn, id: object }),
+            (Some(Kind::Source(_)), "cancelled" | "dnd_finished") => {
+                self.forget_source(SourceRef { conn, id: object })
+            }
             _ => {}
         }
         out.push(Out::ToClient(conn, msg, fds));
@@ -420,13 +559,19 @@ impl<F> Filter<F> {
         owner: Option<SourceRef>,
         out: &mut Vec<Out<F>>,
     ) -> Result<(), String> {
-        let Value::Object(offer) = arg.value else { unreachable!() };
+        let Value::Object(offer) = arg.value else {
+            unreachable!()
+        };
         if offer == 0 {
             return Ok(());
         }
         let owner = owner.filter(|s| self.source_alive(*s));
         let from_host = self.policy.from_host;
-        let o = self.conn(conn)?.objects.get_mut(&offer).ok_or_else(|| format!("unknown offer {offer}"))?;
+        let o = self
+            .conn(conn)?
+            .objects
+            .get_mut(&offer)
+            .ok_or_else(|| format!("unknown offer {offer}"))?;
         let iface = o.iface;
         let Role::Offer(state) = &mut o.role else {
             return Err(format!("{offer} isn't an offer"));
@@ -434,14 +579,24 @@ impl<F> Filter<F> {
         match state {
             OfferState::Pending(_) => {
                 let given = owner.is_some() || from_host;
-                let new = if given { OfferState::Given { owner } } else { OfferState::Hidden };
-                let OfferState::Pending(held) = std::mem::replace(state, new) else { unreachable!() };
+                let new = if given {
+                    OfferState::Given { owner }
+                } else {
+                    OfferState::Hidden
+                };
+                let OfferState::Pending(held) = std::mem::replace(state, new) else {
+                    unreachable!()
+                };
                 if given {
                     out.extend(held.into_iter().map(|(m, f)| Out::ToClient(conn, m, f)));
                 } else {
                     wire::set_word(msg, arg.offset, 0);
                     let destroy = self.opcode(iface, true, "destroy");
-                    out.push(Out::ToServer(conn, Builder::new(offer, destroy).build(), Vec::new()));
+                    out.push(Out::ToServer(
+                        conn,
+                        Builder::new(offer, destroy).build(),
+                        Vec::new(),
+                    ));
                 }
             }
             OfferState::Given { .. } => {}

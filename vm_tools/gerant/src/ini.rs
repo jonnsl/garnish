@@ -24,7 +24,13 @@ pub struct Entry {
 impl Entry {
     /// An error about this assignment, with its location.
     pub fn error(&self, msg: impl fmt::Display) -> String {
-        format!("{}:{}: {}={}: {msg}", self.file.display(), self.line, self.key, self.value)
+        format!(
+            "{}:{}: {}={}: {msg}",
+            self.file.display(),
+            self.line,
+            self.key,
+            self.value
+        )
     }
 
     /// The directory relative paths in this assignment are resolved against.
@@ -49,7 +55,8 @@ pub fn parse(text: &str, file: &Path) -> Result<Vec<Entry>, String> {
             Some(rest) => (rest.trim_end(), true),
             None => (trimmed, false),
         };
-        if backslash || (continuable && !trimmed.is_empty() && raw.starts_with(char::is_whitespace)) {
+        if backslash || (continuable && !trimmed.is_empty() && raw.starts_with(char::is_whitespace))
+        {
             if trimmed.starts_with(['#', ';']) {
                 continue;
             }
@@ -71,7 +78,9 @@ pub fn parse(text: &str, file: &Path) -> Result<Vec<Entry>, String> {
             continue;
         }
         if let Some(name) = trimmed.strip_prefix('[') {
-            let name = name.strip_suffix(']').ok_or_else(|| err(n, "missing ']'"))?;
+            let name = name
+                .strip_suffix(']')
+                .ok_or_else(|| err(n, "missing ']'"))?;
             if name.is_empty() {
                 return Err(err(n, "empty section name"));
             }
@@ -187,7 +196,10 @@ pub fn parse_size(s: &str) -> Option<u64> {
     let (num, suffix) = s.split_at(digits);
     let num: u64 = num.parse().ok()?;
     let suffix = suffix.trim();
-    let suffix = suffix.strip_suffix("iB").or_else(|| suffix.strip_suffix('B')).unwrap_or(suffix);
+    let suffix = suffix
+        .strip_suffix("iB")
+        .or_else(|| suffix.strip_suffix('B'))
+        .unwrap_or(suffix);
     let shift = match suffix.to_ascii_uppercase().as_str() {
         "" => 0,
         "K" => 10,
@@ -229,7 +241,14 @@ mod tests {
     #[test]
     fn sections_comments_and_repeats() {
         let text = "# comment\n[A]\nKey = value \n; other\nKey=\n\n[B]\nX=a=b\n";
-        assert_eq!(kv(text), vec![t("A", "Key", "value"), t("A", "Key", ""), t("B", "X", "a=b")]);
+        assert_eq!(
+            kv(text),
+            vec![
+                t("A", "Key", "value"),
+                t("A", "Key", ""),
+                t("B", "X", "a=b")
+            ]
+        );
     }
 
     #[test]
@@ -237,20 +256,35 @@ mod tests {
         let text = "[A]\nList=one\n    two\n    # skipped\n    three\nNext=x \\\n  y\\\n z\n\n  After=blank\n";
         assert_eq!(
             kv(text),
-            vec![t("A", "List", "one two three"), t("A", "Next", "x y z"), t("A", "After", "blank")]
+            vec![
+                t("A", "List", "one two three"),
+                t("A", "Next", "x y z"),
+                t("A", "After", "blank")
+            ]
         );
     }
 
     #[test]
     fn errors() {
-        assert!(parse("Key=1\n", Path::new("t")).unwrap_err().contains("outside"));
+        assert!(
+            parse("Key=1\n", Path::new("t"))
+                .unwrap_err()
+                .contains("outside")
+        );
         assert!(parse("[A\n", Path::new("t")).unwrap_err().contains("']'"));
-        assert!(parse("[A]\nnope\n", Path::new("t")).unwrap_err().contains("Key=Value"));
+        assert!(
+            parse("[A]\nnope\n", Path::new("t"))
+                .unwrap_err()
+                .contains("Key=Value")
+        );
     }
 
     #[test]
     fn words() {
-        assert_eq!(split_words(r#" a  "b c" d\ e 'f"g' "" "#).unwrap(), ["a", "b c", "d e", "f\"g", ""]);
+        assert_eq!(
+            split_words(r#" a  "b c" d\ e 'f"g' "" "#).unwrap(),
+            ["a", "b c", "d e", "f\"g", ""]
+        );
         assert!(split_words("\"open").is_err());
     }
 
@@ -267,8 +301,17 @@ mod tests {
     #[test]
     fn paths() {
         let home = Path::new("/home/u");
-        assert_eq!(resolve_path("~/a", Path::new("/c"), home), Path::new("/home/u/a"));
-        assert_eq!(resolve_path("a/b", Path::new("/c"), home), Path::new("/c/a/b"));
-        assert_eq!(resolve_path("/abs", Path::new("/c"), home), Path::new("/abs"));
+        assert_eq!(
+            resolve_path("~/a", Path::new("/c"), home),
+            Path::new("/home/u/a")
+        );
+        assert_eq!(
+            resolve_path("a/b", Path::new("/c"), home),
+            Path::new("/c/a/b")
+        );
+        assert_eq!(
+            resolve_path("/abs", Path::new("/c"), home),
+            Path::new("/abs")
+        );
     }
 }

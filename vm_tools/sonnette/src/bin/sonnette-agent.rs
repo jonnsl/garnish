@@ -19,7 +19,9 @@ use zbus::zvariant::{OwnedValue, Value};
 use zbus::{interface, Connection};
 
 use carte::{icons, xdg};
-use sonnette::proto::{self, Action, AgentMessage, Hints, HostMessage, Image, ImageFile, Notification};
+use sonnette::proto::{
+    self, Action, AgentMessage, Hints, HostMessage, Image, ImageFile, Notification,
+};
 use sonnette::vsock;
 
 const NAME: &str = "org.freedesktop.Notifications";
@@ -63,7 +65,9 @@ impl State {
     }
 
     fn is_current(&self, generation: u64) -> bool {
-        self.host.as_ref().is_some_and(|h| h.generation == generation)
+        self.host
+            .as_ref()
+            .is_some_and(|h| h.generation == generation)
     }
 
     /// Sends `msg` to the host. Gives it back if the host isn't connected.
@@ -96,7 +100,11 @@ impl Agent {
     /// ID, and the ID of a pending notification that had to go.
     fn post(&self, mut n: Notification, replaces_id: u32) -> (u32, Option<u32>) {
         let mut state = self.state();
-        let id = if replaces_id != 0 && state.open.contains(&replaces_id) { replaces_id } else { state.new_id() };
+        let id = if replaces_id != 0 && state.open.contains(&replaces_id) {
+            replaces_id
+        } else {
+            state.new_id()
+        };
         n.id = id;
         state.open.insert(id);
         let mut dropped = None;
@@ -135,10 +143,16 @@ impl Agent {
     /// notifications that were on the connection it replaces.
     fn connect(&self, tx: mpsc::UnboundedSender<AgentMessage>) -> (u64, Vec<u32>) {
         let mut state = self.state();
-        let replaced = if state.host.is_some() { state.drop_open() } else { Vec::new() };
+        let replaced = if state.host.is_some() {
+            state.drop_open()
+        } else {
+            Vec::new()
+        };
         state.connections += 1;
         let generation = state.connections;
-        let _ = tx.send(AgentMessage::Hello { vm: self.vm.clone() });
+        let _ = tx.send(AgentMessage::Hello {
+            vm: self.vm.clone(),
+        });
         for n in state.pending.drain(..) {
             let _ = tx.send(AgentMessage::Notify(Box::new(n)));
         }
@@ -166,7 +180,10 @@ impl Server {
         let state = self.0.state();
         match &state.capabilities {
             Some(caps) => caps.clone(),
-            None => proto::DEFAULT_CAPABILITIES.iter().map(|&c| c.to_owned()).collect(),
+            None => proto::DEFAULT_CAPABILITIES
+                .iter()
+                .map(|&c| c.to_owned())
+                .collect(),
         }
     }
 
@@ -190,7 +207,11 @@ impl Server {
         };
         let image = hint_pixels(&hints, &["image-data", "image_data", "icon_data"])
             .map(Ok)
-            .or_else(|| hint_str(&hints, "image-path").or_else(|| hint_str(&hints, "image_path")).map(Err))
+            .or_else(|| {
+                hint_str(&hints, "image-path")
+                    .or_else(|| hint_str(&hints, "image_path"))
+                    .map(Err)
+            })
             .and_then(|found| match found {
                 Ok(pixels) => Some(pixels),
                 Err(path) => load_icon(&path).map(Image::File),
@@ -203,7 +224,10 @@ impl Server {
             body,
             actions: actions
                 .chunks_exact(2)
-                .map(|pair| Action { key: pair[0].clone(), label: pair[1].clone() })
+                .map(|pair| Action {
+                    key: pair[0].clone(),
+                    label: pair[1].clone(),
+                })
                 .collect(),
             hints: Hints {
                 urgency: hint_u8(&hints, "urgency"),
@@ -215,14 +239,18 @@ impl Server {
                 suppress_sound: hint_bool(&hints, "suppress-sound"),
             },
             expire_timeout,
-            app_icon: Some(app_icon).filter(|i| !i.is_empty()).and_then(|i| load_icon(&i)),
+            app_icon: Some(app_icon)
+                .filter(|i| !i.is_empty())
+                .and_then(|i| load_icon(&i)),
             image,
         };
         let app = n.app_id.clone().unwrap_or_else(|| n.app_name.clone());
         let (id, dropped) = self.0.post(n, replaces_id);
         log(format!("notification {id} from {app:?}"));
         if let Some(old) = dropped {
-            log(format!("the host isn't connected, dropping notification {old}"));
+            log(format!(
+                "the host isn't connected, dropping notification {old}"
+            ));
             emit_closed(conn, old, proto::CLOSED_OTHER).await;
         }
         id
@@ -235,14 +263,27 @@ impl Server {
     }
 
     async fn get_server_information(&self) -> (String, String, String, String) {
-        ("sonnette".into(), "garnish".into(), env!("CARGO_PKG_VERSION").into(), "1.2".into())
+        (
+            "sonnette".into(),
+            "garnish".into(),
+            env!("CARGO_PKG_VERSION").into(),
+            "1.2".into(),
+        )
     }
 
     #[zbus(signal)]
-    async fn notification_closed(emitter: &SignalEmitter<'_>, id: u32, reason: u32) -> zbus::Result<()>;
+    async fn notification_closed(
+        emitter: &SignalEmitter<'_>,
+        id: u32,
+        reason: u32,
+    ) -> zbus::Result<()>;
 
     #[zbus(signal)]
-    async fn action_invoked(emitter: &SignalEmitter<'_>, id: u32, action_key: &str) -> zbus::Result<()>;
+    async fn action_invoked(
+        emitter: &SignalEmitter<'_>,
+        id: u32,
+        action_key: &str,
+    ) -> zbus::Result<()>;
 }
 
 async fn emit_closed(conn: &Connection, id: u32, reason: u32) {
@@ -300,7 +341,9 @@ fn hint_u8(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u8> {
 /// The first of `keys` that holds pixel data, (iiibiiay).
 fn hint_pixels(hints: &HashMap<String, OwnedValue>, keys: &[&str]) -> Option<Image> {
     let value = keys.iter().find_map(|k| hint(hints, k))?;
-    let Value::Structure(s) = value else { return None };
+    let Value::Structure(s) = value else {
+        return None;
+    };
     let [Value::I32(width), Value::I32(height), Value::I32(rowstride), Value::Bool(has_alpha), Value::I32(bits_per_sample), Value::I32(channels), Value::Array(pixels)] =
         s.fields()
     else {
@@ -309,7 +352,10 @@ fn hint_pixels(hints: &HashMap<String, OwnedValue>, keys: &[&str]) -> Option<Ima
     if pixels.len() > proto::MAX_IMAGE {
         return None;
     }
-    let data = pixels.iter().map(|b| if let Value::U8(b) = b { Some(*b) } else { None }).collect::<Option<Vec<u8>>>()?;
+    let data = pixels
+        .iter()
+        .map(|b| if let Value::U8(b) = b { Some(*b) } else { None })
+        .collect::<Option<Vec<u8>>>()?;
     let image = Image::Pixels {
         width: *width,
         height: *height,
@@ -330,8 +376,13 @@ fn load_icon(icon: &str) -> Option<ImageFile> {
     };
     let (path, format) = icons::find(&name, proto::ICON_SIZE, &xdg::data_dirs())?;
     let mut data = Vec::new();
-    File::open(&path).and_then(|f| f.take(proto::MAX_IMAGE as u64 + 1).read_to_end(&mut data)).ok()?;
-    let file = ImageFile { format: format.to_owned(), data };
+    File::open(&path)
+        .and_then(|f| f.take(proto::MAX_IMAGE as u64 + 1).read_to_end(&mut data))
+        .ok()?;
+    let file = ImageFile {
+        format: format.to_owned(),
+        data,
+    };
     file.is_valid().then_some(file)
 }
 
@@ -354,7 +405,10 @@ fn percent_decode(s: &str) -> Option<String> {
 async fn sender_app_id(conn: &Connection, header: &Header<'_>) -> Option<String> {
     let sender = header.sender()?.to_owned();
     let dbus = zbus::fdo::DBusProxy::new(conn).await.ok()?;
-    let pid = dbus.get_connection_unix_process_id(sender.into()).await.ok()?;
+    let pid = dbus
+        .get_connection_unix_process_id(sender.into())
+        .await
+        .ok()?;
     let cgroup = std::fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
     app_id_from_cgroup(&cgroup)
 }
@@ -449,7 +503,9 @@ async fn main() -> ExitCode {
         }
     };
     if !carte::proto::is_valid_vm(&vm) {
-        log(format!("invalid VM name (hostname) {vm:?}: use letters, digits and '-'"));
+        log(format!(
+            "invalid VM name (hostname) {vm:?}: use letters, digits and '-'"
+        ));
         return ExitCode::FAILURE;
     }
 
@@ -458,11 +514,17 @@ async fn main() -> ExitCode {
     let listener = match vsock::Listener::bind(proto::AGENT_PORT) {
         Ok(listener) => listener,
         Err(e) => {
-            log(format!("listening on vsock port {}: {e}", proto::AGENT_PORT));
+            log(format!(
+                "listening on vsock port {}: {e}",
+                proto::AGENT_PORT
+            ));
             return ExitCode::FAILURE;
         }
     };
-    let agent = Arc::new(Agent { vm, state: Mutex::default() });
+    let agent = Arc::new(Agent {
+        vm,
+        state: Mutex::default(),
+    });
     let conn = zbus::connection::Builder::session()
         .and_then(|b| b.serve_at(PATH, Server(Arc::clone(&agent))))
         .and_then(|b| b.name(NAME));
@@ -473,7 +535,9 @@ async fn main() -> ExitCode {
     let conn = match conn {
         Ok(conn) => conn,
         Err(zbus::Error::NameTaken) => {
-            log(format!("{NAME} is taken: another notification server is running"));
+            log(format!(
+                "{NAME} is taken: another notification server is running"
+            ));
             return ExitCode::FAILURE;
         }
         Err(e) => {
@@ -481,7 +545,11 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    log(format!("VM {}, listening on vsock port {}", agent.vm, proto::AGENT_PORT));
+    log(format!(
+        "VM {}, listening on vsock port {}",
+        agent.vm,
+        proto::AGENT_PORT
+    ));
 
     loop {
         let (stream, cid) = match listener.accept().await {
@@ -505,20 +573,32 @@ mod tests {
     use super::*;
 
     fn agent() -> Agent {
-        Agent { vm: "test".into(), state: Mutex::default() }
+        Agent {
+            vm: "test".into(),
+            state: Mutex::default(),
+        }
     }
 
     fn notification(summary: &str) -> Notification {
-        Notification { summary: summary.into(), ..Default::default() }
+        Notification {
+            summary: summary.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn cgroup() {
         let line = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-carte-org.gnome.Calculator-1234.scope\n";
-        assert_eq!(app_id_from_cgroup(line).as_deref(), Some("org.gnome.Calculator"));
+        assert_eq!(
+            app_id_from_cgroup(line).as_deref(),
+            Some("org.gnome.Calculator")
+        );
         let line = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-carte-kde4\\x2dkate-5670.scope";
         assert_eq!(app_id_from_cgroup(line).as_deref(), Some("kde4-kate"));
-        assert_eq!(app_id_from_cgroup("0::/user.slice/user@1000.service/app.slice/sonnette-agent.service"), None);
+        assert_eq!(
+            app_id_from_cgroup("0::/user.slice/user@1000.service/app.slice/sonnette-agent.service"),
+            None
+        );
         assert_eq!(app_id_from_cgroup("0::/app-carte-..\\x2f-1.scope"), None);
     }
 
@@ -541,8 +621,13 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let (generation, replaced) = agent.connect(tx);
         assert!(replaced.is_empty());
-        assert_eq!(rx.try_recv().unwrap(), AgentMessage::Hello { vm: "test".into() });
-        let AgentMessage::Notify(n) = rx.try_recv().unwrap() else { panic!() };
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            AgentMessage::Hello { vm: "test".into() }
+        );
+        let AgentMessage::Notify(n) = rx.try_recv().unwrap() else {
+            panic!()
+        };
         assert_eq!((n.id, n.summary.as_str()), (a, "a2"));
         assert!(rx.try_recv().is_err());
 

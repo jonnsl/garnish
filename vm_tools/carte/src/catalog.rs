@@ -31,7 +31,9 @@ pub struct CatalogApp {
 }
 
 pub fn catalog_file(vm: &str) -> PathBuf {
-    xdg::data_home().join("carte/apps").join(format!("{vm}.json"))
+    xdg::data_home()
+        .join("carte/apps")
+        .join(format!("{vm}.json"))
 }
 
 pub fn icon_dir(vm: &str) -> PathBuf {
@@ -41,7 +43,9 @@ pub fn icon_dir(vm: &str) -> PathBuf {
 /// `~/.config/carte/<vm>.hidden`: the IDs of the applications left out of
 /// the menu, one per line.
 pub fn hidden_file(vm: &str) -> PathBuf {
-    xdg::config_home().join("carte").join(format!("{vm}.hidden"))
+    xdg::config_home()
+        .join("carte")
+        .join(format!("{vm}.hidden"))
 }
 
 /// Reads a hidden file. Blank lines, `#` comments and invalid IDs are skipped.
@@ -64,18 +68,27 @@ mod tests {
     #[test]
     fn hidden_round_trip() {
         let ids = parse_hidden("org.gnome.Calculator\n\n# a comment\n  kde4-kate \n../x\n");
-        assert_eq!(ids.iter().map(String::as_str).collect::<Vec<_>>(), ["kde4-kate", "org.gnome.Calculator"]);
+        assert_eq!(
+            ids.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["kde4-kate", "org.gnome.Calculator"]
+        );
         assert_eq!(format_hidden(&ids), "kde4-kate\norg.gnome.Calculator\n");
     }
 
     #[test]
     fn catalog_format() {
-        let mut app = App { id: "org.gnome.Calculator".into(), ..Default::default() };
+        let mut app = App {
+            id: "org.gnome.Calculator".into(),
+            ..Default::default()
+        };
         app.name.insert("".into(), "Calculator".into());
         let catalog = Catalog {
             vm: "debian".into(),
             menu: true,
-            apps: vec![CatalogApp { app, icon_file: Some("/i/calc.svg".into()) }],
+            apps: vec![CatalogApp {
+                app,
+                icon_file: Some("/i/calc.svg".into()),
+            }],
         };
         let text = serde_json::to_string(&catalog).unwrap();
         // Salle reads these keys.

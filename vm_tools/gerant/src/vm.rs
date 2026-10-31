@@ -123,7 +123,14 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
 
 /// `crosvm` and its arguments for the VM called `name`. `host_uid`/`host_gid`
 /// own the shared home.
-pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths, host_uid: u32, host_gid: u32) -> Vec<OsString> {
+pub fn crosvm_args(
+    name: &str,
+    config: &VmConfig,
+    res: &Resources,
+    paths: &Paths,
+    host_uid: u32,
+    host_gid: u32,
+) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
     let mut arg = |a: &str| args.push(a.into());
     arg("--extended-status");
@@ -170,7 +177,10 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
             // and dies on an assertion once a TCP download fills 1024
             // receive buffers (passt 2026_10_02). 256 is QEMU's default.
             args.push("--vhost-user".into());
-            args.push(prefixed("type=net,max-queue-size=256,socket=", &paths.passt_socket()));
+            args.push(prefixed(
+                "type=net,max-queue-size=256,socket=",
+                &paths.passt_socket(),
+            ));
             vhost_user = true;
         }
         None => {}
@@ -193,7 +203,10 @@ pub fn crosvm_args(name: &str, config: &VmConfig, res: &Resources, paths: &Paths
         // anything bigger, but crosvm offers the guest its own maximum
         // unless told otherwise.
         args.push("--vhost-user".into());
-        args.push(prefixed("type=sound,max-queue-size=64,socket=", &paths.sound_socket()));
+        args.push(prefixed(
+            "type=sound,max-queue-size=64,socket=",
+            &paths.sound_socket(),
+        ));
         vhost_user = true;
     }
     if vhost_user {
@@ -221,7 +234,11 @@ pub fn videur_args(config: &VmConfig, paths: &Paths) -> Vec<OsString> {
 }
 
 pub fn passt_args(paths: &Paths) -> Vec<OsString> {
-    let mut args: Vec<OsString> = vec!["--foreground".into(), "--vhost-user".into(), "--socket".into()];
+    let mut args: Vec<OsString> = vec![
+        "--foreground".into(),
+        "--vhost-user".into(),
+        "--socket".into(),
+    ];
     args.push(paths.passt_socket().into());
     for a in [
         // The same addresses for every VM: each has a passt of its own. The
@@ -242,7 +259,12 @@ pub fn passt_args(paths: &Paths) -> Vec<OsString> {
 }
 
 pub fn sound_args(config: &VmConfig, paths: &Paths) -> Vec<OsString> {
-    let mut args: Vec<OsString> = vec!["--socket".into(), paths.sound_socket().into(), "--backend".into(), "pipewire".into()];
+    let mut args: Vec<OsString> = vec![
+        "--socket".into(),
+        paths.sound_socket().into(),
+        "--backend".into(),
+        "pipewire".into(),
+    ];
     // The patched vhost-device-sound in host/vhost-device-sound: no input
     // stream, so the guest can't record from the microphone.
     if !config.microphone {
@@ -303,9 +325,18 @@ pub fn spawn(
     keep: Option<RawFd>,
 ) -> io::Result<Child> {
     let out = File::create(stdout)?;
-    let err = if stderr == stdout { out.try_clone()? } else { File::create(stderr)? };
+    let err = if stderr == stdout {
+        out.try_clone()?
+    } else {
+        File::create(stderr)?
+    };
     let mut cmd = Command::new(program);
-    cmd.args(args).envs(env.iter().cloned()).stdin(Stdio::null()).stdout(out).stderr(err).process_group(0);
+    cmd.args(args)
+        .envs(env.iter().cloned())
+        .stdin(Stdio::null())
+        .stdout(out)
+        .stderr(err)
+        .process_group(0);
     // If the daemon dies, take the VM down with it rather than leaving it
     // behind with resources nobody tracks. The runtime is single-threaded,
     // so the thread that forks is the one that lives as long as the daemon.
@@ -322,7 +353,8 @@ pub fn spawn(
             Ok(())
         });
     }
-    cmd.spawn().map_err(|e| io::Error::new(e.kind(), format!("starting {program}: {e}")))
+    cmd.spawn()
+        .map_err(|e| io::Error::new(e.kind(), format!("starting {program}: {e}")))
 }
 
 /// Sends SIGTERM to `child`.
@@ -360,7 +392,10 @@ mod tests {
         let fd = File::open("/dev/null").unwrap().into();
         Resources {
             cid: 7,
-            net: Some(Net::Tap(Arc::new(Tap { info: crate::net::NetConfig::default().slot(1), fd }))),
+            net: Some(Net::Tap(Arc::new(Tap {
+                info: crate::net::NetConfig::default().slot(1),
+                fd,
+            }))),
             dns: vec![Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)],
         }
     }
@@ -379,7 +414,8 @@ mod tests {
 
     #[test]
     fn cmdline() {
-        let c = config("[Boot]\nImage=d.raw\nKernelCommandLineExtra=quiet\n[Machine]\nSharedHome=/h\n");
+        let c =
+            config("[Boot]\nImage=d.raw\nKernelCommandLineExtra=quiet\n[Machine]\nSharedHome=/h\n");
         assert_eq!(
             kernel_cmdline("debian", &c, &net()),
             format!(
@@ -388,13 +424,22 @@ mod tests {
                 crate::config::DEFAULT_CMDLINE
             )
         );
-        let no_net = Resources { cid: 3, net: None, dns: vec![] };
-        assert_eq!(kernel_cmdline("debian", &c, &no_net).matches("ip=").count(), 0);
+        let no_net = Resources {
+            cid: 3,
+            net: None,
+            dns: vec![],
+        };
+        assert_eq!(
+            kernel_cmdline("debian", &c, &no_net).matches("ip=").count(),
+            0
+        );
     }
 
     #[test]
     fn crosvm() {
-        let c = config("[Boot]\nImage=d.raw\nInitrd=d.initrd\n[Machine]\nCPUs=2\nMemory=2G\nAudio=yes\nSharedHome=/h\nExtraArguments=--x 'y z'\n");
+        let c = config(
+            "[Boot]\nImage=d.raw\nInitrd=d.initrd\n[Machine]\nCPUs=2\nMemory=2G\nAudio=yes\nSharedHome=/h\nExtraArguments=--x 'y z'\n",
+        );
         let res = net();
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1001, 1002));
         let cmdline = kernel_cmdline("debian", &c, &res);
@@ -438,9 +483,19 @@ mod tests {
     #[test]
     fn minimal() {
         let c = config("[Boot]\nImage=d.raw\nInitrd=\n[Machine]\nWayland=no\nGpuContextTypes=\n");
-        let res = Resources { cid: 3, net: None, dns: vec![] };
+        let res = Resources {
+            cid: 3,
+            net: None,
+            dns: vec![],
+        };
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
-        for absent in ["--gpu", "--wayland-sock", "--net", "--shared-dir", "--vhost-user"] {
+        for absent in [
+            "--gpu",
+            "--wayland-sock",
+            "--net",
+            "--shared-dir",
+            "--vhost-user",
+        ] {
             assert!(!args.iter().any(|a| a == absent), "{absent} in {args:?}");
         }
     }
@@ -448,53 +503,78 @@ mod tests {
     #[test]
     fn clipboard_through_videur() {
         let c = config("[Boot]\nImage=d.raw\n[Machine]\nClipboard=to-host\n");
-        let res = Resources { cid: 3, net: None, dns: vec![] };
+        let res = Resources {
+            cid: 3,
+            net: None,
+            dns: vec![],
+        };
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
         let i = args.iter().position(|a| a == "--wayland-sock").unwrap();
         assert_eq!(args[i + 1], "/run/user/1000/garnish/debian/wayland.sock");
-        assert_eq!(strings(videur_args(&c, &paths())), [
-            "--display",
-            "/run/user/1000/wayland-0",
-            "--listen",
-            "/run/user/1000/garnish/debian/wayland.sock",
-            "--clipboard",
-            "to-host",
-        ]);
+        assert_eq!(
+            strings(videur_args(&c, &paths())),
+            [
+                "--display",
+                "/run/user/1000/wayland-0",
+                "--listen",
+                "/run/user/1000/garnish/debian/wayland.sock",
+                "--clipboard",
+                "to-host",
+            ]
+        );
     }
 
     #[test]
     fn passt() {
         let c = config("[Boot]\nImage=d.raw\n[Machine]\nWayland=no\n");
-        let res = Resources { cid: 3, net: Some(Net::Passt), dns: vec![Ipv4Addr::new(1, 1, 1, 1)] };
-        assert!(kernel_cmdline("debian", &c, &res).contains(" ip=10.0.2.15::10.0.2.2:255.255.255.0::eth0:off:1.1.1.1 "));
+        let res = Resources {
+            cid: 3,
+            net: Some(Net::Passt),
+            dns: vec![Ipv4Addr::new(1, 1, 1, 1)],
+        };
+        assert!(
+            kernel_cmdline("debian", &c, &res)
+                .contains(" ip=10.0.2.15::10.0.2.2:255.255.255.0::eth0:off:1.1.1.1 ")
+        );
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
         let tail = &args[args.len() - 5..];
-        assert_eq!(tail, [
-            "--vhost-user",
-            "type=net,max-queue-size=256,socket=/run/user/1000/garnish/debian/passt.sock",
-            "--vhost-user-connect-timeout-ms",
-            "5000",
-            "/cfg/d.vmlinuz"
-        ]);
+        assert_eq!(
+            tail,
+            [
+                "--vhost-user",
+                "type=net,max-queue-size=256,socket=/run/user/1000/garnish/debian/passt.sock",
+                "--vhost-user-connect-timeout-ms",
+                "5000",
+                "/cfg/d.vmlinuz"
+            ]
+        );
         assert!(!args.iter().any(|a| a == "--net"));
-        assert_eq!(strings(passt_args(&paths())), [
-            "--foreground",
-            "--vhost-user",
-            "--socket",
-            "/run/user/1000/garnish/debian/passt.sock",
-            "--address",
-            "10.0.2.15",
-            "--netmask",
-            "255.255.255.0",
-            "--gateway",
-            "10.0.2.2",
-            "--no-map-gw",
-        ]);
+        assert_eq!(
+            strings(passt_args(&paths())),
+            [
+                "--foreground",
+                "--vhost-user",
+                "--socket",
+                "/run/user/1000/garnish/debian/passt.sock",
+                "--address",
+                "10.0.2.15",
+                "--netmask",
+                "255.255.255.0",
+                "--gateway",
+                "10.0.2.2",
+                "--no-map-gw",
+            ]
+        );
         // With sound too, the timeout comes once.
         let c = config("[Boot]\nImage=d.raw\n[Machine]\nAudio=yes\n");
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
         assert_eq!(args.iter().filter(|a| *a == "--vhost-user").count(), 2);
-        assert_eq!(args.iter().filter(|a| *a == "--vhost-user-connect-timeout-ms").count(), 1);
+        assert_eq!(
+            args.iter()
+                .filter(|a| *a == "--vhost-user-connect-timeout-ms")
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -502,7 +582,13 @@ mod tests {
         let c = config("[Boot]\nImage=d.raw\n");
         assert_eq!(
             strings(sound_args(&c, &paths())),
-            ["--socket", "/run/user/1000/garnish/debian/snd.sock", "--backend", "pipewire", "--no-capture"]
+            [
+                "--socket",
+                "/run/user/1000/garnish/debian/snd.sock",
+                "--backend",
+                "pipewire",
+                "--no-capture"
+            ]
         );
     }
 
@@ -515,6 +601,10 @@ mod tests {
              application.icon-name=computer node.name=\"garnish.debian\" }"
         );
         let c = config("[Boot]\nImage=d.raw\n[Machine]\nTitle=Débian \"work\" \\ play\n");
-        assert!(super::sound_props("debian", &c).1.contains(r#"application.name="Débian \"work\" \\ play""#));
+        assert!(
+            super::sound_props("debian", &c)
+                .1
+                .contains(r#"application.name="Débian \"work\" \\ play""#)
+        );
     }
 }

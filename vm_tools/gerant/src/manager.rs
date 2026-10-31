@@ -110,7 +110,10 @@ async fn control(name: &str, command: &str, paths: &Paths) {
     .await;
     match result {
         Ok(Ok(out)) if out.status.success() => {}
-        Ok(Ok(out)) => log(format!("{name}: crosvm {command}: {}", String::from_utf8_lossy(&out.stderr).trim())),
+        Ok(Ok(out)) => log(format!(
+            "{name}: crosvm {command}: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )),
         Ok(Err(e)) => log(format!("{name}: crosvm {command}: {e}")),
         Err(_) => log(format!("{name}: crosvm {command}: timed out")),
     }
@@ -136,7 +139,11 @@ impl Manager {
             config_dir: xdg::config_dir(),
             stop_timeout: Duration::from_secs(config.stop_timeout_secs),
             boot_notifications,
-            inner: Mutex::new(Inner { pool: Pool::new(config), vms: BTreeMap::new(), shutting_down: false }),
+            inner: Mutex::new(Inner {
+                pool: Pool::new(config),
+                vms: BTreeMap::new(),
+                shutting_down: false,
+            }),
             removed: Notify::new(),
         })
     }
@@ -154,12 +161,23 @@ impl Manager {
             Ok(Ok(entries)) => entries,
             Ok(Err(e)) => return Err(Error::InvalidConfig(e)),
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                return Err(Error::NoSuchVm(format!("no VM named {name} ({} doesn't exist)", path.display())));
+                return Err(Error::NoSuchVm(format!(
+                    "no VM named {name} ({} doesn't exist)",
+                    path.display()
+                )));
             }
-            Err(e) => return Err(Error::InvalidConfig(format!("reading {}: {e}", path.display()))),
+            Err(e) => {
+                return Err(Error::InvalidConfig(format!(
+                    "reading {}: {e}",
+                    path.display()
+                )));
+            }
         };
-        let config = VmConfig::from_entries(&entries, &xdg::user_name(), &xdg::home()).map_err(Error::InvalidConfig)?;
-        config.check_files().map_err(|e| Error::InvalidConfig(format!("{}: {e}", path.display())))?;
+        let config = VmConfig::from_entries(&entries, &xdg::user_name(), &xdg::home())
+            .map_err(Error::InvalidConfig)?;
+        config
+            .check_files()
+            .map_err(|e| Error::InvalidConfig(format!("{}: {e}", path.display())))?;
         Ok(config)
     }
 
@@ -168,7 +186,12 @@ impl Manager {
     }
 
     fn info(&self, name: &str) -> Option<VmInfo> {
-        self.inner.lock().unwrap().vms.get(name).map(|vm| vm.info.clone())
+        self.inner
+            .lock()
+            .unwrap()
+            .vms
+            .get(name)
+            .map(|vm| vm.info.clone())
     }
 
     /// Sends VmStateChanged.
@@ -183,7 +206,9 @@ impl Manager {
     async fn set_state(&self, name: &str, state: &str, pid: Option<u32>) {
         let changed = {
             let mut inner = self.inner.lock().unwrap();
-            let Some(vm) = inner.vms.get_mut(name) else { return };
+            let Some(vm) = inner.vms.get_mut(name) else {
+                return;
+            };
             let old = vm.info.clone();
             vm.info.state = state.to_owned();
             if let Some(pid) = pid {
@@ -198,7 +223,11 @@ impl Manager {
 
     /// The state once crosvm runs.
     fn booting_state(&self) -> &'static str {
-        if self.boot_notifications { "booting" } else { "running" }
+        if self.boot_notifications {
+            "booting"
+        } else {
+            "running"
+        }
     }
 
     /// Moves a booting VM to running. Returns false if it wasn't booting.
@@ -221,7 +250,11 @@ impl Manager {
     pub async fn guest_ready(&self, cid: u32) {
         let name = {
             let inner = self.inner.lock().unwrap();
-            inner.vms.iter().find(|(_, vm)| vm.res.cid == cid).map(|(name, _)| name.clone())
+            inner
+                .vms
+                .iter()
+                .find(|(_, vm)| vm.res.cid == cid)
+                .map(|(name, _)| name.clone())
         };
         // Not ours, or already running (the service was started again).
         if let Some(name) = name
@@ -254,11 +287,14 @@ impl Manager {
         }
         if config.network == NetworkMode::Passt && !vm::in_path("passt") {
             return Err(Error::StartFailed(
-                "[Network] Mode=passt needs passt (https://passt.top); or choose Mode=nat or none".into(),
+                "[Network] Mode=passt needs passt (https://passt.top); or choose Mode=nat or none"
+                    .into(),
             ));
         }
         if config.audio && !vm::in_path("vhost-device-sound") {
-            return Err(Error::StartFailed("Audio=yes needs vhost-device-sound (see host/vhost-device-sound)".into()));
+            return Err(Error::StartFailed(
+                "Audio=yes needs vhost-device-sound (see host/vhost-device-sound)".into(),
+            ));
         }
         let already_running = || Error::AlreadyRunning(format!("{name} is already running"));
         if self.inner.lock().unwrap().vms.contains_key(name) {
@@ -286,7 +322,11 @@ impl Manager {
                 return Err(already_running());
             }
             let cid = inner.pool.alloc_cid().map_err(Error::NoResources)?;
-            let res = Resources { cid, net, dns: inner.pool.dns().to_vec() };
+            let res = Resources {
+                cid,
+                net,
+                dns: inner.pool.dns().to_vec(),
+            };
             // A tap's address is the guest's, from the host too. passt's
             // isn't: the host can't reach the guest there.
             let tap = match &res.net {
@@ -302,7 +342,12 @@ impl Manager {
                 log_dir: paths.logs.display().to_string(),
                 ..VmInfo::stopped(name)
             };
-            let vm = RunningVm { info: info.clone(), res: res.clone(), paths: paths.clone(), commands: tx };
+            let vm = RunningVm {
+                info: info.clone(),
+                res: res.clone(),
+                paths: paths.clone(),
+                commands: tx,
+            };
             inner.vms.insert(name.to_owned(), vm);
             (res, info)
         };
@@ -317,14 +362,19 @@ impl Manager {
                 return Err(e);
             }
         };
-        self.set_state(name, self.booting_state(), launched.crosvm.id()).await;
+        self.set_state(name, self.booting_state(), launched.crosvm.id())
+            .await;
         let info = self.info(name).unwrap();
         let net = match &res.net {
             None => "no network".to_owned(),
             Some(Net::Passt) => "network through passt".to_owned(),
             Some(Net::Tap(tap)) => format!("{} on {}", tap.info.guest, tap.info.name),
         };
-        log(format!("{name}: started, CID {}, {net}, logs in {}", res.cid, paths.logs.display()));
+        log(format!(
+            "{name}: started, CID {}, {net}, logs in {}",
+            res.cid,
+            paths.logs.display()
+        ));
         if let Ok(emitter) = self.emitter() {
             let _ = Gerant::vm_started(&emitter, info.clone()).await;
         }
@@ -335,12 +385,26 @@ impl Manager {
     }
 
     /// Starts the helpers and crosvm and waits for crosvm's control socket.
-    async fn launch(&self, name: &str, config: &VmConfig, res: &Resources, paths: &Paths) -> Result<Launched, Error> {
+    async fn launch(
+        &self,
+        name: &str,
+        config: &VmConfig,
+        res: &Resources,
+        paths: &Paths,
+    ) -> Result<Launched, Error> {
         let failed = |what: &str, e: io::Error| Error::StartFailed(format!("{what}: {e}"));
         // sockaddr_un's sun_path is 108 bytes, including the terminating NUL.
-        for socket in [paths.control_socket(), paths.sound_socket(), paths.passt_socket(), paths.videur_socket()] {
+        for socket in [
+            paths.control_socket(),
+            paths.sound_socket(),
+            paths.passt_socket(),
+            paths.videur_socket(),
+        ] {
             if socket.as_os_str().len() >= 108 {
-                return Err(Error::StartFailed(format!("{}: socket path too long", socket.display())));
+                return Err(Error::StartFailed(format!(
+                    "{}: socket path too long",
+                    socket.display()
+                )));
             }
         }
         // Sockets from an earlier run that didn't clean up would make us
@@ -355,14 +419,22 @@ impl Manager {
             .mode(0o700)
             .create(&paths.runtime)
             .map_err(|e| failed(&format!("creating {}", paths.runtime.display()), e))?;
-        fs::create_dir_all(&paths.logs).map_err(|e| failed(&format!("creating {}", paths.logs.display()), e))?;
+        fs::create_dir_all(&paths.logs)
+            .map_err(|e| failed(&format!("creating {}", paths.logs.display()), e))?;
 
         let mut helpers = Vec::new();
-        let result = self.launch_inner(name, config, res, paths, &mut helpers).await;
+        let result = self
+            .launch_inner(name, config, res, paths, &mut helpers)
+            .await;
         if result.is_err() {
             stop_helpers(name, &mut helpers).await;
         }
-        result.map(|(crosvm, args)| Launched { crosvm, args, net: res.net.clone(), helpers })
+        result.map(|(crosvm, args)| Launched {
+            crosvm,
+            args,
+            net: res.net.clone(),
+            helpers,
+        })
     }
 
     async fn launch_inner(
@@ -380,13 +452,25 @@ impl Manager {
         if let Some(Net::Passt) = res.net {
             truncate("passt")?;
             let log = paths.log("passt");
-            helpers.push(("passt", vm::spawn("passt", &vm::passt_args(paths), &[], &log, &log, None).map_err(failed)?));
+            helpers.push((
+                "passt",
+                vm::spawn("passt", &vm::passt_args(paths), &[], &log, &log, None)
+                    .map_err(failed)?,
+            ));
         }
         if config.audio {
             truncate("vhost-device-sound")?;
             let log = paths.log("vhost-device-sound");
             let props = [vm::sound_props(name, config)];
-            let child = vm::spawn("vhost-device-sound", &vm::sound_args(config, paths), &props, &log, &log, None).map_err(failed)?;
+            let child = vm::spawn(
+                "vhost-device-sound",
+                &vm::sound_args(config, paths),
+                &props,
+                &log,
+                &log,
+                None,
+            )
+            .map_err(failed)?;
             helpers.push(("vhost-device-sound", child));
         }
         // Without AppMenu, carte still keeps the list of the guest's
@@ -396,13 +480,19 @@ impl Manager {
                 truncate("carte")?;
                 let log = paths.log("carte");
                 // Waits for the guest's carte-agent, and reconnects if it restarts.
-                let mut args: Vec<OsString> = vec!["sync".into(), "--cid".into(), res.cid.to_string().into()];
+                let mut args: Vec<OsString> =
+                    vec!["sync".into(), "--cid".into(), res.cid.to_string().into()];
                 if !config.app_menu {
                     args.push("--no-menu".into());
                 }
-                helpers.push(("carte", vm::spawn("carte", &args, &[], &log, &log, None).map_err(failed)?));
+                helpers.push((
+                    "carte",
+                    vm::spawn("carte", &args, &[], &log, &log, None).map_err(failed)?,
+                ));
             } else {
-                log(format!("{name}: carte isn't installed, the guest's applications won't be in the menu"));
+                log(format!(
+                    "{name}: carte isn't installed, the guest's applications won't be in the menu"
+                ));
             }
         }
         if config.notifications {
@@ -411,16 +501,29 @@ impl Manager {
                 let log = paths.log("sonnette");
                 // Waits for the guest's sonnette-agent, and reconnects if it restarts.
                 let args = ["relay".into(), "--cid".into(), res.cid.to_string().into()];
-                helpers.push(("sonnette", vm::spawn("sonnette", &args, &[], &log, &log, None).map_err(failed)?));
+                helpers.push((
+                    "sonnette",
+                    vm::spawn("sonnette", &args, &[], &log, &log, None).map_err(failed)?,
+                ));
             } else {
-                log(format!("{name}: sonnette isn't installed, the guest's notifications won't be shown"));
+                log(format!(
+                    "{name}: sonnette isn't installed, the guest's notifications won't be shown"
+                ));
             }
         }
 
         if config.wayland && config.clipboard != Clipboard::Both {
             truncate("videur")?;
             let log = paths.log("videur");
-            let mut child = vm::spawn("videur", &vm::videur_args(config, paths), &[], &log, &log, None).map_err(failed)?;
+            let mut child = vm::spawn(
+                "videur",
+                &vm::videur_args(config, paths),
+                &[],
+                &log,
+                &log,
+                None,
+            )
+            .map_err(failed)?;
             // crosvm connects to it when the guest's sommelier starts, but
             // a missing socket would only show up then.
             let socket = paths.videur_socket();
@@ -441,9 +544,24 @@ impl Manager {
 
         truncate("console")?;
         truncate("crosvm")?;
-        let args = vm::crosvm_args(name, config, res, paths, unsafe { libc::getuid() }, unsafe { libc::getgid() });
+        let args = vm::crosvm_args(
+            name,
+            config,
+            res,
+            paths,
+            unsafe { libc::getuid() },
+            unsafe { libc::getgid() },
+        );
         let tap_fd = res.net.as_ref().and_then(Net::tap_fd);
-        let mut crosvm = vm::spawn("crosvm", &args, &[], &paths.log("console"), &paths.log("crosvm"), tap_fd).map_err(failed)?;
+        let mut crosvm = vm::spawn(
+            "crosvm",
+            &args,
+            &[],
+            &paths.log("console"),
+            &paths.log("crosvm"),
+            tap_fd,
+        )
+        .map_err(failed)?;
 
         let socket = paths.control_socket();
         let deadline = Instant::now() + START_TIMEOUT;
@@ -489,7 +607,9 @@ impl Manager {
         // `crosvm stop`.
         let mut stopped_crosvm = false;
         let mut resets: Vec<Instant> = Vec::new();
-        let mut boot_deadline = self.boot_notifications.then(|| Instant::now() + BOOT_TIMEOUT);
+        let mut boot_deadline = self
+            .boot_notifications
+            .then(|| Instant::now() + BOOT_TIMEOUT);
         let reason = loop {
             let timer = async {
                 match &deadline {
@@ -597,7 +717,10 @@ impl Manager {
 
     fn send(&self, name: &str, command: Command) -> Result<(), Error> {
         let inner = self.inner.lock().unwrap();
-        let vm = inner.vms.get(name).ok_or_else(|| Error::NotRunning(format!("{name} isn't running")))?;
+        let vm = inner
+            .vms
+            .get(name)
+            .ok_or_else(|| Error::NotRunning(format!("{name} isn't running")))?;
         // Only fails once the VM is gone, which `release` is about to record.
         let _ = vm.commands.send(command);
         Ok(())
@@ -608,7 +731,9 @@ impl Manager {
         if let Ok(dir) = fs::read_dir(self.vm_dir()) {
             for entry in dir.flatten() {
                 let file = entry.file_name();
-                let Some(name) = file.to_str().and_then(|f| f.strip_suffix(".conf")) else { continue };
+                let Some(name) = file.to_str().and_then(|f| f.strip_suffix(".conf")) else {
+                    continue;
+                };
                 if config::is_valid_name(name) && entry.path().is_file() {
                     vms.insert(name.to_owned(), VmInfo::stopped(name));
                 }

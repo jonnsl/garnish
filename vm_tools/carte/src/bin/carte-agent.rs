@@ -45,7 +45,13 @@ impl Shared {
     }
 
     fn app(&self, id: &str) -> Option<App> {
-        self.state.lock().unwrap().apps.iter().find(|a| a.id == id).cloned()
+        self.state
+            .lock()
+            .unwrap()
+            .apps
+            .iter()
+            .find(|a| a.id == id)
+            .cloned()
     }
 }
 
@@ -71,10 +77,16 @@ fn main() {
     thread::spawn(|| watch_apps(shared));
 
     let listener = vsock::Listener::bind(proto::AGENT_PORT).unwrap_or_else(|e| {
-        eprintln!("carte-agent: listening on vsock port {}: {e}", proto::AGENT_PORT);
+        eprintln!(
+            "carte-agent: listening on vsock port {}: {e}",
+            proto::AGENT_PORT
+        );
         process::exit(1);
     });
-    eprintln!("carte-agent: VM {vm}, listening on vsock port {}", proto::AGENT_PORT);
+    eprintln!(
+        "carte-agent: VM {vm}, listening on vsock port {}",
+        proto::AGENT_PORT
+    );
     loop {
         let (conn, cid) = match listener.accept() {
             Ok(accepted) => accepted,
@@ -114,7 +126,11 @@ fn watch_apps(shared: &Shared) {
             }
         }
         let entries = desktop::scan(&data_dirs);
-        let apps: Vec<App> = entries.iter().filter(|e| e.should_export()).map(DesktopEntry::to_app).collect();
+        let apps: Vec<App> = entries
+            .iter()
+            .filter(|e| e.should_export())
+            .map(DesktopEntry::to_app)
+            .collect();
         shared.publish(apps);
         match watcher.map(|w| w.wait(SETTLE)) {
             Some(Ok(())) => {}
@@ -135,7 +151,11 @@ fn serve(conn: &File, vm: &str, shared: &Shared) -> io::Result<()> {
             Request::Watch => return send_apps(writer, vm, shared),
             Request::Icon { id, size } => send_icon(writer, &id, size, shared)?,
             Request::Launch { vm: wanted, id } => {
-                let result = if wanted == vm { launch(&id) } else { Err(format!("this is {vm}, not {wanted}")) };
+                let result = if wanted == vm {
+                    launch(&id)
+                } else {
+                    Err(format!("this is {vm}, not {wanted}"))
+                };
                 let reply = match result {
                     Ok(()) => Reply::default(),
                     Err(e) => {
@@ -162,7 +182,13 @@ fn send_apps(mut writer: &File, vm: &str, shared: &Shared) -> io::Result<()> {
             seen = state.generation;
             state.apps.clone()
         };
-        proto::send(&mut writer, &AppList { vm: vm.to_owned(), apps: apps.to_vec() })?;
+        proto::send(
+            &mut writer,
+            &AppList {
+                vm: vm.to_owned(),
+                apps: apps.to_vec(),
+            },
+        )?;
     }
 }
 
@@ -175,13 +201,25 @@ fn send_icon(mut writer: &File, id: &str, size: u32, shared: &Shared) -> io::Res
         return proto::send(&mut writer, &Reply::error(format!("no icon for {id}")));
     };
     let mut data = Vec::new();
-    if let Err(e) = File::open(&path).and_then(|f| f.take(proto::MAX_ICON + 1).read_to_end(&mut data)) {
-        return proto::send(&mut writer, &Reply::error(format!("{}: {e}", path.display())));
+    if let Err(e) =
+        File::open(&path).and_then(|f| f.take(proto::MAX_ICON + 1).read_to_end(&mut data))
+    {
+        return proto::send(
+            &mut writer,
+            &Reply::error(format!("{}: {e}", path.display())),
+        );
     }
     if data.len() as u64 > proto::MAX_ICON {
-        return proto::send(&mut writer, &Reply::error(format!("{}: too large", path.display())));
+        return proto::send(
+            &mut writer,
+            &Reply::error(format!("{}: too large", path.display())),
+        );
     }
-    let header = Reply { format: Some(format.into()), len: Some(data.len() as u64), error: None };
+    let header = Reply {
+        format: Some(format.into()),
+        len: Some(data.len() as u64),
+        error: None,
+    };
     proto::send(&mut writer, &header)?;
     writer.write_all(&data)
 }
@@ -208,7 +246,11 @@ fn launch(id: &str) -> Result<(), String> {
         process::id(),
         LAUNCHES.fetch_add(1, Ordering::Relaxed)
     );
-    let dir = entry.working_dir.as_deref().map(Path::new).filter(|d| d.is_dir());
+    let dir = entry
+        .working_dir
+        .as_deref()
+        .map(Path::new)
+        .filter(|d| d.is_dir());
     let mut command = Command::new("systemd-run");
     command
         .args(["--user", "--scope", "--quiet", "--collect"])
@@ -224,7 +266,9 @@ fn launch(id: &str) -> Result<(), String> {
             Ok(())
         });
     }
-    let mut child = command.spawn().map_err(|e| format!("running systemd-run: {e}"))?;
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("running systemd-run: {e}"))?;
     eprintln!("carte-agent: launched {id} as {unit}: {argv:?}");
     // systemd-run execs the application, so this waits for it to exit.
     thread::spawn(move || child.wait());

@@ -43,7 +43,9 @@ async fn main() -> ExitCode {
 fn message(e: zbus::Error) -> String {
     match e {
         // The bus couldn't start gerantd.
-        zbus::Error::MethodError(name, Some(msg), _) if name.as_str() == "org.freedesktop.DBus.Error.ServiceUnknown" => {
+        zbus::Error::MethodError(name, Some(msg), _)
+            if name.as_str() == "org.freedesktop.DBus.Error.ServiceUnknown" =>
+        {
             format!(
                 "{msg}\nInstall data/org.garnish.Gerant.service to ~/.local/share/dbus-1/services/ and \
                  data/gerantd.service to ~/.config/systemd/user/, then run `systemctl --user daemon-reload` and \
@@ -56,12 +58,18 @@ fn message(e: zbus::Error) -> String {
 }
 
 async fn proxy() -> Result<GerantProxy<'static>, String> {
-    let conn = Connection::session().await.map_err(|e| format!("connecting to the session bus: {e}"))?;
+    let conn = Connection::session()
+        .await
+        .map_err(|e| format!("connecting to the session bus: {e}"))?;
     GerantProxy::new(&conn).await.map_err(message)
 }
 
 fn describe(info: &VmInfo) -> String {
-    let net = if info.address.is_empty() { "no network".to_owned() } else { format!("{} on {}", info.address, info.tap) };
+    let net = if info.address.is_empty() {
+        "no network".to_owned()
+    } else {
+        format!("{} on {}", info.address, info.tap)
+    };
     format!("CID {}, {net}", info.cid)
 }
 
@@ -69,7 +77,10 @@ async fn start(name: &str) -> Result<(), String> {
     let info = proxy().await?.start_vm(name).await.map_err(message)?;
     println!("{name}: {}", describe(&info));
     println!("logs: {}", info.log_dir);
-    println!("ssh: gerant ssh {name}  (or ssh {}@vsock/{})", info.user, info.cid);
+    println!(
+        "ssh: gerant ssh {name}  (or ssh {}@vsock/{})",
+        info.user, info.cid
+    );
     Ok(())
 }
 
@@ -77,7 +88,12 @@ async fn stop(name: &str, force: bool) -> Result<(), String> {
     let proxy = proxy().await?;
     // Subscribe first, so the signal can't come before we listen.
     let mut stopped = proxy.receive_vm_stopped().await.map_err(message)?;
-    if force { proxy.kill_vm(name).await } else { proxy.stop_vm(name).await }.map_err(message)?;
+    if force {
+        proxy.kill_vm(name).await
+    } else {
+        proxy.stop_vm(name).await
+    }
+    .map_err(message)?;
     while let Some(signal) = stopped.next().await {
         let args = signal.args().map_err(message)?;
         if args.name == name {
@@ -91,21 +107,37 @@ async fn stop(name: &str, force: bool) -> Result<(), String> {
 async fn list() -> Result<(), String> {
     let vms = proxy().await?.list_vms().await.map_err(message)?;
     let width = vms.iter().map(|vm| vm.name.len()).max().unwrap_or(0).max(4);
-    println!("{:width$}  {:8}  {:>4}  {:15}  TAP", "NAME", "STATE", "CID", "ADDRESS");
+    println!(
+        "{:width$}  {:8}  {:>4}  {:15}  TAP",
+        "NAME", "STATE", "CID", "ADDRESS"
+    );
     for vm in vms {
-        let cid = if vm.cid == 0 { String::new() } else { vm.cid.to_string() };
-        println!("{:width$}  {:8}  {cid:>4}  {:15}  {}", vm.name, vm.state, vm.address, vm.tap);
+        let cid = if vm.cid == 0 {
+            String::new()
+        } else {
+            vm.cid.to_string()
+        };
+        println!(
+            "{:width$}  {:8}  {cid:>4}  {:15}  {}",
+            vm.name, vm.state, vm.address, vm.tap
+        );
     }
     Ok(())
 }
 
 async fn ssh(name: &str, command: &[&str]) -> Result<(), String> {
     let vms = proxy().await?.list_vms().await.map_err(message)?;
-    let vm = vms.into_iter().find(|vm| vm.name == name).ok_or_else(|| format!("no VM named {name}"))?;
+    let vm = vms
+        .into_iter()
+        .find(|vm| vm.name == name)
+        .ok_or_else(|| format!("no VM named {name}"))?;
     if vm.cid == 0 {
         return Err(format!("{name} isn't running"));
     }
     // The vsock/<cid> host comes from systemd's ssh proxy (systemd >= 256).
-    let err = Command::new("ssh").arg(format!("{}@vsock/{}", vm.user, vm.cid)).args(command).exec();
+    let err = Command::new("ssh")
+        .arg(format!("{}@vsock/{}", vm.user, vm.cid))
+        .args(command)
+        .exec();
     Err(format!("running ssh: {err}"))
 }

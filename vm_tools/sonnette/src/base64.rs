@@ -5,7 +5,11 @@ const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwx
 pub fn encode(data: &[u8]) -> String {
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
         for i in 0..4 {
             if i <= chunk.len() {
@@ -27,7 +31,11 @@ pub fn decode(text: &str) -> Option<Vec<u8>> {
     let mut out = Vec::with_capacity(text.len() / 4 * 3);
     let chunks = text.len() / 4;
     for (i, chunk) in text.chunks(4).enumerate() {
-        let padding = if i + 1 == chunks { chunk.iter().rev().take_while(|&&c| c == b'=').count() } else { 0 };
+        let padding = if i + 1 == chunks {
+            chunk.iter().rev().take_while(|&&c| c == b'=').count()
+        } else {
+            0
+        };
         if padding > 2 {
             return None;
         }

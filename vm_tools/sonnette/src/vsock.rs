@@ -20,7 +20,13 @@ fn check(ret: libc::c_int) -> io::Result<libc::c_int> {
 }
 
 fn socket(flags: libc::c_int) -> io::Result<OwnedFd> {
-    let fd = check(unsafe { libc::socket(libc::AF_VSOCK, libc::SOCK_STREAM | libc::SOCK_CLOEXEC | flags, 0) })?;
+    let fd = check(unsafe {
+        libc::socket(
+            libc::AF_VSOCK,
+            libc::SOCK_STREAM | libc::SOCK_CLOEXEC | flags,
+            0,
+        )
+    })?;
     Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
@@ -49,7 +55,13 @@ pub async fn connect(cid: u32, port: u32) -> io::Result<Stream> {
     let fd = tokio::task::spawn_blocking(move || {
         let fd = socket(0)?;
         let addr = address(cid, port);
-        check(unsafe { libc::connect(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, ADDRESS_LEN) })?;
+        check(unsafe {
+            libc::connect(
+                fd.as_raw_fd(),
+                &addr as *const _ as *const libc::sockaddr,
+                ADDRESS_LEN,
+            )
+        })?;
         let flags = check(unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETFL) })?;
         check(unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) })?;
         Ok::<_, io::Error>(fd)
@@ -65,7 +77,13 @@ impl Listener {
     pub fn bind(port: u32) -> io::Result<Listener> {
         let fd = socket(libc::SOCK_NONBLOCK)?;
         let addr = address(libc::VMADDR_CID_ANY, port);
-        check(unsafe { libc::bind(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, ADDRESS_LEN) })?;
+        check(unsafe {
+            libc::bind(
+                fd.as_raw_fd(),
+                &addr as *const _ as *const libc::sockaddr,
+                ADDRESS_LEN,
+            )
+        })?;
         check(unsafe { libc::listen(fd.as_raw_fd(), 16) })?;
         Ok(Listener(register(fd)?))
     }
@@ -99,12 +117,18 @@ impl Listener {
 }
 
 impl AsyncRead for Stream {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         loop {
             let mut guard = ready!(self.0.poll_read_ready(cx))?;
             let unfilled = buf.initialize_unfilled();
             let result = guard.try_io(|fd| {
-                let n = unsafe { libc::read(fd.as_raw_fd(), unfilled.as_mut_ptr().cast(), unfilled.len()) };
+                let n = unsafe {
+                    libc::read(fd.as_raw_fd(), unfilled.as_mut_ptr().cast(), unfilled.len())
+                };
                 if n < 0 {
                     Err(io::Error::last_os_error())
                 } else {
@@ -125,11 +149,22 @@ impl AsyncRead for Stream {
 }
 
 impl AsyncWrite for Stream {
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         loop {
             let mut guard = ready!(self.0.poll_write_ready(cx))?;
             let result = guard.try_io(|fd| {
-                let n = unsafe { libc::send(fd.as_raw_fd(), buf.as_ptr().cast(), buf.len(), libc::MSG_NOSIGNAL) };
+                let n = unsafe {
+                    libc::send(
+                        fd.as_raw_fd(),
+                        buf.as_ptr().cast(),
+                        buf.len(),
+                        libc::MSG_NOSIGNAL,
+                    )
+                };
                 if n < 0 {
                     Err(io::Error::last_os_error())
                 } else {

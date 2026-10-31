@@ -77,7 +77,10 @@ impl Protocols {
             } else if path.extension().is_some_and(|e| e == "xml") {
                 let text = fs::read_to_string(&path)?;
                 let parsed = parse(&text).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("{}: {e}", path.display()))
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}: {e}", path.display()),
+                    )
                 })?;
                 for iface in parsed {
                     self.add(iface);
@@ -93,7 +96,8 @@ impl Protocols {
             Some(&i) if self.interfaces[i].version >= iface.version => {}
             Some(&i) => self.interfaces[i] = iface,
             None => {
-                self.by_name.insert(iface.name.clone(), self.interfaces.len());
+                self.by_name
+                    .insert(iface.name.clone(), self.interfaces.len());
                 self.interfaces.push(iface);
             }
         }
@@ -134,12 +138,25 @@ pub fn parse(text: &str) -> Result<Vec<Interface>, String> {
             ("interface", false) => {
                 let name = tag.attr("name").ok_or("interface without a name")?;
                 let version = tag.attr("version").unwrap_or("1");
-                let version = version.parse().map_err(|_| format!("{name}: bad version {version}"))?;
-                out.push(Interface { name: name.into(), version, requests: Vec::new(), events: Vec::new() });
+                let version = version
+                    .parse()
+                    .map_err(|_| format!("{name}: bad version {version}"))?;
+                out.push(Interface {
+                    name: name.into(),
+                    version,
+                    requests: Vec::new(),
+                    events: Vec::new(),
+                });
             }
             (kind @ ("request" | "event"), false) => {
                 let name = tag.attr("name").ok_or("message without a name")?;
-                let m = (Message { name: name.into(), args: Vec::new() }, kind == "event");
+                let m = (
+                    Message {
+                        name: name.into(),
+                        args: Vec::new(),
+                    },
+                    kind == "event",
+                );
                 if tag.empty {
                     push_message(&mut out, m)?;
                 } else {
@@ -175,7 +192,11 @@ pub fn parse(text: &str) -> Result<Vec<Interface>, String> {
 
 fn push_message(out: &mut [Interface], (m, event): (Message, bool)) -> Result<(), String> {
     let iface = out.last_mut().ok_or("message outside an interface")?;
-    if event { iface.events.push(m) } else { iface.requests.push(m) }
+    if event {
+        iface.events.push(m)
+    } else {
+        iface.requests.push(m)
+    }
     Ok(())
 }
 
@@ -206,7 +227,10 @@ impl<'a> Tags<'a> {
     }
 
     fn skip_past(&mut self, end: &str) -> Result<(), String> {
-        let i = self.rest.find(end).ok_or_else(|| format!("unterminated, expected {end}"))?;
+        let i = self
+            .rest
+            .find(end)
+            .ok_or_else(|| format!("unterminated, expected {end}"))?;
         self.rest = &self.rest[i + end.len()..];
         Ok(())
     }
@@ -244,7 +268,9 @@ impl<'a> Tags<'a> {
             Some(s) => (true, s),
             None => (false, s),
         };
-        let name_end = s.find(|c: char| c.is_whitespace() || c == '>' || c == '/').ok_or("unterminated tag")?;
+        let name_end = s
+            .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+            .ok_or("unterminated tag")?;
         let name = &s[..name_end];
         let mut s = &s[name_end..];
         let mut attrs = Vec::new();
@@ -261,17 +287,30 @@ impl<'a> Tags<'a> {
                 s = r;
                 break;
             }
-            let eq = s.find('=').ok_or_else(|| format!("<{name}>: bad attribute"))?;
+            let eq = s
+                .find('=')
+                .ok_or_else(|| format!("<{name}>: bad attribute"))?;
             let key = s[..eq].trim();
             let r = s[eq + 1..].trim_start();
-            let quote = r.chars().next().filter(|c| *c == '"' || *c == '\'').ok_or_else(|| format!("<{name}>: unquoted attribute"))?;
+            let quote = r
+                .chars()
+                .next()
+                .filter(|c| *c == '"' || *c == '\'')
+                .ok_or_else(|| format!("<{name}>: unquoted attribute"))?;
             let r = &r[1..];
-            let end = r.find(quote).ok_or_else(|| format!("<{name}>: unterminated attribute"))?;
+            let end = r
+                .find(quote)
+                .ok_or_else(|| format!("<{name}>: unterminated attribute"))?;
             attrs.push((key, &r[..end]));
             s = &r[end + 1..];
         }
         self.rest = s;
-        Ok(Tag { name, closing, empty, attrs })
+        Ok(Tag {
+            name,
+            closing,
+            empty,
+            attrs,
+        })
     }
 }
 
@@ -300,7 +339,10 @@ mod tests {
         let a = &ifaces[0];
         assert_eq!((a.name.as_str(), a.version), ("a", 3));
         assert_eq!(a.requests.len(), 2);
-        assert_eq!(a.requests[1].args, vec![Arg::NewId(Some("b".into())), Arg::Fd]);
+        assert_eq!(
+            a.requests[1].args,
+            vec![Arg::NewId(Some("b".into())), Arg::Fd]
+        );
         assert_eq!(a.requests[1].fds(), 1);
         assert_eq!(a.events[0].args, vec![Arg::Uint]);
     }

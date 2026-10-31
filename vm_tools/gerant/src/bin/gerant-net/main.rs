@@ -50,7 +50,10 @@ struct IfReq {
 
 impl IfReq {
     fn new(name: &str) -> IfReq {
-        let mut req = IfReq { name: [0; libc::IFNAMSIZ], data: [0; 24] };
+        let mut req = IfReq {
+            name: [0; libc::IFNAMSIZ],
+            data: [0; 24],
+        };
         req.name[..name.len()].copy_from_slice(name.as_bytes());
         req
     }
@@ -102,24 +105,37 @@ fn run() -> Result<(), String> {
     netlink::configure_tap(&opened.rtnl, &tap, index)?;
     // NAT needs forwarding. Like libvirt, we turn it on and leave it on:
     // something else may need it too.
-    (&opened.ip_forward).write_all(b"1\n").map_err(|e| format!("enabling IPv4 forwarding: {e}"))?;
+    (&opened.ip_forward)
+        .write_all(b"1\n")
+        .map_err(|e| format!("enabling IPv4 forwarding: {e}"))?;
     opened
         .nfnl
         .send(&netlink::nat_ruleset(&config))
         .map_err(|e| format!("loading nftables table ip {}: {e}", netlink::TABLE))?;
-    net::send_reply(REPLY_FD, &tap, opened.tun.as_raw_fd()).map_err(|e| format!("sending the tap: {e}"))
+    net::send_reply(REPLY_FD, &tap, opened.tun.as_raw_fd())
+        .map_err(|e| format!("sending the tap: {e}"))
 }
 
 fn open_all() -> Result<Opened, String> {
-    let config = match File::options().read(true).custom_flags(libc::O_NOFOLLOW).open(net::CONFIG_PATH) {
+    let config = match File::options()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(net::CONFIG_PATH)
+    {
         Ok(mut file) => {
             // It decides what the host's addresses are: only root may write it.
-            let meta = file.metadata().map_err(|e| format!("{}: {e}", net::CONFIG_PATH))?;
+            let meta = file
+                .metadata()
+                .map_err(|e| format!("{}: {e}", net::CONFIG_PATH))?;
             if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {
-                return Err(format!("{}: has to be a file owned by root and writable only by root", net::CONFIG_PATH));
+                return Err(format!(
+                    "{}: has to be a file owned by root and writable only by root",
+                    net::CONFIG_PATH
+                ));
             }
             let mut text = String::new();
-            file.read_to_string(&mut text).map_err(|e| format!("{}: {e}", net::CONFIG_PATH))?;
+            file.read_to_string(&mut text)
+                .map_err(|e| format!("{}: {e}", net::CONFIG_PATH))?;
             Some(text)
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
@@ -143,7 +159,12 @@ fn open_all() -> Result<Opened, String> {
 
 /// Everything the rest of the run needs, and nothing else.
 fn rules(o: &Opened) -> Vec<Rule> {
-    let (tun, forward, rtnl, nfnl) = (o.tun.as_raw_fd(), o.ip_forward.as_raw_fd(), o.rtnl.fd(), o.nfnl.fd());
+    let (tun, forward, rtnl, nfnl) = (
+        o.tun.as_raw_fd(),
+        o.ip_forward.as_raw_fd(),
+        o.rtnl.fd(),
+        o.nfnl.fd(),
+    );
     vec![
         Rule::ioctl(tun, &[libc::TUNSETIFF as libc::c_ulong]),
         Rule::ioctl(rtnl, &[SIOCGIFINDEX]),
@@ -178,7 +199,8 @@ fn create_tap(tun: &File, config: &NetConfig) -> Result<NatTap, String> {
         let tap = config.slot(index);
         let mut req = IfReq::new(&tap.name);
         // IFF_TUN_EXCL: fail if it exists, instead of attaching to it.
-        let flags = (libc::IFF_TAP | libc::IFF_NO_PI | libc::IFF_VNET_HDR | libc::IFF_TUN_EXCL) as i16;
+        let flags =
+            (libc::IFF_TAP | libc::IFF_NO_PI | libc::IFF_VNET_HDR | libc::IFF_TUN_EXCL) as i16;
         req.data[..2].copy_from_slice(&flags.to_ne_bytes());
         if unsafe { libc::ioctl(tun.as_raw_fd(), libc::TUNSETIFF as _, &mut req) } == 0 {
             return Ok(tap);

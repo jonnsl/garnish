@@ -47,7 +47,11 @@ impl DesktopEntry {
     }
 
     pub fn parse(text: &str, path: PathBuf, id: String) -> Self {
-        let mut e = DesktopEntry { path, id, ..Default::default() };
+        let mut e = DesktopEntry {
+            path,
+            id,
+            ..Default::default()
+        };
         let mut in_entry = false;
         for line in text.lines() {
             let line = line.trim();
@@ -61,7 +65,9 @@ impl DesktopEntry {
             if !in_entry {
                 continue;
             }
-            let Some((key, value)) = line.split_once('=') else { continue };
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
             let (key, value) = (key.trim_end(), value.trim_start());
             let (key, locale) = match key.split_once('[') {
                 Some((key, rest)) => match rest.strip_suffix(']') {
@@ -118,7 +124,10 @@ impl DesktopEntry {
             && !self.categories.iter().any(|c| c == "Settings")
             && (self.only_show_in.is_empty() || shown_here(&self.only_show_in))
             && !shown_here(&self.not_show_in)
-            && self.try_exec.as_deref().is_none_or(|t| find_executable(t).is_some())
+            && self
+                .try_exec
+                .as_deref()
+                .is_none_or(|t| find_executable(t).is_some())
     }
 
     pub fn to_app(&self) -> proto::App {
@@ -256,7 +265,9 @@ pub fn find_executable(name: &str) -> Option<PathBuf> {
         let path = Path::new(name);
         return (path.is_absolute() && is_executable(path)).then(|| path.to_owned());
     }
-    env::split_paths(&env::var_os("PATH")?).map(|dir| dir.join(name)).find(|p| is_executable(p))
+    env::split_paths(&env::var_os("PATH")?)
+        .map(|dir| dir.join(name))
+        .find(|p| is_executable(p))
 }
 
 /// The subdirectories of `dir`, recursively, `dir` included.
@@ -267,14 +278,18 @@ pub fn subdirectories(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn walk(dir: &Path, depth: usize, dirs: &mut Vec<PathBuf>, files: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     dirs.push(dir.to_owned());
     for entry in entries.flatten() {
         let path = entry.path();
         // fs::metadata follows symlinks: flatpak's exports are symlinks.
         match fs::metadata(&path) {
             Ok(m) if m.is_dir() && depth < MAX_DEPTH => walk(&path, depth + 1, dirs, files),
-            Ok(m) if m.is_file() && path.extension().is_some_and(|e| e == "desktop") => files.push(path),
+            Ok(m) if m.is_file() && path.extension().is_some_and(|e| e == "desktop") => {
+                files.push(path)
+            }
             _ => {}
         }
     }
@@ -299,7 +314,9 @@ pub fn scan(data_dirs: &[PathBuf]) -> Vec<DesktopEntry> {
         walk(&apps_dir, 0, &mut Vec::new(), &mut files);
         files.sort();
         for file in files {
-            let Some(id) = desktop_id(&apps_dir, &file) else { continue };
+            let Some(id) = desktop_id(&apps_dir, &file) else {
+                continue;
+            };
             if !seen.insert(id.clone()) {
                 continue;
             }
@@ -317,7 +334,11 @@ mod tests {
     use super::*;
 
     fn parse(text: &str) -> DesktopEntry {
-        DesktopEntry::parse(text, "/usr/share/applications/app.desktop".into(), "app".into())
+        DesktopEntry::parse(
+            text,
+            "/usr/share/applications/app.desktop".into(),
+            "app".into(),
+        )
     }
 
     const CALCULATOR: &str = "\
@@ -368,7 +389,10 @@ Exec=gnome-calculator --show-shortcuts
             "NotShowIn=GNOME;",
             "TryExec=/nonexistent/carte-test",
         ] {
-            assert!(!parse(&format!("{base}{extra}\n")).should_export(), "{extra}");
+            assert!(
+                !parse(&format!("{base}{extra}\n")).should_export(),
+                "{extra}"
+            );
         }
         assert!(parse(&format!("{base}OnlyShowIn=KDE;GNOME;\n")).should_export());
         assert!(!parse("[Desktop Entry]\nType=Link\nName=X\nExec=x\n").should_export());
@@ -391,7 +415,16 @@ Exec=gnome-calculator --show-shortcuts
         ));
         assert_eq!(
             e.exec_argv().unwrap(),
-            ["/opt/my app/run", "--name", "My App", r#"a "b" $c"#, "", "100%", "--icon", "my-icon"]
+            [
+                "/opt/my app/run",
+                "--name",
+                "My App",
+                r#"a "b" $c"#,
+                "",
+                "100%",
+                "--icon",
+                "my-icon"
+            ]
         );
         assert!(parse("[Desktop Entry]\nExec=\"x\n").exec_argv().is_err());
         assert!(parse("[Desktop Entry]\nExec=x %z\n").exec_argv().is_err());
@@ -401,7 +434,13 @@ Exec=gnome-calculator --show-shortcuts
     #[test]
     fn ids() {
         let dir = Path::new("/usr/share/applications");
-        assert_eq!(desktop_id(dir, &dir.join("kde4/kate.desktop")).as_deref(), Some("kde4-kate"));
-        assert_eq!(desktop_id(dir, &dir.join("a.b.desktop")).as_deref(), Some("a.b"));
+        assert_eq!(
+            desktop_id(dir, &dir.join("kde4/kate.desktop")).as_deref(),
+            Some("kde4-kate")
+        );
+        assert_eq!(
+            desktop_id(dir, &dir.join("a.b.desktop")).as_deref(),
+            Some("a.b")
+        );
     }
 }

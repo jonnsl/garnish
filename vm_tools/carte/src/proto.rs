@@ -31,10 +31,16 @@ pub type Localized = BTreeMap<String, String>;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Request {
     Watch,
-    Icon { id: String, size: u32 },
+    Icon {
+        id: String,
+        size: u32,
+    },
     /// `vm` must match the agent's VM name, so a stale CID can't start an
     /// application in a different VM.
-    Launch { vm: String, id: String },
+    Launch {
+        vm: String,
+        id: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -80,7 +86,10 @@ pub struct Reply {
 
 impl Reply {
     pub fn error(message: impl Into<String>) -> Self {
-        Reply { error: Some(message.into()), ..Default::default() }
+        Reply {
+            error: Some(message.into()),
+            ..Default::default()
+        }
     }
 }
 
@@ -97,7 +106,10 @@ pub fn recv<T: DeserializeOwned>(r: &mut impl BufRead) -> io::Result<Option<T>> 
         return Ok(None);
     }
     if line.last() != Some(&b'\n') {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "message too long or cut off"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "message too long or cut off",
+        ));
     }
     serde_json::from_slice(&line)
         .map(Some)
@@ -111,7 +123,9 @@ pub fn is_valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 200
         && !id.starts_with('.')
-        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
 }
 
 /// VM names are the guest's hostname, a single label: letters, digits and
@@ -131,7 +145,11 @@ mod tests {
 
     #[test]
     fn request_format() {
-        let line = serde_json::to_string(&Request::Icon { id: "a".into(), size: 64 }).unwrap();
+        let line = serde_json::to_string(&Request::Icon {
+            id: "a".into(),
+            size: 64,
+        })
+        .unwrap();
         assert_eq!(line, r#"{"type":"icon","id":"a","size":64}"#);
         let watch: Request = serde_json::from_str(r#"{"type":"watch"}"#).unwrap();
         assert_eq!(watch, Request::Watch);
@@ -141,7 +159,15 @@ mod tests {
     fn round_trip() {
         let mut buf = Vec::new();
         send(&mut buf, &Reply::error("nope")).unwrap();
-        send(&mut buf, &Reply { format: Some("png".into()), len: Some(3), error: None }).unwrap();
+        send(
+            &mut buf,
+            &Reply {
+                format: Some("png".into()),
+                len: Some(3),
+                error: None,
+            },
+        )
+        .unwrap();
         let mut r = &buf[..];
         let a: Reply = recv(&mut r).unwrap().unwrap();
         let b: Reply = recv(&mut r).unwrap().unwrap();

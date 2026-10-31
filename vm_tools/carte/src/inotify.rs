@@ -47,9 +47,15 @@ impl Watcher {
     }
 
     fn add(&self, dir: &Path, mask: u32) {
-        let Ok(path) = CString::new(dir.as_os_str().as_bytes()) else { return };
+        let Ok(path) = CString::new(dir.as_os_str().as_bytes()) else {
+            return;
+        };
         if unsafe { libc::inotify_add_watch(self.0.as_raw_fd(), path.as_ptr(), mask) } < 0 {
-            eprintln!("carte-agent: watching {}: {}", dir.display(), io::Error::last_os_error());
+            eprintln!(
+                "carte-agent: watching {}: {}",
+                dir.display(),
+                io::Error::last_os_error()
+            );
         }
     }
 
@@ -81,7 +87,11 @@ impl Watcher {
 
     /// Whether there are events within `timeout`.
     fn poll(&self, timeout: Duration) -> io::Result<bool> {
-        let mut fds = libc::pollfd { fd: self.0.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+        let mut fds = libc::pollfd {
+            fd: self.0.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
         loop {
             let n = unsafe { libc::poll(&mut fds, 1, timeout.as_millis() as libc::c_int) };
             if n >= 0 {

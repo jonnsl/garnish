@@ -44,11 +44,20 @@ fn split(out: Vec<Out<F>>) -> (Sent, Sent) {
 }
 
 fn global(name: u32, iface: &str, version: u32) -> Vec<u8> {
-    Builder::new(REGISTRY, 0).uint(name).string(iface.as_bytes()).uint(version).build()
+    Builder::new(REGISTRY, 0)
+        .uint(name)
+        .string(iface.as_bytes())
+        .uint(version)
+        .build()
 }
 
 fn bind(name: u32, iface: &str, version: u32, id: u32) -> Vec<u8> {
-    Builder::new(REGISTRY, 0).uint(name).string(iface.as_bytes()).uint(version).uint(id).build()
+    Builder::new(REGISTRY, 0)
+        .uint(name)
+        .string(iface.as_bytes())
+        .uint(version)
+        .uint(id)
+        .build()
 }
 
 /// A guest with a seat, a data device and a data source, on `conn`.
@@ -58,9 +67,27 @@ fn setup(f: &mut Filter<F>, conn: ConnId) {
     ev(f, conn, global(1, "wl_seat", 7));
     ev(f, conn, global(2, "wl_data_device_manager", 3));
     req(f, conn, bind(1, "wl_seat", 7, SEAT), vec![]).unwrap();
-    req(f, conn, bind(2, "wl_data_device_manager", 3, MANAGER), vec![]).unwrap();
-    req(f, conn, Builder::new(MANAGER, 1).uint(DEVICE).uint(SEAT).build(), vec![]).unwrap();
-    req(f, conn, Builder::new(MANAGER, 0).uint(SOURCE).build(), vec![]).unwrap();
+    req(
+        f,
+        conn,
+        bind(2, "wl_data_device_manager", 3, MANAGER),
+        vec![],
+    )
+    .unwrap();
+    req(
+        f,
+        conn,
+        Builder::new(MANAGER, 1).uint(DEVICE).uint(SEAT).build(),
+        vec![],
+    )
+    .unwrap();
+    req(
+        f,
+        conn,
+        Builder::new(MANAGER, 0).uint(SOURCE).build(),
+        vec![],
+    )
+    .unwrap();
 }
 
 fn filter(policy: &str) -> Filter<F> {
@@ -72,7 +99,11 @@ fn filter(policy: &str) -> Filter<F> {
 /// The compositor offers `offer` as the selection.
 fn offer_selection(f: &mut Filter<F>, conn: ConnId, offer: u32) -> Vec<Out<F>> {
     let mut out = ev(f, conn, Builder::new(DEVICE, 0).uint(offer).build());
-    out.extend(ev(f, conn, Builder::new(offer, 0).string(b"text/plain").build()));
+    out.extend(ev(
+        f,
+        conn,
+        Builder::new(offer, 0).string(b"text/plain").build(),
+    ));
     out.extend(ev(f, conn, Builder::new(DEVICE, 5).uint(offer).build()));
     out
 }
@@ -90,10 +121,26 @@ fn hides_unknown_and_data_control_globals() {
     let mut f = filter("both");
     assert!(ev(&mut f, 1, global(9, "zwlr_data_control_manager_v1", 2)).is_empty());
     assert!(ev(&mut f, 1, global(10, "some_private_thing", 1)).is_empty());
-    assert!(req(&mut f, 1, bind(9, "zwlr_data_control_manager_v1", 2, 20), vec![]).is_err());
+    assert!(
+        req(
+            &mut f,
+            1,
+            bind(9, "zwlr_data_control_manager_v1", 2, 20),
+            vec![]
+        )
+        .is_err()
+    );
     // Not even under the name of one it was offered.
     let mut f = filter("both");
-    assert!(req(&mut f, 1, bind(1, "zwlr_data_control_manager_v1", 2, 20), vec![]).is_err());
+    assert!(
+        req(
+            &mut f,
+            1,
+            bind(1, "zwlr_data_control_manager_v1", 2, 20),
+            vec![]
+        )
+        .is_err()
+    );
     // Removing a hidden global isn't passed on either.
     let mut f = filter("both");
     ev(&mut f, 1, global(9, "zwlr_data_control_manager_v1", 2));
@@ -105,7 +152,10 @@ fn caps_versions_at_the_known_protocol() {
     let mut f = filter("both");
     let (client, _) = split(ev(&mut f, 1, global(9, "wl_compositor", 999)));
     let version = u32::from_ne_bytes(client[0].1[client[0].1.len() - 4..].try_into().unwrap());
-    let known = f.protocols.get(f.protocols.find("wl_compositor").unwrap()).version;
+    let known = f
+        .protocols
+        .get(f.protocols.find("wl_compositor").unwrap())
+        .version;
     assert_eq!(version, known);
     assert!(req(&mut f, 1, bind(9, "wl_compositor", 999, 20), vec![]).is_err());
     assert!(req(&mut f, 1, bind(9, "wl_compositor", known, 20), vec![]).is_ok());
@@ -152,22 +202,46 @@ fn host_copy_reaches_the_guest_when_allowed() {
 fn guest_pastes_its_own_copy_without_the_host() {
     for policy in ["none", "to-host", "from-host", "both"] {
         let mut f = filter(policy);
-        req(&mut f, 1, Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(), vec![]).unwrap();
+        req(
+            &mut f,
+            1,
+            Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(),
+            vec![],
+        )
+        .unwrap();
         let (client, _) = split(offer_selection(&mut f, 1, OFFER));
         assert_eq!(selection_arg(&client[2].1), OFFER);
         // The guest's source is asked directly.
         let (client, server) = split(req(&mut f, 1, receive(OFFER), vec![7]).unwrap());
         assert!(server.is_empty(), "{policy}");
-        assert_eq!(client, vec![(1, Builder::new(SOURCE, 1).string(b"text/plain").build(), vec![7])]);
+        assert_eq!(
+            client,
+            vec![(
+                1,
+                Builder::new(SOURCE, 1).string(b"text/plain").build(),
+                vec![7]
+            )]
+        );
     }
 }
 
 #[test]
 fn host_paste_of_guest_copy() {
     let send = || Builder::new(SOURCE, 1).string(b"text/plain").build();
-    for (policy, passed) in [("none", false), ("from-host", false), ("to-host", true), ("both", true)] {
+    for (policy, passed) in [
+        ("none", false),
+        ("from-host", false),
+        ("to-host", true),
+        ("both", true),
+    ] {
         let mut f = filter(policy);
-        req(&mut f, 1, Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(), vec![]).unwrap();
+        req(
+            &mut f,
+            1,
+            Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(),
+            vec![],
+        )
+        .unwrap();
         let out = f.handle(1, false, send(), vec![8]).unwrap();
         assert_eq!(!out.is_empty(), passed, "{policy}");
     }
@@ -176,14 +250,26 @@ fn host_paste_of_guest_copy() {
 #[test]
 fn ownership_ends_with_the_source() {
     let mut f = filter("none");
-    req(&mut f, 1, Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(), vec![]).unwrap();
+    req(
+        &mut f,
+        1,
+        Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(),
+        vec![],
+    )
+    .unwrap();
     // A host app copied: the guest's source is cancelled.
     ev(&mut f, 1, Builder::new(SOURCE, 2).build());
     let (client, _) = split(offer_selection(&mut f, 1, OFFER));
     assert_eq!(selection_arg(&client[0].1), 0);
 
     let mut f = filter("none");
-    req(&mut f, 1, Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(), vec![]).unwrap();
+    req(
+        &mut f,
+        1,
+        Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(),
+        vec![],
+    )
+    .unwrap();
     let (client, _) = split(offer_selection(&mut f, 1, OFFER));
     assert_eq!(selection_arg(&client[2].1), OFFER);
     // The source goes after the offer was given: a paste finds nothing.
@@ -195,7 +281,13 @@ fn ownership_ends_with_the_source() {
 fn guest_copy_pastes_across_connections() {
     let mut f = filter("none");
     setup(&mut f, 2);
-    req(&mut f, 1, Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(), vec![]).unwrap();
+    req(
+        &mut f,
+        1,
+        Builder::new(DEVICE, 1).uint(SOURCE).uint(1).build(),
+        vec![],
+    )
+    .unwrap();
     let (client, _) = split(offer_selection(&mut f, 2, OFFER));
     assert_eq!(selection_arg(&client[2].1), OFFER);
     let (client, _) = split(req(&mut f, 2, receive(OFFER), vec![7]).unwrap());
@@ -210,9 +302,18 @@ fn guest_copy_pastes_across_connections() {
 fn host_drag_is_kept_from_the_guest() {
     let mut f = filter("none");
     ev(&mut f, 1, Builder::new(DEVICE, 0).uint(OFFER).build());
-    let enter = Builder::new(DEVICE, 1).uint(1).uint(10).int(0).int(0).uint(OFFER).build();
+    let enter = Builder::new(DEVICE, 1)
+        .uint(1)
+        .uint(10)
+        .int(0)
+        .int(0)
+        .uint(OFFER)
+        .build();
     let (client, server) = split(ev(&mut f, 1, enter));
-    assert_eq!(u32::from_ne_bytes(client[0].1[24..28].try_into().unwrap()), 0);
+    assert_eq!(
+        u32::from_ne_bytes(client[0].1[24..28].try_into().unwrap()),
+        0
+    );
     assert_eq!(server.len(), 1);
 }
 
@@ -222,7 +323,15 @@ fn rejects_unknown_objects_and_opcodes() {
     assert!(req(&mut f, 1, Builder::new(77, 0).build(), vec![]).is_err());
     assert!(req(&mut f, 1, Builder::new(DEVICE, 40).build(), vec![]).is_err());
     // Objects in the compositor's range are the compositor's to make.
-    assert!(req(&mut f, 1, Builder::new(MANAGER, 0).uint(OFFER + 5).build(), vec![]).is_err());
+    assert!(
+        req(
+            &mut f,
+            1,
+            Builder::new(MANAGER, 0).uint(OFFER + 5).build(),
+            vec![]
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -235,5 +344,13 @@ fn ids_are_reused_after_delete_id() {
     ev(&mut f, 1, global(9, "wl_compositor", 4));
     req(&mut f, 1, bind(9, "wl_compositor", 4, 20), vec![]).unwrap();
     req(&mut f, 1, Builder::new(20, 0).uint(SOURCE).build(), vec![]).unwrap();
-    assert_eq!(f.fds_needed(1, true, &Builder::new(SOURCE, 1).uint(0).int(0).int(0).build()).unwrap(), 0);
+    assert_eq!(
+        f.fds_needed(
+            1,
+            true,
+            &Builder::new(SOURCE, 1).uint(0).int(0).int(0).build()
+        )
+        .unwrap(),
+        0
+    );
 }
