@@ -29,12 +29,17 @@ jobs:
           - crate: gerant
           - crate: sonnette
             msrv: "1.85"
+          # videur's tests read the installed Wayland protocol XMLs
           - crate: videur
+            apt: libwayland-dev wayland-protocols
     defaults:
       run:
         working-directory: vm_tools/${{ matrix.crate }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Install system packages
+        if: matrix.apt
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ${{ matrix.apt }}
       - name: Install toolchains
         run: |
           rustup toolchain install stable --profile minimal --component clippy,rustfmt
@@ -70,7 +75,7 @@ jobs:
             base-devel git meson vala blueprint-compiler uncrustify \
             gtk4 libadwaita json-glib libpulse \
             desktop-file-utils appstream
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Mark the checkout as safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       # build-aux/check-style.sh also runs vala-lint, which is only in the AUR
