@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # carte and sonnette are built inside Debian trixie guests, so they
+          # must keep building with the rust-version in their Cargo.toml.
+          - crate: carte
+            msrv: "1.85"
+          - crate: gerant
+          - crate: sonnette
+            msrv: "1.85"
+          - crate: videur
+    defaults:
+      run:
+        working-directory: vm_tools/${{ matrix.crate }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchains
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy
+          if [ -n "${{ matrix.msrv }}" ]; then
+            rustup toolchain install ${{ matrix.msrv }} --profile minimal
+          fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vm_tools/${{ matrix.crate }}
+      - name: Clippy
+        run: cargo +stable clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo +stable test --locked
+      - name: Build with rust-version (${{ matrix.msrv }})
+        if: matrix.msrv
+        run: cargo +${{ matrix.msrv }} build --locked --all-targets
+
+  salle:
+    name: salle
+    runs-on: ubuntu-latest
+    # Salle needs GTK >= 4.18 and libadwaita >= 1.8
+    container: archlinux:latest
+    defaults:
+      run:
+        working-directory: vm_tools/salle
+    steps:
+      - name: Install dependencies
+        working-directory: /
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git meson vala blueprint-compiler uncrustify \
+            gtk4 libadwaita json-glib libpulse \
+            desktop-file-utils appstream
+      - uses: actions/checkout@v4
+      - name: Mark the checkout as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      # build-aux/check-style.sh also runs vala-lint, which is only in the AUR
+      - name: Check formatting
+        run: git ls-files -z '*.vala' | xargs -0 uncrustify -c uncrustify.cfg -l VALA --check -q
+      - name: Build
+        run: |
+          meson setup _build
+          meson compile -C _build
+      - name: Test
+        run: meson test -C _build --print-errorlogs
