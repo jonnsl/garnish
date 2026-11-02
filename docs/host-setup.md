@@ -37,9 +37,12 @@ helper installed setuid root next to it, every time a VM with `Mode=nat`
 starts. The helper
 
 1. creates tap `garnish<n>` for the lowest free /30 in the subnet: the host
-   gets 192.168.10.(4n+1) on it and the guest 192.168.10.(4n+2),
-2. turns IPv4 forwarding on (`net.ipv4.ip_forward=1`; it stays on),
-3. loads the nftables table below, replacing any older version of it,
+   gets 192.168.10.(4n+1) on it and the guest 192.168.10.(4n+2). For IPv6
+   the tap gets the n-th /64 of the IPv6 subnet: the host is
+   fd67:6172:6e69:n::1 and the guest fd67:6172:6e69:n::2,
+2. turns IPv4 and IPv6 forwarding on (`net.ipv4.ip_forward=1`,
+   `net.ipv6.conf.all.forwarding=1`; they stay on),
+3. loads the nftables tables below, replacing any older version of them,
 4. passes the open tap to gerantd over a socket and exits.
 
 gerantd hands the tap to crosvm as `--net tap-fd=N`. The tap isn't
@@ -48,33 +51,64 @@ is closed, even if gerantd crashes. Nothing has to be set up after a reboot.
 
 ```
 table ip garnish {
-    chain postrouting {
-        type nat hook postrouting priority srcnat;
-        ip saddr 192.168.10.0/24 oifname != "garnish*" masquerade
-    }
     chain forward {
         type filter hook forward priority filter;
         iifname "garnish*" oifname "garnish*" drop
         iifname "garnish*" ip saddr != 192.168.10.0/24 drop
     }
+    chain postrouting {
+        type nat hook postrouting priority srcnat;
+        ip saddr 192.168.10.0/24 oifname != "garnish*" masquerade
+    }
+}
+table ip6 garnish {
+    chain forward {
+        type filter hook forward priority filter;
+        iifname "garnish*" oifname "garnish*" drop
+        iifname "garnish*" ip6 saddr != fd67:6172:6e69::/48 drop
+    }
+    chain postrouting {
+        type nat hook postrouting priority srcnat;
+        ip6 saddr fd67:6172:6e69::/48 oifname != "garnish*" masquerade
+    }
 }
 ```
+
+With an empty `Subnet6=`, `ip6 garnish` only has `iifname "garnish*" drop`
+in its forward chain.
 
 Guests reach the outside through the host's address, but not each other,
 and they can't send from addresses that aren't theirs. They can reach the
 host itself, at their gateway address or any other. If the host firewall
 drops forwarded traffic (a `forward` chain with `policy drop`, as firewalld
 or ufw set up), the NAT rule alone isn't enough: that firewall also has to
-accept forwarding from and to the `garnish*` interfaces. To remove the table:
-`sudo nft delete table ip garnish`.
+accept forwarding from and to the `garnish*` interfaces, for IPv4 and IPv6.
+To remove the tables: `sudo nft delete table ip garnish` and
+`sudo nft delete table ip6 garnish`.
 
-The subnet is the same for every user of the host, so it is set by root, in
-`/etc/garnish/network.conf` (optional; `vm_tools/gerant/examples/network.conf`
-has the default). Pick one that doesn't overlap a network the host is on:
+#### IPv6 forwarding and router advertisements
+
+With forwarding on, the kernel ignores router advertisements on interfaces
+where it handles them itself (`accept_ra=1`), and the IPv6 routes they gave
+the host expire. NetworkManager and systemd-networkd handle them on their
+own (`accept_ra=0`), which forwarding doesn't change. So, like libvirt,
+before turning IPv6 forwarding on gerant-net checks for routes that came from
+router advertisements on an interface with `accept_ra=1`. If there are any,
+the VM starts with IPv4 only and gerantd logs why. To give guests IPv6
+anyway, set `accept_ra=2` on those interfaces (it keeps the advertisements
+with forwarding on), or turn on `net.ipv6.conf.all.forwarding` yourself.
+The guests also get IPv4 only when the host has IPv6 turned off.
+
+The subnets are the same for every user of the host, so they are set by
+root, in `/etc/garnish/network.conf` (optional;
+`vm_tools/gerant/examples/network.conf` has the defaults). Pick ones that
+don't overlap a network the host is on. `Subnet6=` needs a /64 for each /30
+of `Subnet=` (a /58 or larger for a /24); empty, guests get IPv4 only:
 
 ```ini
 [NAT]
 Subnet=192.168.10.0/24
+Subnet6=fd67:6172:6e69::/48
 ```
 
 The file has to belong to root and not be writable by anyone else, or
@@ -92,12 +126,12 @@ up. Before it reads its configuration or touches the network, it
   `no_new_privs`, so nothing it could run would get any back
 - is marked not dumpable, so the user can't attach a debugger to it
 - opens everything it needs: `/dev/net/tun`,
-  `/proc/sys/net/ipv4/ip_forward`, a netlink socket for addresses and one for
-  nftables
+  `/proc/sys/net/ipv4/ip_forward`, `/proc/sys/net/ipv6/conf/all/forwarding`,
+  a netlink socket for addresses and routes and one for nftables
 - installs a seccomp filter. After that it can't open files, create sockets,
   run programs or send signals. `ioctl` works only for creating the tap and
-  looking up its index, `sendmsg`, `recv` and `write` only on the descriptors
-  meant for them, and any other call kills it
+  looking up its index, `sendmsg`, `recv`, `read` and `write` only on the
+  descriptors meant for them, and any other call kills it
 
 Its environment is ignored, and it accepts exactly one argument, `nat`.
 The code is in `vm_tools/gerant/src/bin/gerant-net/`.

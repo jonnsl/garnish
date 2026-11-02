@@ -368,7 +368,10 @@ impl Manager {
         let net = match &res.net {
             None => "no network".to_owned(),
             Some(Net::Passt) => "network through passt".to_owned(),
-            Some(Net::Tap(tap)) => format!("{} on {}", tap.info.guest, tap.info.name),
+            Some(Net::Tap(tap)) => match &tap.info.v6 {
+                Some(v6) => format!("{} and {} on {}", tap.info.guest, v6.guest, tap.info.name),
+                None => format!("{} on {}", tap.info.guest, tap.info.name),
+            },
         };
         log(format!(
             "{name}: started, CID {}, {net}, logs in {}",

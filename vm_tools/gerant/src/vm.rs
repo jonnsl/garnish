@@ -3,7 +3,7 @@
 use std::ffi::OsString;
 use std::fs::File;
 use std::io;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::fd::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -46,14 +46,25 @@ impl Net {
         }
     }
 
+    /// The guest's IPv6 address, its gateway and the prefix length, if it
+    /// gets a static one.
+    pub fn addresses6(&self) -> Option<(Ipv6Addr, Ipv6Addr, u8)> {
+        match self {
+            Net::Passt => None,
+            Net::Tap(tap) => tap.info.v6.map(|v6| (v6.guest, v6.host, v6.prefix_len)),
+        }
+    }
+
     /// The `ip=` autoconfiguration. passt answers router solicitations
     /// and DHCPv6 with the host's IPv6 setup; `auto6` keeps the static IPv4
     /// address but leaves systemd-networkd's IPv6 defaults on (a link-local
-    /// address, router advertisements). `off` turns them off: nothing on a
-    /// tap answers.
+    /// address, router advertisements). On a tap nothing answers: `link6`
+    /// keeps only the link-local address, next to the static IPv6 one, and
+    /// `off` turns IPv6 off.
     pub fn autoconf(&self) -> &'static str {
         match self {
             Net::Passt => "auto6",
+            Net::Tap(_) if self.addresses6().is_some() => "link6",
             Net::Tap(_) => "off",
         }
     }
@@ -120,6 +131,13 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
             ip = format!("{ip}:{}", dns.join(":"));
         }
         params.push(ip);
+        // A second ip= for the same interface adds to the first. Its
+        // autoconfiguration wins, so both have the same.
+        if let Some((guest, gateway, prefix_len)) = net.addresses6() {
+            params.push(format!(
+                "ip=[{guest}]::[{gateway}]:{prefix_len}::eth0:{autoconf}"
+            ));
+        }
         params.push("net.ifnames=0".into());
     }
     if config.shared_home.is_some() {
@@ -432,11 +450,29 @@ mod tests {
         assert_eq!(
             kernel_cmdline("debian", &c, &net()),
             format!(
-                "{} systemd.hostname=debian ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:off:1.1.1.1:9.9.9.9 net.ifnames=0 \
+                "{} systemd.hostname=debian ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:link6:1.1.1.1:9.9.9.9 \
+                 ip=[fd67:6172:6e69:1::2]::[fd67:6172:6e69:1::1]:64::eth0:link6 net.ifnames=0 \
                  systemd.mount-extra=home:/home/me:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service quiet",
                 crate::config::DEFAULT_CMDLINE
             )
         );
+        // A tap without IPv6: the helper left it out, or Subnet6= is empty.
+        let mut info = crate::net::NetConfig::default().slot(1);
+        info.v6 = None;
+        let v4_only = Resources {
+            net: Some(Net::Tap(Arc::new(Tap {
+                info,
+                fd: File::open("/dev/null").unwrap().into(),
+            }))),
+            ..net()
+        };
+        let line = kernel_cmdline("debian", &c, &v4_only);
+        assert!(
+            line.contains(
+                " ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:off:1.1.1.1:9.9.9.9 "
+            )
+        );
+        assert_eq!(line.matches("ip=").count(), 1);
         let no_net = Resources {
             cid: 3,
             net: None,

@@ -7,12 +7,14 @@
 //! 3. installs a seccomp filter: no more opening, and the calls that are
 //!    left work only on those descriptors (seccomp.rs),
 //! 4. reads the settings, creates the tap, configures it, enables IPv4
-//!    forwarding and loads the firewall rules (netlink.rs),
+//!    and IPv6 forwarding and loads the firewall rules (netlink.rs),
 //! 5. sends the tap's descriptor and addresses to standard output, which
 //!    has to be a Unix socket, and exits.
 //!
 //! Nothing the caller passes picks the tap's name or addresses: those come
-//! from the next free /30 in the subnet that root configured. The tap isn't
+//! from the next free /30 (and /64) in the subnets that root configured.
+//! When IPv6 can't be set up on this host, the tap gets only IPv4, and the
+//! reason goes to standard error, which gerantd logs. The tap isn't
 //! persistent: the kernel removes it when the last descriptor is closed.
 
 mod netlink;
@@ -25,7 +27,7 @@ use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::process::ExitCode;
 
-use gerant::net::{self, NatTap, NetConfig};
+use gerant::net::{self, NatTap, NatTap6, NetConfig};
 use netlink::Netlink;
 use seccomp::Rule;
 
@@ -65,8 +67,17 @@ struct Opened {
     config: Option<String>,
     tun: File,
     ip_forward: File,
+    /// None if the host has no IPv6 (ipv6.disable=1).
+    ipv6: Option<Ipv6Forwarding>,
     rtnl: Netlink,
     nfnl: Netlink,
+}
+
+/// /proc/sys/net/ipv6/conf/all/forwarding, twice: a write after a read
+/// would be at a non-zero offset, which sysctl ignores.
+struct Ipv6Forwarding {
+    read: File,
+    write: File,
 }
 
 fn main() -> ExitCode {
@@ -100,7 +111,7 @@ fn run() -> Result<(), String> {
     let opened = open_all()?;
     seccomp::install(&rules(&opened))?;
     let config = net::parse_config(opened.config.as_deref())?;
-    let tap = create_tap(&opened.tun, &config)?;
+    let mut tap = create_tap(&opened.tun, &config)?;
     let index = if_index(&opened.rtnl, &tap.name)?;
     netlink::configure_tap(&opened.rtnl, &tap, index)?;
     // NAT needs forwarding. Like libvirt, we turn it on and leave it on:
@@ -108,12 +119,53 @@ fn run() -> Result<(), String> {
     (&opened.ip_forward)
         .write_all(b"1\n")
         .map_err(|e| format!("enabling IPv4 forwarding: {e}"))?;
+    if let Some(v6) = tap.v6
+        && let Err(why) = setup_ipv6(&opened, &tap.name, &v6, index)
+    {
+        eprintln!("gerant-net: {}: IPv4 only: {why}", tap.name);
+        tap.v6 = None;
+    }
     opened
         .nfnl
         .send(&netlink::nat_ruleset(&config))
-        .map_err(|e| format!("loading nftables table ip {}: {e}", netlink::TABLE))?;
+        .map_err(|e| format!("loading nftables tables ip and ip6 {}: {e}", netlink::TABLE))?;
     net::send_reply(REPLY_FD, &tap, opened.tun.as_raw_fd())
         .map_err(|e| format!("sending the tap: {e}"))
+}
+
+/// Puts the host's IPv6 address on the tap and makes sure forwarding is on.
+/// An error means the guest gets only IPv4.
+fn setup_ipv6(opened: &Opened, name: &str, v6: &NatTap6, index: u32) -> Result<(), String> {
+    let Some(forwarding) = &opened.ipv6 else {
+        return Err("the host has IPv6 turned off".into());
+    };
+    let mut current = [0u8; 4];
+    let n = (&forwarding.read)
+        .read(&mut current)
+        .map_err(|e| format!("reading net.ipv6.conf.all.forwarding: {e}"))?;
+    if current[..n].first() != Some(&b'1') {
+        // Like libvirt: forwarding would make the kernel ignore router
+        // advertisements, and the host would lose the routes they gave it.
+        let at_risk = netlink::ra_dependent_interfaces(&opened.rtnl)?;
+        if !at_risk.is_empty() {
+            let sysctls: Vec<String> = at_risk
+                .iter()
+                .map(|i| format!("net.ipv6.conf.{i}.accept_ra=2"))
+                .collect();
+            return Err(format!(
+                "turning on IPv6 forwarding would make the kernel ignore the router \
+                 advertisements that the host's IPv6 routes on {} come from; set {} \
+                 (or turn on net.ipv6.conf.all.forwarding yourself)",
+                at_risk.join(", "),
+                sysctls.join(" and ")
+            ));
+        }
+    }
+    netlink::configure_tap6(&opened.rtnl, v6, index)
+        .map_err(|e| format!("adding {}/{} to {name}: {e}", v6.host, v6.prefix_len))?;
+    (&forwarding.write)
+        .write_all(b"1\n")
+        .map_err(|e| format!("enabling IPv6 forwarding: {e}"))
 }
 
 fn open_all() -> Result<Opened, String> {
@@ -148,10 +200,20 @@ fn open_all() -> Result<Opened, String> {
             .open(path)
             .map_err(|e| format!("{path}: {e}"))
     };
+    const IPV6_FORWARDING: &str = "/proc/sys/net/ipv6/conf/all/forwarding";
+    let ipv6 = match File::open(IPV6_FORWARDING) {
+        Ok(read) => Some(Ipv6Forwarding {
+            read,
+            write: open(IPV6_FORWARDING, true)?,
+        }),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+        Err(e) => return Err(format!("{IPV6_FORWARDING}: {e}")),
+    };
     Ok(Opened {
         config,
         tun: open("/dev/net/tun", false)?,
         ip_forward: open("/proc/sys/net/ipv4/ip_forward", true)?,
+        ipv6,
         rtnl: Netlink::open(libc::NETLINK_ROUTE)?,
         nfnl: Netlink::open(libc::NETLINK_NETFILTER)?,
     })
@@ -165,7 +227,7 @@ fn rules(o: &Opened) -> Vec<Rule> {
         o.rtnl.fd(),
         o.nfnl.fd(),
     );
-    vec![
+    let mut rules = vec![
         Rule::ioctl(tun, &[libc::TUNSETIFF as libc::c_ulong]),
         Rule::ioctl(rtnl, &[SIOCGIFINDEX]),
         Rule::on(libc::SYS_sendmsg, rtnl),
@@ -189,7 +251,12 @@ fn rules(o: &Opened) -> Vec<Rule> {
         Rule::any(libc::SYS_rt_sigreturn),
         Rule::any(libc::SYS_exit),
         Rule::any(libc::SYS_exit_group),
-    ]
+    ];
+    if let Some(v6) = &o.ipv6 {
+        rules.push(Rule::on(libc::SYS_read, v6.read.as_raw_fd()));
+        rules.push(Rule::on(libc::SYS_write, v6.write.as_raw_fd()));
+    }
+    rules
 }
 
 /// Creates the tap of the lowest free /30. A tap's name is taken while it

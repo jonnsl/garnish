@@ -120,7 +120,9 @@ systemd.firstboot=off video=Virtual-1:d`. gerantd adds to it:
 - with a network, `ip=<guest>::<gateway>:<netmask>::eth0:<autoconf>:<dns>`
   and `net.ifnames=0`: the guest's address, gateway and DNS servers.
   `<autoconf>` is `auto6` with passt, which keeps systemd-networkd's IPv6
-  defaults on, and `off` with NAT
+  defaults on, `link6` with NAT and IPv6, and `off` with NAT and IPv4 only.
+  With NAT and IPv6, a second `ip=[<guest6>]::[<gateway6>]:64::eth0:link6`
+  gives the guest its IPv6 address and gateway
 - with `SharedHome=`, `systemd.mount-extra=` to mount it over
   `/home/<User>` (`nofail`: if the mount fails, the guest boots with the home
   from the image)
@@ -186,6 +188,15 @@ place, and passes the open tap back over a Unix socket. crosvm gets it as
 `.4n+2`: 192.168.10.2 for the first VM, 192.168.10.6 for the second, and so
 on, across all users' VMs. A /30 per VM and a firewall rule keep guests from
 reaching each other; they reach the outside through the host's address.
+
+IPv6 works the same way, with the n-th /64 of `Subnet6=` (default
+fd67:6172:6e69::/48): the host is `::1` and the guest `::2`, so
+fd67:6172:6e69::2 for the first VM and fd67:6172:6e69:1::2 for the second.
+Their connections leave from the host's IPv6 address. When gerant-net can't
+turn IPv6 forwarding on safely (see
+[docs/host-setup.md](../../docs/host-setup.md#ipv6-forwarding-and-router-advertisements)),
+the VM gets IPv4 only and gerantd logs why. The D-Bus `address` is the IPv4
+one.
 
 The tap lives as long as its descriptors: gerantd keeps one for crosvm's
 restarts after a guest reboot, and when the VM stops, the kernel removes the
@@ -305,7 +316,6 @@ Anything running as your user can call these, just as it could run crosvm.
 - fixed CIDs or addresses for a VM
 - more than two DNS servers
 - a bridge to the host's network, and port forwarding to passt guests
-- IPv6 settings for the guests: gerantd gives them only IPv4 addresses
 - a limit on how many taps one user can hold: anyone can run gerant-net, and
   each tap takes one of the subnet's /30s until it is closed
 - noticing a CID taken by a crosvm that gerantd didn't start (the start then

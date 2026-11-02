@@ -9,7 +9,7 @@
 
 use std::io;
 use std::mem;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
@@ -21,8 +21,8 @@ use crate::ini::Entry;
 pub const HELPER: &str = "gerant-net";
 /// Settings for every user's VMs. Read by the helper, as root.
 pub const CONFIG_PATH: &str = "/etc/garnish/network.conf";
-/// Taps are `<TAP_PREFIX><n>` for the n-th /30 in the subnet. Also matched
-/// by the firewall rules.
+/// Taps are `<TAP_PREFIX><n>` for the n-th /30 in the subnet (and the n-th
+/// /64 in the IPv6 one). Also matched by the firewall rules.
 pub const TAP_PREFIX: &str = "garnish";
 
 /// The guest's side of `[Network] Mode=passt`. Every VM has a passt of its
@@ -38,13 +38,36 @@ pub struct NetConfig {
     /// of each and the guest the second.
     pub subnet: Ipv4Addr,
     pub prefix_len: u8,
+    /// Split into /64 networks, the n-th for the same VM as the n-th /30:
+    /// the host has `::1` in it and the guest `::2`. None: IPv4 only.
+    pub subnet6: Option<Prefix6>,
 }
+
+/// An IPv6 network.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Prefix6 {
+    pub addr: Ipv6Addr,
+    pub len: u8,
+}
+
+impl Prefix6 {
+    pub fn mask(&self) -> Ipv6Addr {
+        Ipv6Addr::from(mask6(self.len))
+    }
+}
+
+/// `fd67:6172:6e69::/48`: a unique local prefix, "garni" in ASCII.
+pub const DEFAULT_SUBNET6: Prefix6 = Prefix6 {
+    addr: Ipv6Addr::new(0xfd67, 0x6172, 0x6e69, 0, 0, 0, 0, 0),
+    len: 48,
+};
 
 impl Default for NetConfig {
     fn default() -> Self {
         NetConfig {
             subnet: Ipv4Addr::new(192, 168, 10, 0),
             prefix_len: 24,
+            subnet6: Some(DEFAULT_SUBNET6),
         }
     }
 }
@@ -54,7 +77,10 @@ impl NetConfig {
         let mut config = NetConfig::default();
         for e in entries {
             match (e.section.as_str(), e.key.as_str()) {
-                ("NAT", "Subnet") if e.value.is_empty() => config = NetConfig::default(),
+                ("NAT", "Subnet") if e.value.is_empty() => {
+                    let d = NetConfig::default();
+                    (config.subnet, config.prefix_len) = (d.subnet, d.prefix_len);
+                }
                 ("NAT", "Subnet") => {
                     let parsed = e.value.split_once('/').and_then(|(addr, len)| {
                         Some((
@@ -70,7 +96,25 @@ impl NetConfig {
                     if u32::from(subnet) & !mask(prefix_len) != 0 {
                         return Err(e.error("host bits are set"));
                     }
-                    config = NetConfig { subnet, prefix_len };
+                    (config.subnet, config.prefix_len) = (subnet, prefix_len);
+                }
+                ("NAT", "Subnet6") if e.value.is_empty() => config.subnet6 = None,
+                ("NAT", "Subnet6") => {
+                    let parsed = e.value.split_once('/').and_then(|(addr, len)| {
+                        Some(Prefix6 {
+                            addr: addr.parse::<Ipv6Addr>().ok()?,
+                            len: len.parse::<u8>().ok().filter(|l| *l <= 64)?,
+                        })
+                    });
+                    let Some(prefix) = parsed else {
+                        return Err(e.error(
+                            "expected an IPv6 network of /64 or larger, like fd67:6172:6e69::/48",
+                        ));
+                    };
+                    if u128::from(prefix.addr) & !mask6(prefix.len) != 0 {
+                        return Err(e.error("host bits are set"));
+                    }
+                    config.subnet6 = Some(prefix);
                 }
                 _ => {
                     return Err(format!(
@@ -83,6 +127,15 @@ impl NetConfig {
                 }
             }
         }
+        if let Some(p) = config.subnet6 {
+            // One /64 for each /30.
+            if 64 - u32::from(p.len) < 30 - u32::from(config.prefix_len) {
+                return Err(format!(
+                    "{CONFIG_PATH}: Subnet6={}/{} has fewer /64 networks than Subnet={}/{} has /30s",
+                    p.addr, p.len, config.subnet, config.prefix_len
+                ));
+            }
+        }
         Ok(config)
     }
 
@@ -91,7 +144,7 @@ impl NetConfig {
         1 << (30 - self.prefix_len)
     }
 
-    /// The n-th /30.
+    /// The n-th /30, and the n-th /64.
     pub fn slot(&self, index: u32) -> NatTap {
         let base = u32::from(self.subnet) + 4 * index;
         NatTap {
@@ -99,6 +152,14 @@ impl NetConfig {
             host: Ipv4Addr::from(base + 1),
             guest: Ipv4Addr::from(base + 2),
             prefix_len: 30,
+            v6: self.subnet6.map(|p| {
+                let base = u128::from(p.addr) | u128::from(index) << 64;
+                NatTap6 {
+                    host: Ipv6Addr::from(base + 1),
+                    guest: Ipv6Addr::from(base + 2),
+                    prefix_len: 64,
+                }
+            }),
         }
     }
 
@@ -113,6 +174,12 @@ fn mask(prefix_len: u8) -> u32 {
         .unwrap_or(0)
 }
 
+fn mask6(prefix_len: u8) -> u128 {
+    u128::MAX
+        .checked_shl(128 - u32::from(prefix_len))
+        .unwrap_or(0)
+}
+
 /// A tap with NAT to the outside: the helper's reply, next to the tap's
 /// file descriptor.
 #[derive(Debug, Clone, PartialEq)]
@@ -120,6 +187,16 @@ pub struct NatTap {
     pub name: String,
     pub host: Ipv4Addr,
     pub guest: Ipv4Addr,
+    pub prefix_len: u8,
+    /// None if IPv6 is off in the settings, or the helper couldn't set it
+    /// up on this host.
+    pub v6: Option<NatTap6>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NatTap6 {
+    pub host: Ipv6Addr,
+    pub guest: Ipv6Addr,
     pub prefix_len: u8,
 }
 
@@ -130,14 +207,22 @@ impl NatTap {
 
     /// `key=value` lines.
     pub fn encode(&self) -> String {
-        format!(
+        let mut text = format!(
             "tap={}\nhost={}\nguest={}\nprefix={}\n",
             self.name, self.host, self.guest, self.prefix_len
-        )
+        );
+        if let Some(v6) = &self.v6 {
+            text += &format!(
+                "host6={}\nguest6={}\nprefix6={}\n",
+                v6.host, v6.guest, v6.prefix_len
+            );
+        }
+        text
     }
 
     pub fn decode(text: &str) -> Result<NatTap, String> {
         let (mut name, mut host, mut guest, mut prefix_len) = (None, None, None, None);
+        let (mut host6, mut guest6, mut prefix6) = (None, None, None);
         for line in text.lines() {
             let bad = || format!("bad line {line:?}");
             let (key, value) = line.split_once('=').ok_or_else(bad)?;
@@ -148,16 +233,31 @@ impl NatTap {
                 "prefix" => {
                     prefix_len = Some(value.parse().ok().filter(|l| *l <= 32).ok_or_else(bad)?)
                 }
+                "host6" => host6 = Some(value.parse().map_err(|_| bad())?),
+                "guest6" => guest6 = Some(value.parse().map_err(|_| bad())?),
+                "prefix6" => {
+                    prefix6 = Some(value.parse().ok().filter(|l| *l <= 128).ok_or_else(bad)?)
+                }
                 // Room for more in later versions.
                 _ => {}
             }
         }
+        let v6 = match (host6, guest6, prefix6) {
+            (Some(host), Some(guest), Some(prefix_len)) => Some(NatTap6 {
+                host,
+                guest,
+                prefix_len,
+            }),
+            (None, None, None) => None,
+            _ => return Err(format!("incomplete reply {text:?}")),
+        };
         match (name, host, guest, prefix_len) {
             (Some(name), Some(host), Some(guest), Some(prefix_len)) => Ok(NatTap {
                 name,
                 host,
                 guest,
                 prefix_len,
+                v6,
             }),
             _ => Err(format!("incomplete reply {text:?}")),
         }
@@ -228,6 +328,10 @@ async fn run_helper(helper: &Path) -> Result<Tap, String> {
         } else {
             msg.to_owned()
         });
+    }
+    // On success, what it wrote are warnings, such as IPv6 being left out.
+    for line in String::from_utf8_lossy(&output.stderr).lines() {
+        eprintln!("gerantd: {line}");
     }
     recv_reply(&ours).map_err(|e| format!("{HELPER}: {e}"))
 }
@@ -378,6 +482,43 @@ mod tests {
     }
 
     #[test]
+    fn settings6() {
+        assert_eq!(NetConfig::default().subnet6, Some(DEFAULT_SUBNET6));
+        assert_eq!(config("[NAT]\nSubnet6=\n").unwrap().subnet6, None);
+        // Subnet= doesn't reset Subnet6=, in either order.
+        let c = config("[NAT]\nSubnet6=\nSubnet=\n").unwrap();
+        assert_eq!(c.subnet6, None);
+        let c = config("[NAT]\nSubnet6=fd00:1::/56\nSubnet=10.0.0.0/24\n").unwrap();
+        assert_eq!(
+            c.subnet6,
+            Some(Prefix6 {
+                addr: "fd00:1::".parse().unwrap(),
+                len: 56
+            })
+        );
+        assert_eq!(
+            c.subnet6.unwrap().mask(),
+            "ffff:ffff:ffff:ff00::".parse::<Ipv6Addr>().unwrap()
+        );
+        assert!(
+            config("[NAT]\nSubnet6=fd00::1/64\n")
+                .unwrap_err()
+                .contains("host bits")
+        );
+        assert!(config("[NAT]\nSubnet6=fd00::/65\n").is_err());
+        assert!(config("[NAT]\nSubnet6=10.0.0.0/8\n").is_err());
+        // A /64 for each /30: /24 has 64 of them, /58 has only 64 /64s.
+        assert!(config("[NAT]\nSubnet6=fd00::/58\n").is_ok());
+        assert!(
+            config("[NAT]\nSubnet6=fd00::/59\n")
+                .unwrap_err()
+                .contains("fewer /64 networks")
+        );
+        assert!(config("[NAT]\nSubnet=10.0.0.0/16\nSubnet6=fd00::/50\n").is_ok());
+        assert!(config("[NAT]\nSubnet=10.0.0.0/16\nSubnet6=fd00::/51\n").is_err());
+    }
+
+    #[test]
     fn slots() {
         let c = NetConfig::default();
         let t = c.slot(1);
@@ -390,6 +531,20 @@ mod tests {
             )
         );
         assert_eq!(t.netmask(), Ipv4Addr::new(255, 255, 255, 252));
+        assert_eq!(
+            t.v6,
+            Some(NatTap6 {
+                host: "fd67:6172:6e69:1::1".parse().unwrap(),
+                guest: "fd67:6172:6e69:1::2".parse().unwrap(),
+                prefix_len: 64
+            })
+        );
+        let c = config("[NAT]\nSubnet=10.0.0.0/16\nSubnet6=fd00::/50\n").unwrap();
+        assert_eq!(
+            c.slot(c.slots() - 1).v6.unwrap().guest,
+            "fd00:0:0:3fff::2".parse::<Ipv6Addr>().unwrap()
+        );
+        assert_eq!(config("[NAT]\nSubnet6=\n").unwrap().slot(0).v6, None);
         // The longest name fits in IFNAMSIZ with its NUL.
         let c = config("[NAT]\nSubnet=10.0.0.0/16\n").unwrap();
         assert!(c.slot(c.slots() - 1).name.len() < 16);
@@ -451,7 +606,20 @@ mod tests {
     fn reply() {
         let t = NetConfig::default().slot(3);
         assert_eq!(NatTap::decode(&t.encode()), Ok(t.clone()));
-        assert_eq!(NatTap::decode(&format!("{}future=1\n", t.encode())), Ok(t));
+        assert_eq!(
+            NatTap::decode(&format!("{}future=1\n", t.encode())),
+            Ok(t.clone())
+        );
+        // From a helper without IPv6, or one that left it out.
+        let mut v4 = t.clone();
+        v4.v6 = None;
+        assert!(!v4.encode().contains("host6"));
+        assert_eq!(NatTap::decode(&v4.encode()), Ok(v4.clone()));
+        assert!(
+            NatTap::decode(&format!("{}host6=fd00::1\n", v4.encode()))
+                .unwrap_err()
+                .contains("incomplete")
+        );
         assert!(
             NatTap::decode("tap=x\n")
                 .unwrap_err()
