@@ -139,7 +139,7 @@ and read once, at startup. `examples/gerantd.conf` has the defaults:
 | Setting | Default | Meaning |
 |---|---|---|
 | `[Pool] CIDs=` | `3-99` | vsock context IDs |
-| `[Pool] DNS=` | the host's (see [passt](#passt)) | list, at most two; empty: none. Without it, NAT guests get `1.1.1.1 9.9.9.9` |
+| `[Pool] DNS=` | the host's resolver | list, at most two; empty: none. See [passt](#passt) and [NAT](#nat) |
 | `[Manager] StopTimeoutSec=` | `30` | how long a guest gets to shut down |
 
 A VM gets the lowest free CID. It is given back when the VM stops, so a VM's
@@ -206,11 +206,21 @@ turn IPv6 forwarding on safely (see
 the VM gets IPv4 only and gerantd logs why. On D-Bus, `address` is the IPv4
 address and `address6` the IPv6 one.
 
+Unless `[Pool] DNS=` is set, the guest's DNS server is its gateway, the
+host's address on the tap. gerant-net binds UDP and TCP sockets to port 53
+there and passes them back with the tap, and gerantd (`src/dns.rs`) forwards
+what arrives to the host's first nameserver in `/etc/resolv.conf`, as passt
+does for its guests. A firewall rule keeps other machines from using them,
+and each VM's forwarder answers only its own guest.
+When gerant-net can't bind them, the guest gets 1.1.1.1 and 9.9.9.9 instead,
+and gerantd logs why.
+
 The tap lives as long as its descriptors: gerantd keeps one for crosvm's
 restarts after a guest reboot, and when the VM stops, the kernel removes the
 tap. So a VM's address can change between runs.
 
-gerant-net is setuid root but keeps only `CAP_NET_ADMIN`, as your user, and
+gerant-net is setuid root but keeps only `CAP_NET_ADMIN` and
+`CAP_NET_BIND_SERVICE`, as your user, and
 seccomp-confines itself before it does anything; its caller can't choose the
 tap's name or addresses. [docs/host-setup.md](../../docs/host-setup.md#network)
 has the details, the firewall rules and how to change the subnet.
@@ -338,6 +348,7 @@ Anything running as your user can call these, just as it could run crosvm.
 | `src/config.rs` | VM and daemon settings |
 | `src/pool.rs` | CIDs |
 | `src/net.rs` | the network settings, and how gerantd and gerant-net talk |
+| `src/dns.rs` | forwards NAT guests' DNS to the host's resolver |
 | `src/vm.rs` | crosvm's command line, kernel command line, starting processes |
 | `src/manager.rs` | the daemon's state, starting, supervising and stopping VMs, the D-Bus object |
 | `src/ready.rs` | the vsock listener for the guests' boot notifications |

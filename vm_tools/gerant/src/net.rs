@@ -163,6 +163,7 @@ impl NetConfig {
                     prefix_len: 64,
                 }
             }),
+            dns: Vec::new(),
         }
     }
 
@@ -194,6 +195,26 @@ pub struct NatTap {
     /// None if IPv6 is off in the settings, or the helper couldn't set it
     /// up on this host.
     pub v6: Option<NatTap6>,
+    /// The DNS sockets that come after the tap's descriptor, on port 53 of
+    /// the host's addresses on the tap, in this order. gerantd forwards
+    /// what the guest sends there to the host's resolver (`dns`).
+    pub dns: Vec<DnsSocket>,
+}
+
+/// A socket on port 53: UDP, or TCP and listening.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DnsSocket {
+    Udp,
+    Tcp,
+}
+
+impl DnsSocket {
+    fn as_str(self) -> &'static str {
+        match self {
+            DnsSocket::Udp => "udp",
+            DnsSocket::Tcp => "tcp",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -220,12 +241,17 @@ impl NatTap {
                 v6.host, v6.guest, v6.prefix_len
             );
         }
+        if !self.dns.is_empty() {
+            let kinds: Vec<&str> = self.dns.iter().map(|d| d.as_str()).collect();
+            text += &format!("dns={}\n", kinds.join(","));
+        }
         text
     }
 
     pub fn decode(text: &str) -> Result<NatTap, String> {
         let (mut name, mut host, mut guest, mut prefix_len) = (None, None, None, None);
         let (mut host6, mut guest6, mut prefix6) = (None, None, None);
+        let mut dns = Vec::new();
         for line in text.lines() {
             let bad = || format!("bad line {line:?}");
             let (key, value) = line.split_once('=').ok_or_else(bad)?;
@@ -240,6 +266,16 @@ impl NatTap {
                 "guest6" => guest6 = Some(value.parse().map_err(|_| bad())?),
                 "prefix6" => {
                     prefix6 = Some(value.parse().ok().filter(|l| *l <= 128).ok_or_else(bad)?)
+                }
+                "dns" => {
+                    dns = value
+                        .split(',')
+                        .map(|kind| match kind {
+                            "udp" => Ok(DnsSocket::Udp),
+                            "tcp" => Ok(DnsSocket::Tcp),
+                            _ => Err(bad()),
+                        })
+                        .collect::<Result<_, _>>()?
                 }
                 // Room for more in later versions.
                 _ => {}
@@ -261,6 +297,7 @@ impl NatTap {
                 guest,
                 prefix_len,
                 v6,
+                dns,
             }),
             _ => Err(format!("incomplete reply {text:?}")),
         }
@@ -272,6 +309,8 @@ impl NatTap {
 pub struct Tap {
     pub info: NatTap,
     pub fd: OwnedFd,
+    /// The sockets `info.dns` lists, for whoever forwards DNS.
+    pub dns: Vec<(DnsSocket, OwnedFd)>,
 }
 
 /// The first `gerant-net` in $PATH that is setuid root. A copy that isn't,
@@ -341,12 +380,18 @@ async fn run_helper(helper: &Path) -> Result<Tap, String> {
 
 /// gerantd's side of `send_reply`.
 fn recv_reply(sock: &OwnedFd) -> Result<Tap, String> {
-    let (text, fd) = recv_with_fd(sock).map_err(|e| format!("reading the reply: {e}"))?;
-    let fd = fd.ok_or("no tap in the reply")?;
-    Ok(Tap {
-        info: NatTap::decode(&text)?,
-        fd,
-    })
+    let (text, fds) = recv_with_fds(sock).map_err(|e| format!("reading the reply: {e}"))?;
+    let mut fds = fds.into_iter();
+    let fd = fds.next().ok_or("no tap in the reply")?;
+    let info = NatTap::decode(&text)?;
+    let dns: Vec<_> = info.dns.iter().copied().zip(fds).collect();
+    if dns.len() != info.dns.len() {
+        return Err(format!(
+            "{} DNS sockets missing from the reply",
+            info.dns.len() - dns.len()
+        ));
+    }
+    Ok(Tap { info, fd, dns })
 }
 
 fn seqpacket_pair() -> io::Result<(OwnedFd, OwnedFd)> {
@@ -365,10 +410,17 @@ fn seqpacket_pair() -> io::Result<(OwnedFd, OwnedFd)> {
     Ok(unsafe { (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) })
 }
 
-/// The helper's side: sends the addresses with the tap's descriptor.
-pub fn send_reply(sock: RawFd, tap: &NatTap, fd: RawFd) -> io::Result<()> {
+/// The most descriptors in a reply: the tap and four DNS sockets.
+const MAX_FDS: usize = 5;
+
+/// The helper's side: sends the addresses with the tap's descriptor and
+/// then the DNS sockets that `tap.dns` lists.
+pub fn send_reply(sock: RawFd, tap: &NatTap, fds: &[RawFd]) -> io::Result<()> {
+    assert!(fds.len() <= MAX_FDS && fds.len() == 1 + tap.dns.len());
     let text = tap.encode();
-    let mut control = [0u64; 4];
+    let size = mem::size_of_val(fds) as u32;
+    // As u64s for the alignment cmsghdr needs.
+    let mut control = [0u64; 8];
     let mut iov = libc::iovec {
         iov_base: text.as_ptr().cast_mut().cast(),
         iov_len: text.len(),
@@ -377,13 +429,16 @@ pub fn send_reply(sock: RawFd, tap: &NatTap, fd: RawFd) -> io::Result<()> {
     msg.msg_iov = &mut iov;
     msg.msg_iovlen = 1;
     msg.msg_control = control.as_mut_ptr().cast();
-    msg.msg_controllen = unsafe { libc::CMSG_SPACE(mem::size_of::<RawFd>() as u32) } as _;
+    msg.msg_controllen = unsafe { libc::CMSG_SPACE(size) } as _;
     unsafe {
         let cmsg = libc::CMSG_FIRSTHDR(&msg);
         (*cmsg).cmsg_level = libc::SOL_SOCKET;
         (*cmsg).cmsg_type = libc::SCM_RIGHTS;
-        (*cmsg).cmsg_len = libc::CMSG_LEN(mem::size_of::<RawFd>() as u32) as _;
-        libc::CMSG_DATA(cmsg).cast::<RawFd>().write_unaligned(fd);
+        (*cmsg).cmsg_len = libc::CMSG_LEN(size) as _;
+        let data = libc::CMSG_DATA(cmsg).cast::<RawFd>();
+        for (i, fd) in fds.iter().enumerate() {
+            data.add(i).write_unaligned(*fd);
+        }
     }
     if unsafe { libc::sendmsg(sock, &msg, libc::MSG_NOSIGNAL) } < 0 {
         return Err(io::Error::last_os_error());
@@ -392,9 +447,9 @@ pub fn send_reply(sock: RawFd, tap: &NatTap, fd: RawFd) -> io::Result<()> {
 }
 
 /// Reads the reply the helper left in the socket before it exited.
-fn recv_with_fd(sock: &OwnedFd) -> io::Result<(String, Option<OwnedFd>)> {
+fn recv_with_fds(sock: &OwnedFd) -> io::Result<(String, Vec<OwnedFd>)> {
     let mut data = [0u8; 1024];
-    // Room for one descriptor, as u64s for the alignment cmsghdr needs.
+    // Room for MAX_FDS descriptors, as u64s for the alignment cmsghdr needs.
     let mut control = [0u64; 8];
     let mut iov = libc::iovec {
         iov_base: data.as_mut_ptr().cast(),
@@ -415,18 +470,16 @@ fn recv_with_fd(sock: &OwnedFd) -> io::Result<(String, Option<OwnedFd>)> {
     if n < 0 {
         return Err(io::Error::last_os_error());
     }
-    let mut fd = None;
+    let mut fds = Vec::new();
     let mut cmsg = unsafe { libc::CMSG_FIRSTHDR(&msg) };
     while !cmsg.is_null() {
         let c = unsafe { &*cmsg };
         if c.cmsg_level == libc::SOL_SOCKET && c.cmsg_type == libc::SCM_RIGHTS {
             let count = (c.cmsg_len as usize - unsafe { libc::CMSG_LEN(0) } as usize)
                 / mem::size_of::<RawFd>();
-            let fds = unsafe { libc::CMSG_DATA(cmsg) }.cast::<RawFd>();
+            let data = unsafe { libc::CMSG_DATA(cmsg) }.cast::<RawFd>();
             for i in 0..count {
-                // Keep the first, close any others.
-                let owned = unsafe { OwnedFd::from_raw_fd(fds.add(i).read_unaligned()) };
-                fd.get_or_insert(owned);
+                fds.push(unsafe { OwnedFd::from_raw_fd(data.add(i).read_unaligned()) });
             }
         }
         cmsg = unsafe { libc::CMSG_NXTHDR(&msg, cmsg) };
@@ -436,7 +489,7 @@ fn recv_with_fd(sock: &OwnedFd) -> io::Result<(String, Option<OwnedFd>)> {
     }
     Ok((
         String::from_utf8_lossy(&data[..n as usize]).into_owned(),
-        fd,
+        fds,
     ))
 }
 
@@ -558,7 +611,7 @@ mod tests {
         let (ours, theirs) = seqpacket_pair().unwrap();
         let tap = NetConfig::default().slot(2);
         let file = std::fs::File::open("/dev/null").unwrap();
-        send_reply(theirs.as_raw_fd(), &tap, file.as_raw_fd()).unwrap();
+        send_reply(theirs.as_raw_fd(), &tap, &[file.as_raw_fd()]).unwrap();
         let got = recv_reply(&ours).unwrap();
         assert_eq!(got.info, tap);
         // Another descriptor for the same file, close-on-exec.
@@ -570,6 +623,42 @@ mod tests {
         assert_eq!(
             unsafe { libc::fcntl(got.fd.as_raw_fd(), libc::F_GETFD) },
             libc::FD_CLOEXEC
+        );
+        // With all four DNS sockets, in order.
+        let mut tap = tap;
+        tap.dns = vec![
+            DnsSocket::Udp,
+            DnsSocket::Tcp,
+            DnsSocket::Udp,
+            DnsSocket::Tcp,
+        ];
+        let paths = [
+            "/dev/null",
+            "/dev/zero",
+            "/dev/full",
+            "/dev/random",
+            "/dev/urandom",
+        ];
+        let files: Vec<std::fs::File> = paths
+            .iter()
+            .map(|p| std::fs::File::open(p).unwrap())
+            .collect();
+        let raw: Vec<RawFd> = files.iter().map(|f| f.as_raw_fd()).collect();
+        send_reply(theirs.as_raw_fd(), &tap, &raw).unwrap();
+        let got = recv_reply(&ours).unwrap();
+        assert_eq!(got.info, tap);
+        let link =
+            |fd: &OwnedFd| std::fs::read_link(format!("/proc/self/fd/{}", fd.as_raw_fd())).unwrap();
+        assert_eq!(link(&got.fd), Path::new("/dev/null"));
+        let dns: Vec<_> = got.dns.iter().map(|(kind, fd)| (*kind, link(fd))).collect();
+        assert_eq!(
+            dns,
+            [
+                (DnsSocket::Udp, "/dev/zero".into()),
+                (DnsSocket::Tcp, "/dev/full".into()),
+                (DnsSocket::Udp, "/dev/random".into()),
+                (DnsSocket::Tcp, "/dev/urandom".into()),
+            ]
         );
         // Nothing left: the helper failed before sending.
         assert!(recv_reply(&ours).unwrap_err().contains("reading the reply"));
@@ -612,6 +701,15 @@ mod tests {
         assert_eq!(
             NatTap::decode(&format!("{}future=1\n", t.encode())),
             Ok(t.clone())
+        );
+        let mut d = t.clone();
+        d.dns = vec![DnsSocket::Udp, DnsSocket::Tcp];
+        assert!(d.encode().contains("\ndns=udp,tcp\n"));
+        assert_eq!(NatTap::decode(&d.encode()), Ok(d));
+        assert!(
+            NatTap::decode(&format!("{}dns=sctp\n", t.encode()))
+                .unwrap_err()
+                .contains("bad line")
         );
         // From a helper without IPv6, or one that left it out.
         let mut v4 = t.clone();

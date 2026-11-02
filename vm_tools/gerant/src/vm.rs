@@ -434,6 +434,7 @@ mod tests {
             net: Some(Net::Tap(Arc::new(Tap {
                 info: crate::net::NetConfig::default().slot(1),
                 fd,
+                dns: Vec::new(),
             }))),
             dns: vec![Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)],
         }
@@ -471,6 +472,7 @@ mod tests {
             net: Some(Net::Tap(Arc::new(Tap {
                 info,
                 fd: File::open("/dev/null").unwrap().into(),
+                dns: Vec::new(),
             }))),
             ..net()
         };

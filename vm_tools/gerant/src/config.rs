@@ -299,8 +299,8 @@ impl VmConfig {
 pub struct DaemonConfig {
     /// vsock context IDs to hand out. 0-2 are reserved.
     pub cids: RangeInclusive<u32>,
-    /// Given to guests with a network. None: the host's resolver, where the
-    /// network can forward to it (`dns_for`).
+    /// Given to guests with a network. None: the host's resolver, through
+    /// a forwarder (`dns_for`).
     pub dns: Option<Vec<Ipv4Addr>>,
     /// How long a guest gets to shut down before crosvm is stopped.
     pub stop_timeout_secs: u64,
@@ -375,19 +375,26 @@ impl DaemonConfig {
         Ok(config)
     }
 
-    /// The DNS servers for a guest whose network is passt (or a tap).
-    pub fn dns_for(&self, passt: bool) -> Vec<Ipv4Addr> {
-        match &self.dns {
-            Some(servers) => servers.clone(),
-            None if passt => vec![crate::net::PASST_DNS],
-            // Nothing on a tap forwards to the host's resolver yet.
-            None => NAT_DNS.to_vec(),
+    /// The DNS servers for a guest. `forwarder`: where it can reach the
+    /// host's resolver, if anywhere (passt's address, or the host's on a
+    /// tap with DNS sockets).
+    pub fn dns_for(&self, forwarder: Option<Ipv4Addr>) -> Vec<Ipv4Addr> {
+        match (&self.dns, forwarder) {
+            (Some(servers), _) => servers.clone(),
+            (None, Some(addr)) => vec![addr],
+            (None, None) => FALLBACK_DNS.to_vec(),
         }
+    }
+
+    /// Whether guests use the host's resolver.
+    pub fn host_dns(&self) -> bool {
+        self.dns.is_none()
     }
 }
 
-/// The servers NAT guests get without `[Pool] DNS=`.
-pub const NAT_DNS: [Ipv4Addr; 2] = [Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)];
+/// The servers guests get without `[Pool] DNS=` and without a way to the
+/// host's resolver.
+pub const FALLBACK_DNS: [Ipv4Addr; 2] = [Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(9, 9, 9, 9)];
 
 #[cfg(test)]
 mod tests {
@@ -537,12 +544,20 @@ mod tests {
         let d = daemon("[Pool]\nCIDs=10-20\nDNS=10.0.0.1\n").unwrap();
         assert_eq!(d.cids, 10..=20);
         assert_eq!(d.dns, Some(vec![Ipv4Addr::new(10, 0, 0, 1)]));
-        assert_eq!(d.dns_for(true), [Ipv4Addr::new(10, 0, 0, 1)]);
+        assert_eq!(
+            d.dns_for(Some(crate::net::PASST_DNS)),
+            [Ipv4Addr::new(10, 0, 0, 1)]
+        );
+        assert!(!d.host_dns());
         assert_eq!(daemon("[Pool]\nDNS=\n").unwrap().dns, Some(vec![]));
         // Without DNS=, the host's resolver where there is a way to it.
         let d = daemon("").unwrap();
-        assert_eq!(d.dns_for(true), [crate::net::PASST_DNS]);
-        assert_eq!(d.dns_for(false), NAT_DNS);
+        assert!(d.host_dns());
+        assert_eq!(
+            d.dns_for(Some(crate::net::PASST_DNS)),
+            [crate::net::PASST_DNS]
+        );
+        assert_eq!(d.dns_for(None), FALLBACK_DNS);
         assert!(daemon("[Pool]\nCIDs=2-5\n").is_err());
         assert!(
             daemon("[Pool]\nSubnet=10.0.0.0/24\n")

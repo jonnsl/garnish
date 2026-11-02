@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod dbus;
+pub mod dns;
 pub mod ini;
 pub mod manager;
 pub mod net;

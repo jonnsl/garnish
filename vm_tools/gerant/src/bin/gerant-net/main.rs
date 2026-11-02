@@ -2,14 +2,20 @@
 //! setuid root; gerantd runs it. See `gerant::net` for the protocol.
 //!
 //! In order, it
-//! 1. becomes the calling user, keeping only CAP_NET_ADMIN (privs.rs),
+//! 1. becomes the calling user, keeping only CAP_NET_ADMIN and
+//!    CAP_NET_BIND_SERVICE (privs.rs),
 //! 2. opens every file and socket it will use,
 //! 3. installs a seccomp filter: no more opening, and the calls that are
 //!    left work only on those descriptors (seccomp.rs),
 //! 4. reads the settings, creates the tap, configures it, enables IPv4
 //!    and IPv6 forwarding and loads the firewall rules (netlink.rs),
-//! 5. sends the tap's descriptor and addresses to standard output, which
-//!    has to be a Unix socket, and exits.
+//! 5. binds the DNS sockets to port 53 of the host's addresses on the tap,
+//! 6. sends the tap's descriptor, the DNS sockets and the addresses to
+//!    standard output, which has to be a Unix socket, and exits.
+//!
+//! gerantd forwards what guests send to the DNS sockets to the host's
+//! resolver. Without them (port 53 is taken, say), the guest gets public
+//! DNS servers instead, and the reason goes to standard error.
 //!
 //! Nothing the caller passes picks the tap's name or addresses: those come
 //! from the next free /30 (and /64) in the subnets that root configured.
@@ -23,11 +29,12 @@ mod seccomp;
 
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::os::fd::{AsRawFd, RawFd};
+use std::net::IpAddr;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::process::ExitCode;
 
-use gerant::net::{self, NatTap, NatTap6, NetConfig};
+use gerant::net::{self, DnsSocket, NatTap, NatTap6, NetConfig};
 use netlink::Netlink;
 use seccomp::Rule;
 
@@ -71,7 +78,19 @@ struct Opened {
     ipv6: Option<Ipv6Forwarding>,
     rtnl: Netlink,
     nfnl: Netlink,
+    /// Unbound UDP and TCP sockets, for IPv4 and (with ipv6) IPv6.
+    dns4: Vec<DnsFd>,
+    dns6: Vec<DnsFd>,
 }
+
+/// A socket for port 53. It is bound once the tap has its addresses.
+struct DnsFd {
+    kind: DnsSocket,
+    fd: OwnedFd,
+}
+
+/// Where the guest's DNS queries go, on the host's side of the tap.
+const DNS_PORT: u16 = 53;
 
 /// /proc/sys/net/ipv6/conf/all/forwarding, twice: a write after a read
 /// would be at a non-zero offset, which sysctl ignores.
@@ -129,8 +148,115 @@ fn run() -> Result<(), String> {
         .nfnl
         .send(&netlink::nat_ruleset(&config))
         .map_err(|e| format!("loading nftables tables ip and ip6 {}: {e}", netlink::TABLE))?;
-    net::send_reply(REPLY_FD, &tap, opened.tun.as_raw_fd())
-        .map_err(|e| format!("sending the tap: {e}"))
+
+    let mut fds = vec![opened.tun.as_raw_fd()];
+    match bind_dns(&opened.dns4, tap.host.into()) {
+        Ok(()) => {
+            let v6 = match tap.v6 {
+                Some(v6) => bind_dns(&opened.dns6, v6.host.into())
+                    .map_err(|e| eprintln!("gerant-net: {}: no DNS over IPv6: {e}", tap.name))
+                    .is_ok(),
+                None => false,
+            };
+            let bound = opened.dns4.iter().chain(opened.dns6.iter().filter(|_| v6));
+            for s in bound {
+                tap.dns.push(s.kind);
+                fds.push(s.fd.as_raw_fd());
+            }
+        }
+        Err(e) => eprintln!(
+            "gerant-net: {}: no DNS forwarding, the guest gets public servers: {e}",
+            tap.name
+        ),
+    }
+    net::send_reply(REPLY_FD, &tap, &fds).map_err(|e| format!("sending the tap: {e}"))
+}
+
+/// Binds UDP and TCP to port 53 of `addr`, and has TCP listen.
+fn bind_dns(sockets: &[DnsFd], addr: IpAddr) -> Result<(), String> {
+    for s in sockets {
+        let (storage, len) = sockaddr(addr, DNS_PORT);
+        let fd = s.fd.as_raw_fd();
+        if unsafe { libc::bind(fd, (&raw const storage).cast(), len) } != 0
+            || s.kind == DnsSocket::Tcp && unsafe { libc::listen(fd, 16) } != 0
+        {
+            return Err(format!(
+                "{} port {DNS_PORT} on {addr}: {}",
+                match s.kind {
+                    DnsSocket::Udp => "UDP",
+                    DnsSocket::Tcp => "TCP",
+                },
+                io::Error::last_os_error()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn sockaddr(addr: IpAddr, port: u16) -> (libc::sockaddr_storage, libc::socklen_t) {
+    let mut storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+    let len = match addr {
+        IpAddr::V4(a) => {
+            let sin = libc::sockaddr_in {
+                sin_family: libc::AF_INET as libc::sa_family_t,
+                sin_port: port.to_be(),
+                sin_addr: libc::in_addr {
+                    s_addr: u32::from_ne_bytes(a.octets()),
+                },
+                sin_zero: [0; 8],
+            };
+            unsafe { (&raw mut storage).cast::<libc::sockaddr_in>().write(sin) };
+            std::mem::size_of::<libc::sockaddr_in>()
+        }
+        IpAddr::V6(a) => {
+            let sin6 = libc::sockaddr_in6 {
+                sin6_family: libc::AF_INET6 as libc::sa_family_t,
+                sin6_port: port.to_be(),
+                sin6_flowinfo: 0,
+                sin6_addr: libc::in6_addr {
+                    s6_addr: a.octets(),
+                },
+                sin6_scope_id: 0,
+            };
+            unsafe { (&raw mut storage).cast::<libc::sockaddr_in6>().write(sin6) };
+            std::mem::size_of::<libc::sockaddr_in6>()
+        }
+    };
+    (storage, len as libc::socklen_t)
+}
+
+/// An unbound UDP and TCP socket for `family`. TCP gets SO_REUSEADDR: a
+/// tap's address comes back with its /30, maybe while connections of the
+/// last VM that had it are still in TIME_WAIT.
+fn open_dns(family: libc::c_int) -> Result<Vec<DnsFd>, String> {
+    let mut sockets = Vec::new();
+    for (kind, ty) in [
+        (DnsSocket::Udp, libc::SOCK_DGRAM),
+        (DnsSocket::Tcp, libc::SOCK_STREAM),
+    ] {
+        let fd = unsafe { libc::socket(family, ty | libc::SOCK_CLOEXEC, 0) };
+        if fd < 0 {
+            return Err(format!("DNS socket: {}", io::Error::last_os_error()));
+        }
+        let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+        if kind == DnsSocket::Tcp {
+            let one: libc::c_int = 1;
+            let ret = unsafe {
+                libc::setsockopt(
+                    fd.as_raw_fd(),
+                    libc::SOL_SOCKET,
+                    libc::SO_REUSEADDR,
+                    (&raw const one).cast(),
+                    std::mem::size_of_val(&one) as libc::socklen_t,
+                )
+            };
+            if ret != 0 {
+                return Err(format!("DNS socket: {}", io::Error::last_os_error()));
+            }
+        }
+        sockets.push(DnsFd { kind, fd });
+    }
+    Ok(sockets)
 }
 
 /// Puts the host's IPv6 address on the tap and makes sure forwarding is on.
@@ -209,6 +335,10 @@ fn open_all() -> Result<Opened, String> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
         Err(e) => return Err(format!("{IPV6_FORWARDING}: {e}")),
     };
+    let dns6 = match ipv6 {
+        Some(_) => open_dns(libc::AF_INET6)?,
+        None => Vec::new(),
+    };
     Ok(Opened {
         config,
         tun: open("/dev/net/tun", false)?,
@@ -216,6 +346,8 @@ fn open_all() -> Result<Opened, String> {
         ipv6,
         rtnl: Netlink::open(libc::NETLINK_ROUTE)?,
         nfnl: Netlink::open(libc::NETLINK_NETFILTER)?,
+        dns4: open_dns(libc::AF_INET)?,
+        dns6,
     })
 }
 
@@ -255,6 +387,12 @@ fn rules(o: &Opened) -> Vec<Rule> {
     if let Some(v6) = &o.ipv6 {
         rules.push(Rule::on(libc::SYS_read, v6.read.as_raw_fd()));
         rules.push(Rule::on(libc::SYS_write, v6.write.as_raw_fd()));
+    }
+    for s in o.dns4.iter().chain(&o.dns6) {
+        rules.push(Rule::on(libc::SYS_bind, s.fd.as_raw_fd()));
+        if s.kind == DnsSocket::Tcp {
+            rules.push(Rule::on(libc::SYS_listen, s.fd.as_raw_fd()));
+        }
     }
     rules
 }

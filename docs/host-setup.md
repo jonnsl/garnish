@@ -43,7 +43,18 @@ starts. The helper
 2. turns IPv4 and IPv6 forwarding on (`net.ipv4.ip_forward=1`,
    `net.ipv6.conf.all.forwarding=1`; they stay on),
 3. loads the nftables tables below, replacing any older version of them,
-4. passes the open tap to gerantd over a socket and exits.
+4. binds UDP and TCP sockets to port 53 of the host's addresses on the tap,
+   for DNS,
+5. passes the open tap and the DNS sockets to gerantd over a socket and
+   exits.
+
+Unless `[Pool] DNS=` is set in `gerantd.conf`, the guest's DNS server is the
+host's address on its tap, and gerantd passes the queries it gets there on
+to the host's resolver: the first nameserver in `/etc/resolv.conf`, even a
+loopback one like systemd-resolved's 127.0.0.53, read again for each query.
+So guests resolve names as the host does, VPNs and local names included. If
+the sockets can't be bound (something else holds port 53 on all addresses,
+say), the VM starts anyway with 1.1.1.1 and 9.9.9.9, and gerantd logs why.
 
 gerantd hands the tap to crosvm as `--net tap-fd=N`. The tap isn't
 persistent: the kernel removes it when the VM stops and the last descriptor
@@ -60,6 +71,11 @@ table ip garnish {
         type nat hook postrouting priority srcnat;
         ip saddr 192.168.10.0/24 oifname != "garnish*" masquerade
     }
+    chain input {
+        type filter hook input priority filter;
+        iifname != "garnish*" ip daddr 192.168.10.0/24 udp dport 53 drop
+        iifname != "garnish*" ip daddr 192.168.10.0/24 tcp dport 53 drop
+    }
 }
 table ip6 garnish {
     chain forward {
@@ -71,6 +87,9 @@ table ip6 garnish {
         type nat hook postrouting priority srcnat;
         ip6 saddr fd67:6172:6e69::/48 oifname != "garnish*" masquerade
     }
+    chain input {
+        # the same, with ip6 daddr fd67:6172:6e69::/48
+    }
 }
 ```
 
@@ -79,10 +98,13 @@ in its forward chain.
 
 Guests reach the outside through the host's address, but not each other,
 and they can't send from addresses that aren't theirs. They can reach the
-host itself, at their gateway address or any other. If the host firewall
-drops forwarded traffic (a `forward` chain with `policy drop`, as firewalld
-or ufw set up), the NAT rule alone isn't enough: that firewall also has to
-accept forwarding from and to the `garnish*` interfaces, for IPv4 and IPv6.
+host itself, at their gateway address or any other. Only they can reach the
+DNS sockets: the host would take packets for its tap addresses from any
+interface. If the host firewall drops forwarded traffic (a `forward` chain
+with `policy drop`, as firewalld or ufw set up), the NAT rule alone isn't
+enough: that firewall also has to accept forwarding from and to the
+`garnish*` interfaces, for IPv4 and IPv6. If it drops incoming traffic, it
+has to accept DNS (UDP and TCP port 53) from them too.
 To remove the tables: `sudo nft delete table ip garnish` and
 `sudo nft delete table ip6 garnish`.
 
@@ -121,17 +143,20 @@ change a tap.
 gerant-net runs with root's privileges only long enough to give most of them
 up. Before it reads its configuration or touches the network, it
 
-- becomes the user who ran it, keeping only `CAP_NET_ADMIN`: no other
-  capability, none in the bounding set, ambient or inheritable sets, and
+- becomes the user who ran it, keeping only `CAP_NET_ADMIN` and
+  `CAP_NET_BIND_SERVICE` (for port 53): no other capability, none in the
+  bounding set, ambient or inheritable sets, and
   `no_new_privs`, so nothing it could run would get any back
 - is marked not dumpable, so the user can't attach a debugger to it
 - opens everything it needs: `/dev/net/tun`,
   `/proc/sys/net/ipv4/ip_forward`, `/proc/sys/net/ipv6/conf/all/forwarding`,
-  a netlink socket for addresses and routes and one for nftables
+  a netlink socket for addresses and routes, one for nftables, and the
+  unbound DNS sockets
 - installs a seccomp filter. After that it can't open files, create sockets,
   run programs or send signals. `ioctl` works only for creating the tap and
-  looking up its index, `sendmsg`, `recv`, `read` and `write` only on the
-  descriptors meant for them, and any other call kills it
+  looking up its index, `sendmsg`, `recv`, `read`, `write`, `bind` and
+  `listen` only on the descriptors meant for them, and any other call kills
+  it
 
 Its environment is ignored, and it accepts exactly one argument, `nat`.
 The code is in `vm_tools/gerant/src/bin/gerant-net/`.

@@ -19,6 +19,7 @@ use zbus::{Connection, interface};
 
 use crate::config::{self, Clipboard, DaemonConfig, NetworkMode, VmConfig};
 use crate::dbus::{Error, OBJECT_PATH, VmInfo};
+use crate::dns;
 use crate::ini;
 use crate::net;
 use crate::pool::Pool;
@@ -49,6 +50,9 @@ struct RunningVm {
     res: Resources,
     paths: Paths,
     commands: mpsc::UnboundedSender<Command>,
+    /// Forwards a NAT guest's DNS queries to the host's resolver; stops
+    /// when the VM is released.
+    _dns: Option<dns::Forwarder>,
 }
 
 struct Inner {
@@ -302,14 +306,37 @@ impl Manager {
         }
         // Before the VM is listed as starting: this can take a moment. If
         // the start fails after all, dropping the tap removes it.
+        let mut dns_sockets = Vec::new();
         let net = match config.network {
             NetworkMode::None => None,
             NetworkMode::Passt => Some(Net::Passt),
-            NetworkMode::Nat => Some(Net::Tap(Arc::new(net::nat_tap().await.map_err(|e| {
-                Error::StartFailed(format!(
-                    "no network: {e} ([Network] Mode=passt or none start the VM without gerant-net)"
-                ))
-            })?))),
+            NetworkMode::Nat => {
+                let mut tap = net::nat_tap().await.map_err(|e| {
+                    Error::StartFailed(format!(
+                        "no network: {e} ([Network] Mode=passt or none start the VM without gerant-net)"
+                    ))
+                })?;
+                dns_sockets = std::mem::take(&mut tap.dns);
+                Some(Net::Tap(Arc::new(tap)))
+            }
+        };
+        // The DNS sockets gerant-net bound on the tap are served only when
+        // the guest is to use the host's resolver; otherwise they close here.
+        let host_dns = self.inner.lock().unwrap().pool.host_dns();
+        let (forwarder, forwarder_addr) = match &net {
+            Some(Net::Passt) => (None, Some(net::PASST_DNS)),
+            Some(Net::Tap(tap)) if host_dns && !dns_sockets.is_empty() => {
+                let mut guests = vec![tap.info.guest.into()];
+                guests.extend(tap.info.v6.map(|v6| std::net::IpAddr::from(v6.guest)));
+                match dns::Forwarder::start(name, dns_sockets, guests) {
+                    Ok(f) => (Some(f), Some(tap.info.host)),
+                    Err(e) => {
+                        log(format!("{name}: no DNS forwarding: {e}"));
+                        (None, None)
+                    }
+                }
+            }
+            _ => (None, None),
         };
 
         let (tx, rx) = mpsc::unbounded_channel();
@@ -324,7 +351,7 @@ impl Manager {
             let cid = inner.pool.alloc_cid().map_err(Error::NoResources)?;
             let res = Resources {
                 cid,
-                dns: inner.pool.dns_for(matches!(net, Some(Net::Passt))),
+                dns: inner.pool.dns_for(forwarder_addr),
                 net,
             };
             // A tap's address is the guest's, from the host too. passt's
@@ -351,6 +378,7 @@ impl Manager {
                 res: res.clone(),
                 paths: paths.clone(),
                 commands: tx,
+                _dns: forwarder,
             };
             inner.vms.insert(name.to_owned(), vm);
             (res, info)

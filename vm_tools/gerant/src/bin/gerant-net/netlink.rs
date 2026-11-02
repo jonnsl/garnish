@@ -433,9 +433,16 @@ const NFTA_PAYLOAD_BASE: u16 = 2;
 const NFTA_PAYLOAD_OFFSET: u16 = 3;
 const NFTA_PAYLOAD_LEN: u16 = 4;
 const NFT_PAYLOAD_NETWORK_HEADER: u32 = 1;
-/// Where the source address is in an IPv4 and an IPv6 header.
+const NFT_PAYLOAD_TRANSPORT_HEADER: u32 = 2;
+/// Where the source and destination addresses are in an IPv4 and an IPv6
+/// header: offset and length.
 const IPV4_SADDR: (u32, u32) = (12, 4);
+const IPV4_DADDR: (u32, u32) = (16, 4);
 const IPV6_SADDR: (u32, u32) = (8, 16);
+const IPV6_DADDR: (u32, u32) = (24, 16);
+/// The destination port, in TCP and UDP alike.
+const TH_DPORT: (u32, u32) = (2, 2);
+const NFT_META_L4PROTO: u32 = 16;
 const NFTA_BITWISE_SREG: u16 = 1;
 const NFTA_BITWISE_DREG: u16 = 2;
 const NFTA_BITWISE_LEN: u16 = 3;
@@ -444,6 +451,7 @@ const NFTA_BITWISE_XOR: u16 = 5;
 const NFT_REG_VERDICT: u32 = 0;
 const NFT_REG_1: u32 = 1;
 const NF_DROP: u32 = 0;
+const NF_INET_LOCAL_IN: u32 = 1;
 const NF_INET_FORWARD: u32 = 2;
 const NF_INET_POST_ROUTING: u32 = 4;
 const NF_IP_PRI_FILTER: i32 = 0;
@@ -456,9 +464,10 @@ pub const TABLE: &str = "garnish";
 enum Expr<'a> {
     /// Interface name into register 1.
     Meta(u32),
-    /// The source address into register 1: its offset in the network
-    /// header and its length.
-    SourceAddress((u32, u32)),
+    /// Part of the network header into register 1: offset and length.
+    Network((u32, u32)),
+    /// Part of the transport header into register 1: offset and length.
+    Transport((u32, u32)),
     /// Register 1 &= mask.
     Mask(&'a [u8]),
     /// Compares the start of register 1 with the bytes.
@@ -515,7 +524,7 @@ impl Batch {
     fn nft_expr(&mut self, expr: &Expr) {
         let name = match expr {
             Expr::Meta(_) => "meta",
-            Expr::SourceAddress(_) => "payload",
+            Expr::Network(_) | Expr::Transport(_) => "payload",
             Expr::Mask(_) => "bitwise",
             Expr::Cmp(..) => "cmp",
             Expr::Masquerade => "masq",
@@ -527,9 +536,13 @@ impl Batch {
                 b.attr_be32(NFTA_META_DREG, NFT_REG_1);
                 b.attr_be32(NFTA_META_KEY, *key);
             }
-            Expr::SourceAddress((offset, len)) => {
+            Expr::Network((offset, len)) | Expr::Transport((offset, len)) => {
+                let base = match expr {
+                    Expr::Network(_) => NFT_PAYLOAD_NETWORK_HEADER,
+                    _ => NFT_PAYLOAD_TRANSPORT_HEADER,
+                };
                 b.attr_be32(NFTA_PAYLOAD_DREG, NFT_REG_1);
-                b.attr_be32(NFTA_PAYLOAD_BASE, NFT_PAYLOAD_NETWORK_HEADER);
+                b.attr_be32(NFTA_PAYLOAD_BASE, base);
                 b.attr_be32(NFTA_PAYLOAD_OFFSET, *offset);
                 b.attr_be32(NFTA_PAYLOAD_LEN, *len);
             }
@@ -560,11 +573,13 @@ impl Batch {
     }
 }
 
-/// One family's table: masquerade for the guests' network, and no
-/// forwarding between taps or from addresses that aren't the guests'.
+/// One family's table: masquerade for the guests' network, no forwarding
+/// between taps or from addresses that aren't the guests', and DNS on the
+/// host's addresses in the guests' network only from the taps.
 struct NatTable<'a> {
     family: u8,
     saddr: (u32, u32),
+    daddr: (u32, u32),
     /// The guests' network and its mask. None: guests can't send through
     /// the host at all in this family.
     subnet: Option<(&'a [u8], &'a [u8])>,
@@ -604,7 +619,7 @@ impl Batch {
             f,
             "postrouting",
             &[
-                Expr::SourceAddress(t.saddr),
+                Expr::Network(t.saddr),
                 Expr::Mask(mask),
                 Expr::Cmp(NFT_CMP_EQ, subnet),
                 Expr::Meta(NFT_META_OIFNAME),
@@ -631,13 +646,37 @@ impl Batch {
             &[
                 Expr::Meta(NFT_META_IIFNAME),
                 Expr::Cmp(NFT_CMP_EQ, taps),
-                Expr::SourceAddress(t.saddr),
+                Expr::Network(t.saddr),
                 Expr::Mask(mask),
                 Expr::Cmp(NFT_CMP_NEQ, subnet),
                 Expr::Drop,
             ],
             0,
         );
+        // gerantd's DNS forwarders listen on port 53 of the host's tap
+        // addresses. The host would accept packets for them on any
+        // interface; only the guests may use them.
+        self.nft_chain(f, "input", "filter", NF_INET_LOCAL_IN, NF_IP_PRI_FILTER);
+        let port = 53u16.to_be_bytes();
+        for proto in [libc::IPPROTO_UDP as u8, libc::IPPROTO_TCP as u8] {
+            self.nft_rule(
+                f,
+                "input",
+                &[
+                    Expr::Meta(NFT_META_IIFNAME),
+                    Expr::Cmp(NFT_CMP_NEQ, taps),
+                    Expr::Network(t.daddr),
+                    Expr::Mask(mask),
+                    Expr::Cmp(NFT_CMP_EQ, subnet),
+                    Expr::Meta(NFT_META_L4PROTO),
+                    Expr::Cmp(NFT_CMP_EQ, &[proto]),
+                    Expr::Transport(TH_DPORT),
+                    Expr::Cmp(NFT_CMP_EQ, &port),
+                    Expr::Drop,
+                ],
+                0,
+            );
+        }
     }
 }
 
@@ -654,6 +693,11 @@ impl Batch {
 ///     chain postrouting {
 ///         type nat hook postrouting priority srcnat;
 ///         ip saddr <subnet> oifname != "garnish*" masquerade
+///     }
+///     chain input {
+///         type filter hook input priority filter;
+///         iifname != "garnish*" ip daddr <subnet> udp dport 53 drop
+///         iifname != "garnish*" ip daddr <subnet> tcp dport 53 drop
 ///     }
 /// }
 /// table ip6 garnish {
@@ -689,11 +733,13 @@ pub fn nat_ruleset(config: &NetConfig) -> Batch {
     batch.nat_table(&NatTable {
         family: libc::NFPROTO_IPV4 as u8,
         saddr: IPV4_SADDR,
+        daddr: IPV4_DADDR,
         subnet: Some((&subnet, &mask)),
     });
     batch.nat_table(&NatTable {
         family: libc::NFPROTO_IPV6 as u8,
         saddr: IPV6_SADDR,
+        daddr: IPV6_DADDR,
         subnet: v6.as_ref().map(|(a, m)| (&a[..], &m[..])),
     });
     // The batch's last message asks for the ack that says it went in.

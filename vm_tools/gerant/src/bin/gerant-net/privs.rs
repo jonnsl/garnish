@@ -1,11 +1,15 @@
-//! Giving up root: everything but CAP_NET_ADMIN, and the root user itself.
+//! Giving up root: everything but CAP_NET_ADMIN and CAP_NET_BIND_SERVICE,
+//! and the root user itself.
 
 use std::io;
 use std::mem;
 use std::os::fd::RawFd;
 
 /// From linux/capability.h; not in the libc crate.
+const CAP_NET_BIND_SERVICE: u32 = 10;
 const CAP_NET_ADMIN: u32 = 12;
+/// What we keep.
+const KEPT: u32 = 1 << CAP_NET_ADMIN | 1 << CAP_NET_BIND_SERVICE;
 const LINUX_CAPABILITY_VERSION_3: u32 = 0x2008_0522;
 
 #[repr(C)]
@@ -47,7 +51,8 @@ fn prctl(what: &str, option: libc::c_int, arg: libc::c_ulong) -> Result<(), Stri
 }
 
 /// Becomes the user who ran us, keeping only CAP_NET_ADMIN, which is all
-/// that creating and configuring a tap and changing the firewall need. The
+/// that creating and configuring a tap and changing the firewall need, and
+/// CAP_NET_BIND_SERVICE, for the DNS sockets on port 53. The
 /// capability can't be passed on (bounding set, no ambient or inheritable
 /// capabilities, no_new_privs), and we can't be traced or dumped.
 pub fn drop_to_net_admin() -> Result<(), String> {
@@ -63,7 +68,7 @@ pub fn drop_to_net_admin() -> Result<(), String> {
     // Keep the permitted capabilities across the change of user.
     prctl("PR_SET_KEEPCAPS", libc::PR_SET_KEEPCAPS, 1)?;
     for cap in 0..64 {
-        if cap == CAP_NET_ADMIN {
+        if KEPT & 1 << cap != 0 {
             continue;
         }
         if unsafe { libc::prctl(libc::PR_CAPBSET_DROP, cap as libc::c_ulong, 0, 0, 0) } < 0 {
@@ -101,7 +106,7 @@ pub fn drop_to_net_admin() -> Result<(), String> {
         unsafe { libc::setresuid(uid, uid, uid) }.into(),
     )?;
 
-    let bit = 1 << CAP_NET_ADMIN;
+    let bit = KEPT;
     let mut header = CapHeader {
         version: LINUX_CAPABILITY_VERSION_3,
         pid: 0,
@@ -137,7 +142,9 @@ pub fn drop_to_net_admin() -> Result<(), String> {
         || got[0].inheritable != 0
         || got[1].permitted != 0
     {
-        return Err("capabilities other than CAP_NET_ADMIN are left".into());
+        return Err(
+            "capabilities other than CAP_NET_ADMIN and CAP_NET_BIND_SERVICE are left".into(),
+        );
     }
     Ok(())
 }

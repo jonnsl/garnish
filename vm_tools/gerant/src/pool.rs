@@ -19,8 +19,12 @@ impl Pool {
         }
     }
 
-    pub fn dns_for(&self, passt: bool) -> Vec<Ipv4Addr> {
-        self.config.dns_for(passt)
+    pub fn dns_for(&self, forwarder: Option<Ipv4Addr>) -> Vec<Ipv4Addr> {
+        self.config.dns_for(forwarder)
+    }
+
+    pub fn host_dns(&self) -> bool {
+        self.config.host_dns()
     }
 
     /// The lowest free CID.
