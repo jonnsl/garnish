@@ -30,6 +30,9 @@ pub const TAP_PREFIX: &str = "garnish";
 pub const PASST_GUEST: Ipv4Addr = Ipv4Addr::new(10, 0, 2, 15);
 pub const PASST_GATEWAY: Ipv4Addr = Ipv4Addr::new(10, 0, 2, 2);
 pub const PASST_NETMASK: Ipv4Addr = Ipv4Addr::new(255, 255, 255, 0);
+/// passt forwards DNS queries sent here to the host's first nameserver,
+/// even a loopback one like systemd-resolved's 127.0.0.53.
+pub const PASST_DNS: Ipv4Addr = Ipv4Addr::new(10, 0, 2, 3);
 
 /// `/etc/garnish/network.conf`.
 #[derive(Debug, Clone, PartialEq)]

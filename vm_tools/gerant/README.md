@@ -139,7 +139,7 @@ and read once, at startup. `examples/gerantd.conf` has the defaults:
 | Setting | Default | Meaning |
 |---|---|---|
 | `[Pool] CIDs=` | `3-99` | vsock context IDs |
-| `[Pool] DNS=` | `1.1.1.1 9.9.9.9` | list, at most two |
+| `[Pool] DNS=` | the host's (see [passt](#passt)) | list, at most two; empty: none. Without it, NAT guests get `1.1.1.1 9.9.9.9` |
 | `[Manager] StopTimeoutSec=` | `30` | how long a guest gets to shut down |
 
 A VM gets the lowest free CID. It is given back when the VM stops, so a VM's
@@ -176,6 +176,14 @@ host's loopback, where services that trust local users listen. The guest can
 still reach the host's other addresses, like any program on the LAN. No ports
 are forwarded to the guest. passt stays up across guest reboots and stops with
 the VM; it logs to `passt.log`.
+
+Unless `[Pool] DNS=` is set, the guest's DNS server is 10.0.2.3, and passt
+(`--dns-forward`) sends the queries made there to the host's first nameserver
+in `/etc/resolv.conf`, even a loopback one like systemd-resolved's 127.0.0.53.
+So the guest resolves names as the host does, VPNs and local names included,
+and reaches nothing else on the host's loopback. passt doesn't also hand out
+the host's servers over DHCPv6 or router advertisements (`--no-dhcp-dns`): the
+guest's servers are the ones on its kernel command line.
 
 ### NAT
 

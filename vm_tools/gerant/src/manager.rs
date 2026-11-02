@@ -324,8 +324,8 @@ impl Manager {
             let cid = inner.pool.alloc_cid().map_err(Error::NoResources)?;
             let res = Resources {
                 cid,
+                dns: inner.pool.dns_for(matches!(net, Some(Net::Passt))),
                 net,
-                dns: inner.pool.dns().to_vec(),
             };
             // A tap's address is the guest's, from the host too. passt's
             // isn't: the host can't reach the guest there.

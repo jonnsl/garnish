@@ -249,8 +249,6 @@ pub fn crosvm_args(
     args
 }
 
-/// passt's arguments. It stays up while crosvm restarts after a guest
-/// reboot, and serves the next connection.
 /// videur's arguments: between crosvm and the host's Wayland socket, it
 /// lets through only the clipboard data `[Machine] Clipboard=` allows.
 pub fn videur_args(config: &VmConfig, paths: &Paths) -> Vec<OsString> {
@@ -264,6 +262,8 @@ pub fn videur_args(config: &VmConfig, paths: &Paths) -> Vec<OsString> {
     ]
 }
 
+/// passt's arguments. It stays up while crosvm restarts after a guest
+/// reboot, and serves the next connection.
 pub fn passt_args(paths: &Paths) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec![
         "--foreground".into(),
@@ -283,6 +283,14 @@ pub fn passt_args(paths: &Paths) -> Vec<OsString> {
         // By default the gateway address leads to the host's loopback, so
         // the guest could reach services that listen only there.
         "--no-map-gw",
+        // DNS to this one address still goes to the host's resolver. The
+        // guest uses it unless [Pool] DNS= says otherwise.
+        "--dns-forward",
+        &net::PASST_DNS.to_string(),
+        // The guest's servers come from the kernel command line only, not
+        // also from the host's /etc/resolv.conf through DHCPv6 and router
+        // advertisements.
+        "--no-dhcp-dns",
     ] {
         args.push(a.into());
     }
@@ -612,6 +620,9 @@ mod tests {
                 "--gateway",
                 "10.0.2.2",
                 "--no-map-gw",
+                "--dns-forward",
+                "10.0.2.3",
+                "--no-dhcp-dns",
             ]
         );
         // With sound too, the timeout comes once.
