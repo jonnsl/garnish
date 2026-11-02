@@ -58,8 +58,9 @@ namespace Salle {
         public VmState state { get; set; default = VmState.STOPPED; }
         public uint cid { get; set; }
         public string tap { get; set; default = ""; }
-        /* The guest's address on its tap */
+        /* The guest's IPv4 and IPv6 addresses on its tap */
         public string address { get; set; default = ""; }
+        public string address6 { get; set; default = ""; }
         /* The guest user, for ssh */
         public string user { get; set; default = ""; }
         /* crosvm's process ID */
@@ -98,6 +99,7 @@ namespace Salle {
             cid = info.cid;
             tap = info.tap;
             address = info.address;
+            address6 = info.address6;
             user = info.user;
             pid = info.pid;
             thaw_notify ();

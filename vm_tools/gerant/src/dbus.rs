@@ -15,7 +15,7 @@ pub struct VmInfo {
     /// crosvm runs, but the guest hasn't said it has booted yet.
     pub state: String,
     pub cid: u32,
-    /// The tap device and the guest's address on it.
+    /// The tap device and the guest's IPv4 address on it.
     pub tap: String,
     pub address: String,
     /// The guest user, for ssh.
@@ -24,6 +24,9 @@ pub struct VmInfo {
     pub pid: u32,
     /// The directory with the VM's logs.
     pub log_dir: String,
+    /// The guest's IPv6 address on its tap; empty without one. Last, so
+    /// the fields before it keep their places.
+    pub address6: String,
 }
 
 impl VmInfo {
@@ -37,6 +40,7 @@ impl VmInfo {
             user: String::new(),
             pid: 0,
             log_dir: String::new(),
+            address6: String::new(),
         }
     }
 }

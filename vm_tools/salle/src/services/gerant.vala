@@ -10,9 +10,13 @@ namespace Salle {
         public string user;
         public uint32 pid;
         public string log_dir;
+        /* Last on the bus, after log_dir */
+        public string address6;
 
         public static VmInfo stopped (string name) {
-            return VmInfo () { name = name, state = "stopped", tap = "", address = "", user = "", log_dir = "" };
+            return VmInfo () {
+                name = name, state = "stopped", tap = "", address = "", user = "", log_dir = "", address6 = ""
+            };
         }
     }
 

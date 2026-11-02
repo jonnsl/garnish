@@ -195,8 +195,8 @@ fd67:6172:6e69::2 for the first VM and fd67:6172:6e69:1::2 for the second.
 Their connections leave from the host's IPv6 address. When gerant-net can't
 turn IPv6 forwarding on safely (see
 [docs/host-setup.md](../../docs/host-setup.md#ipv6-forwarding-and-router-advertisements)),
-the VM gets IPv4 only and gerantd logs why. The D-Bus `address` is the IPv4
-one.
+the VM gets IPv4 only and gerantd logs why. On D-Bus, `address` is the IPv4
+address and `address6` the IPv6 one.
 
 The tap lives as long as its descriptors: gerantd keeps one for crosvm's
 restarts after a guest reboot, and when the VM stops, the kernel removes the
@@ -279,17 +279,18 @@ Bus name `org.garnish.Gerant` on the session bus, object
 
 | Member | Signature | |
 |---|---|---|
-| `StartVm(s name) → VmInfo` | `s` → `(ssusssus)` | starts the VM, returns once crosvm runs (`booting`) |
+| `StartVm(s name) → VmInfo` | `s` → `(ssusssuss)` | starts the VM, returns once crosvm runs (`booting`) |
 | `StopVm(s name)` | `s` | power button, then `crosvm stop`; returns right away |
 | `KillVm(s name)` | `s` | `crosvm stop`; returns right away |
-| `ListVms() → a(VmInfo)` | → `a(ssusssus)` | configured VMs, running or not |
-| signal `VmStarted(VmInfo)` | `(ssusssus)` | |
+| `ListVms() → a(VmInfo)` | → `a(ssusssuss)` | configured VMs, running or not |
+| signal `VmStarted(VmInfo)` | `(ssusssuss)` | |
 | signal `VmStopped(s name, s reason)` | `ss` | `reason` is for people, e.g. "the guest shut down" |
-| signal `VmStateChanged(VmInfo)` | `(ssusssus)` | the state changed; also the new `pid` after a guest reboot |
+| signal `VmStateChanged(VmInfo)` | `(ssusssuss)` | the state changed; also the new `pid` after a guest reboot |
 
-`VmInfo` is `(name, state, cid, tap, address, user, pid, log_dir)`. `state` is
-`stopped`, `starting`, `booting`, `running` or `stopping`; for a stopped VM the
-other fields are empty or 0.
+`VmInfo` is `(name, state, cid, tap, address, user, pid, log_dir, address6)`.
+`state` is `stopped`, `starting`, `booting`, `running` or `stopping`; for a
+stopped VM the other fields are empty or 0. `address` and `address6` are the
+guest's IPv4 and IPv6 addresses on its tap, empty with passt or without IPv6.
 
 `VmStateChanged` follows a VM through every state: `starting` when a start
 begins, `booting` once crosvm runs, `running` once the guest says it has

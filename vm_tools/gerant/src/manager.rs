@@ -338,6 +338,10 @@ impl Manager {
                 cid,
                 tap: tap.map(|t| t.name.clone()).unwrap_or_default(),
                 address: tap.map(|t| t.guest.to_string()).unwrap_or_default(),
+                address6: tap
+                    .and_then(|t| t.v6)
+                    .map(|v6| v6.guest.to_string())
+                    .unwrap_or_default(),
                 user: config.user.clone(),
                 log_dir: paths.logs.display().to_string(),
                 ..VmInfo::stopped(name)

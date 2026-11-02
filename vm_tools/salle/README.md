@@ -50,8 +50,8 @@ build-aux/check-style.sh --fix   # reformat in place
 - **Shut Down**: `StopVm`, the ACPI power button. **Force Off**: `KillVm`,
   after asking.
 - **Running VMs**: the ssh command (`ssh <user>@vsock/<cid>`, to copy or to
-  open in a terminal through `xdg-terminal-exec`), the address, tap, CID and
-  crosvm's PID.
+  open in a terminal through `xdg-terminal-exec`), the IPv4 and IPv6
+  addresses, tap, CID and crosvm's PID.
 - **Sound**: for a running VM with `Audio=yes`, a volume slider and a mute
   button. They set the volume of the VM's stream on the host, through
   PipeWire's PulseAudio server (`node.name=garnish.<name>`, which gerantd

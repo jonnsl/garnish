@@ -17,6 +17,7 @@ namespace Salle {
         [GtkChild] private unowned Adw.ActionRow ssh_row;
         [GtkChild] private unowned Gtk.Button terminal_button;
         [GtkChild] private unowned Adw.ActionRow address_row;
+        [GtkChild] private unowned Adw.ActionRow address6_row;
         [GtkChild] private unowned Adw.ActionRow tap_row;
         [GtkChild] private unowned Adw.ActionRow cid_row;
         [GtkChild] private unowned Adw.ActionRow pid_row;
@@ -113,6 +114,8 @@ namespace Salle {
             ssh_row.subtitle = "ssh " + vm.ssh_target;
             address_row.visible = vm.address != "";
             address_row.subtitle = vm.address;
+            address6_row.visible = vm.address6 != "";
+            address6_row.subtitle = vm.address6;
             tap_row.visible = vm.tap != "";
             tap_row.subtitle = vm.tap;
             cid_row.subtitle = vm.cid.to_string ();
@@ -259,7 +262,13 @@ namespace Salle {
         [GtkCallback]
         private void on_copy_address_clicked () {
             Utils.copy_to_clipboard (this, vm.address);
-            VmActions.toast (this, _("IP address copied"));
+            VmActions.toast (this, _("IPv4 address copied"));
+        }
+
+        [GtkCallback]
+        private void on_copy_address6_clicked () {
+            Utils.copy_to_clipboard (this, vm.address6);
+            VmActions.toast (this, _("IPv6 address copied"));
         }
 
         [GtkCallback]

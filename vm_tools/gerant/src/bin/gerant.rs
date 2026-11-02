@@ -67,8 +67,10 @@ async fn proxy() -> Result<GerantProxy<'static>, String> {
 fn describe(info: &VmInfo) -> String {
     let net = if info.address.is_empty() {
         "no network".to_owned()
-    } else {
+    } else if info.address6.is_empty() {
         format!("{} on {}", info.address, info.tap)
+    } else {
+        format!("{} and {} on {}", info.address, info.address6, info.tap)
     };
     format!("CID {}, {net}", info.cid)
 }
@@ -108,8 +110,8 @@ async fn list() -> Result<(), String> {
     let vms = proxy().await?.list_vms().await.map_err(message)?;
     let width = vms.iter().map(|vm| vm.name.len()).max().unwrap_or(0).max(4);
     println!(
-        "{:width$}  {:8}  {:>4}  {:15}  TAP",
-        "NAME", "STATE", "CID", "ADDRESS"
+        "{:width$}  {:8}  {:>4}  {:15}  {:10}  IPV6",
+        "NAME", "STATE", "CID", "ADDRESS", "TAP"
     );
     for vm in vms {
         let cid = if vm.cid == 0 {
@@ -118,8 +120,8 @@ async fn list() -> Result<(), String> {
             vm.cid.to_string()
         };
         println!(
-            "{:width$}  {:8}  {cid:>4}  {:15}  {}",
-            vm.name, vm.state, vm.address, vm.tap
+            "{:width$}  {:8}  {cid:>4}  {:15}  {:10}  {}",
+            vm.name, vm.state, vm.address, vm.tap, vm.address6
         );
     }
     Ok(())

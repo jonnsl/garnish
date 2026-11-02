@@ -523,12 +523,18 @@ msgid "Copy SSH Command"
 msgstr "Copiar comando SSH"
 
 #: src/pages/vm-page.blp:204
-msgid "IP Address"
-msgstr "Endereço IP"
+msgid "IPv4 Address"
+msgstr "Endereço IPv4"
+
+msgid "IPv6 Address"
+msgstr "Endereço IPv6"
 
 #: src/pages/vm-page.blp:214
-msgid "Copy IP Address"
-msgstr "Copiar endereço IP"
+msgid "Copy IPv4 Address"
+msgstr "Copiar endereço IPv4"
+
+msgid "Copy IPv6 Address"
+msgstr "Copiar endereço IPv6"
 
 #: src/pages/vm-page.blp:225
 msgid "Network Device"
@@ -607,8 +613,11 @@ msgid "Sound and Microphone"
 msgstr "Som e microfone"
 
 #: src/pages/vm-page.vala:134
-msgid "IP address copied"
-msgstr "Endereço IP copiado"
+msgid "IPv4 address copied"
+msgstr "Endereço IPv4 copiado"
+
+msgid "IPv6 address copied"
+msgstr "Endereço IPv6 copiado"
 
 #: src/services/ini-file.vala:189
 msgid "missing “]”"
