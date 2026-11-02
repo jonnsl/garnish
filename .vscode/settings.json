@@ -4,5 +4,8 @@
         "vm_tools/gerant/Cargo.toml",
         "vm_tools/sonnette/Cargo.toml",
         "vm_tools/videur/Cargo.toml"
+    ],
+    "vala.linkedProjects": [
+        "vm_tools/salle/meson.build"
     ]
 }
