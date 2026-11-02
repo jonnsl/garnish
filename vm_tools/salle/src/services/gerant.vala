@@ -14,9 +14,7 @@ namespace Salle {
         public string address6;
 
         public static VmInfo stopped (string name) {
-            return VmInfo () {
-                name = name, state = "stopped", tap = "", address = "", user = "", log_dir = "", address6 = ""
-            };
+            return VmInfo () { name = name, state = "stopped", tap = "", address = "", user = "", log_dir = "", address6 = "" };
         }
     }
 
