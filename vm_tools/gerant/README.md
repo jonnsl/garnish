@@ -117,8 +117,10 @@ systemd.firstboot=off video=Virtual-1:d`. gerantd adds to it:
 
 - `systemd.hostname=<name>`: the guest is named after its configuration file.
   sommelier, carte-agent and sonnette-agent use the hostname as the VM's name
-- with a network, `ip=<guest>::<gateway>:<netmask>::eth0:off:<dns>` and
-  `net.ifnames=0`: the guest's address, gateway and DNS servers
+- with a network, `ip=<guest>::<gateway>:<netmask>::eth0:<autoconf>:<dns>`
+  and `net.ifnames=0`: the guest's address, gateway and DNS servers.
+  `<autoconf>` is `auto6` with passt, which keeps systemd-networkd's IPv6
+  defaults on, and `off` with NAT
 - with `SharedHome=`, `systemd.mount-extra=` to mount it over
   `/home/<User>` (`nofail`: if the mount fails, the guest boots with the home
   from the image)
@@ -164,12 +166,14 @@ as if the guest's programs ran on the host as you. Nothing needs root or
 setup, and VMs can't reach each other, as each has a passt of its own.
 
 Every guest is 10.0.2.15/24 with gateway 10.0.2.2. These addresses only exist
-between the guest and its passt. passt runs with `--no-map-gw`: by default,
-connections to the gateway address would go to the host's loopback, where
-services that trust local users listen. The guest can still reach the host's
-other addresses, like any program on the LAN. No ports are forwarded to the
-guest. passt stays up across guest reboots and stops with the VM; it logs
-to `passt.log`.
+between the guest and its passt. When the host has IPv6, so does the guest:
+passt answers its router solicitations and DHCPv6 with the host's prefix and
+gateway, and its connections leave from the host's address. passt runs with
+`--no-map-gw`: by default, connections to the gateway address would go to the
+host's loopback, where services that trust local users listen. The guest can
+still reach the host's other addresses, like any program on the LAN. No ports
+are forwarded to the guest. passt stays up across guest reboots and stops with
+the VM; it logs to `passt.log`.
 
 ### NAT
 

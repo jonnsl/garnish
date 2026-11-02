@@ -46,6 +46,18 @@ impl Net {
         }
     }
 
+    /// The `ip=` autoconfiguration. passt answers router solicitations
+    /// and DHCPv6 with the host's IPv6 setup; `auto6` keeps the static IPv4
+    /// address but leaves systemd-networkd's IPv6 defaults on (a link-local
+    /// address, router advertisements). `off` turns them off: nothing on a
+    /// tap answers.
+    pub fn autoconf(&self) -> &'static str {
+        match self {
+            Net::Passt => "auto6",
+            Net::Tap(_) => "off",
+        }
+    }
+
     /// The descriptor crosvm has to inherit.
     pub fn tap_fd(&self) -> Option<RawFd> {
         match self {
@@ -102,7 +114,8 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
         // interface name, hence net.ifnames=0.
         let dns: Vec<String> = res.dns.iter().take(2).map(|a| a.to_string()).collect();
         let (guest, gateway, netmask) = net.addresses();
-        let mut ip = format!("ip={guest}::{gateway}:{netmask}::eth0:off");
+        let autoconf = net.autoconf();
+        let mut ip = format!("ip={guest}::{gateway}:{netmask}::eth0:{autoconf}");
         if !dns.is_empty() {
             ip = format!("{ip}:{}", dns.join(":"));
         }
@@ -534,7 +547,7 @@ mod tests {
         };
         assert!(
             kernel_cmdline("debian", &c, &res)
-                .contains(" ip=10.0.2.15::10.0.2.2:255.255.255.0::eth0:off:1.1.1.1 ")
+                .contains(" ip=10.0.2.15::10.0.2.2:255.255.255.0::eth0:auto6:1.1.1.1 ")
         );
         let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
         let tail = &args[args.len() - 5..];
