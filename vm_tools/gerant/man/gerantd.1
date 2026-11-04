@@ -208,7 +208,7 @@ hands out to VMs, read at startup; see
 .I ~/.local/state/garnish/name/
 The VM's logs, emptied on every start:
 .I console.log
-(the guest's serial console),
+(the kernel console: the kernel's and systemd's boot messages),
 .IR crosvm.log ,
 and
 .IR passt.log ,
@@ -220,7 +220,10 @@ and
 for the helpers that ran.
 .TP
 .I $XDG_RUNTIME_DIR/garnish/name/
-The VM's sockets.
+The VM's sockets, among them
+.I console.sock
+for
+.BR "gerant console" .
 .TP
 .I /usr/lib/systemd/user/gerantd.service
 .TQ

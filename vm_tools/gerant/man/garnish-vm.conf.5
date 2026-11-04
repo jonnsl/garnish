@@ -93,6 +93,11 @@ To either,
 .B gerantd
 adds
 .BI systemd.hostname= name\fR,\fP
+.B systemd.wants=serial\-getty@ttyS1.service
+and
+.B systemd.mask=serial\-getty@ttyS0.service
+(the login prompt is on the second serial port, for
+.BR "gerant console" ),
 the guest's address, gateway and DNS servers
 .RB ( ip= ,
 with

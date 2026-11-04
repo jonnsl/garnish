@@ -108,9 +108,19 @@ impl Paths {
         self.runtime.join("wayland.sock")
     }
 
+    /// The guest's serial console, for `gerant console`.
+    pub fn console_socket(&self) -> PathBuf {
+        console_socket(&self.runtime)
+    }
+
     pub fn log(&self, name: &str) -> PathBuf {
         self.logs.join(format!("{name}.log"))
     }
+}
+
+/// Where the console socket is in a VM's runtime directory.
+pub fn console_socket(runtime: &Path) -> PathBuf {
+    runtime.join("console.sock")
 }
 
 /// The kernel command line for the VM called `name`.
@@ -119,6 +129,11 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
     // carte-agent use the hostname as the VM's name, so windows and menu
     // entries can be told apart.
     let mut params: Vec<String> = vec![config.cmdline.clone(), format!("systemd.hostname={name}")];
+    // The login prompt for `gerant console` is on the second serial port.
+    // systemd starts one on the kernel console by itself; nobody could type
+    // into that one, and it would end up in console.log.
+    params.push("systemd.wants=serial-getty@ttyS1.service".into());
+    params.push("systemd.mask=serial-getty@ttyS0.service".into());
     if let Some(net) = &res.net {
         // systemd-network-generator turns this into a .network file that
         // takes precedence over the image's static one. It needs the
@@ -172,6 +187,16 @@ pub fn crosvm_args(
     arg(&config.memory_mib.to_string());
     arg("--socket");
     args.push(paths.control_socket().into());
+    // The kernel console, where the kernel and systemd write the boot
+    // messages, goes to console.log and takes no input. The second port is
+    // the login console, on crosvm's stdin and stdout (see `console`).
+    args.push("--serial".into());
+    args.push(prefixed(
+        "type=file,num=1,console,path=",
+        &paths.log("console"),
+    ));
+    args.push("--serial".into());
+    args.push("type=stdout,num=2,stdin".into());
     args.push("--block".into());
     args.push(prefixed("path=", &config.image));
     if let Some(initrd) = &config.initrd {
@@ -352,9 +377,7 @@ fn prefixed(prefix: &str, path: &Path) -> OsString {
 }
 
 /// Starts `program` with `env` added to its environment and stdout and stderr
-/// appended to `log`, in its own process group so a Ctrl-C meant for the
-/// daemon doesn't reach it. `keep` stays open in it, with the same number;
-/// our other descriptors are close-on-exec.
+/// appended to logs. See `spawn_stdio`.
 pub fn spawn(
     program: &str,
     args: &[OsString],
@@ -363,18 +386,47 @@ pub fn spawn(
     stderr: &Path,
     keep: Option<RawFd>,
 ) -> io::Result<Child> {
-    let out = File::create(stdout)?;
+    let out = append(stdout)?;
     let err = if stderr == stdout {
         out.try_clone()?
     } else {
-        File::create(stderr)?
+        append(stderr)?
     };
+    spawn_stdio(
+        program,
+        args,
+        env,
+        Stdio::null(),
+        out.into(),
+        err.into(),
+        keep,
+    )
+}
+
+/// Opens a log to write at its end.
+pub fn append(log: &Path) -> io::Result<File> {
+    File::options().append(true).create(true).open(log)
+}
+
+/// Starts `program` with `env` added to its environment, in its own process
+/// group so a Ctrl-C meant for the daemon doesn't reach it. `keep` stays
+/// open in it, with the same number; our other descriptors are
+/// close-on-exec.
+pub fn spawn_stdio(
+    program: &str,
+    args: &[OsString],
+    env: &[(&str, String)],
+    stdin: Stdio,
+    stdout: Stdio,
+    stderr: Stdio,
+    keep: Option<RawFd>,
+) -> io::Result<Child> {
     let mut cmd = Command::new(program);
     cmd.args(args)
         .envs(env.iter().cloned())
-        .stdin(Stdio::null())
-        .stdout(out)
-        .stderr(err)
+        .stdin(stdin)
+        .stdout(stdout)
+        .stderr(stderr)
         .process_group(0);
     // If the daemon dies, take the VM down with it rather than leaving it
     // behind with resources nobody tracks. The runtime is single-threaded,
@@ -459,7 +511,8 @@ mod tests {
         assert_eq!(
             kernel_cmdline("debian", &c, &net()),
             format!(
-                "{} systemd.hostname=debian ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:link6:1.1.1.1:9.9.9.9 \
+                "{} systemd.hostname=debian systemd.wants=serial-getty@ttyS1.service \
+                 systemd.mask=serial-getty@ttyS0.service ip=192.168.10.6::192.168.10.5:255.255.255.252::eth0:link6:1.1.1.1:9.9.9.9 \
                  ip=[fd67:6172:6e69:1::2]::[fd67:6172:6e69:1::1]:64::eth0:link6 net.ifnames=0 \
                  systemd.mount-extra=home:/home/me:virtiofs:nofail,x-systemd.before=systemd-user-sessions.service quiet",
                 crate::config::DEFAULT_CMDLINE
@@ -512,6 +565,10 @@ mod tests {
             "2048",
             "--socket",
             "/run/user/1000/garnish/debian/crosvm.sock",
+            "--serial",
+            "type=file,num=1,console,path=/home/me/.local/state/garnish/debian/console.log",
+            "--serial",
+            "type=stdout,num=2,stdin",
             "--block",
             "path=/cfg/d.raw",
             "--initrd",

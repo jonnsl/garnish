@@ -35,6 +35,11 @@ pub fn runtime_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(format!("/run/user/{}", unsafe { libc::getuid() })))
 }
 
+/// A VM's sockets: $XDG_RUNTIME_DIR/garnish/<name>.
+pub fn vm_runtime_dir(name: &str) -> PathBuf {
+    runtime_dir().join("garnish").join(name)
+}
+
 /// The login name of the user running us.
 pub fn user_name() -> String {
     env::var("USER")

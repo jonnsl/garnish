@@ -61,12 +61,25 @@ cp examples/debian.conf ~/.config/garnish/vms/   # and set Image=
 gerant start debian          # prints the CID and the address
 gerant list
 gerant ssh debian            # ssh <user>@vsock/<cid>, checking the host key
+gerant console debian        # a login prompt on the serial console; Ctrl-] detaches
 gerant stop debian           # shut down, and wait until it's off
 gerant stop --force debian   # stop crosvm without waiting for the guest
 ```
 
-There is no serial console to type into. The guest's console output goes to
-`console.log` in the VM's log directory (see [Logs](#logs)).
+The guest has two serial ports:
+
+- `ttyS0` is the kernel console (`console=ttyS0`): the kernel's messages,
+  and systemd's boot and shutdown status, which systemd writes to
+  `/dev/console`. crosvm writes it to `console.log` (see [Logs](#logs)). It
+  takes no input, and its usual login prompt is masked.
+- `ttyS1` has a login prompt, for `gerant console`, which attaches the
+  terminal to it. The password is the image's (see `GUEST_PASSWORD` in
+  `mkosi/README.md`). Keys like Ctrl-C go to the guest; Ctrl-] detaches.
+  Several terminals can attach at once and all see the same output. Nothing
+  typed there or shown there is kept: output from before you attached isn't
+  replayed, so press Enter for a new prompt. gerantd relays it: crosvm's
+  stdin and stdout are pipes to it, and it serves `console.sock` in the VM's
+  runtime directory.
 
 ## VM configuration
 
@@ -117,6 +130,9 @@ systemd.firstboot=off video=Virtual-1:d`. gerantd adds to it:
 
 - `systemd.hostname=<name>`: the guest is named after its configuration file.
   sommelier, carte-agent and sonnette-agent use the hostname as the VM's name
+- `systemd.wants=serial-getty@ttyS1.service` and
+  `systemd.mask=serial-getty@ttyS0.service`: the login prompt is on the
+  second serial port, for `gerant console`, not in `console.log`
 - with a network, `ip=<guest>::<gateway>:<netmask>::eth0:<autoconf>:<dns>`
   and `net.ifnames=0`: the guest's address, gateway and DNS servers.
   `<autoconf>` is `auto6` with passt, which keeps systemd-networkd's IPv6
@@ -279,7 +295,7 @@ Each VM has a directory, `~/.local/state/garnish/<name>/`, with:
 
 | File | Contents |
 |---|---|
-| `console.log` | the guest's serial console |
+| `console.log` | the kernel console: the kernel's and systemd's boot messages |
 | `crosvm.log` | crosvm's own messages |
 | `passt.log` | with `Mode=passt` |
 | `vhost-device-sound.log` | with `Audio=yes` |
@@ -331,7 +347,6 @@ Anything running as your user can call these, just as it could run crosvm.
 
 ## Not done
 
-- an interactive serial console
 - fixed CIDs or addresses for a VM
 - more than two DNS servers
 - a bridge to the host's network, and port forwarding to passt guests
@@ -349,6 +364,7 @@ Anything running as your user can call these, just as it could run crosvm.
 | `src/pool.rs` | CIDs |
 | `src/net.rs` | the network settings, and how gerantd and gerant-net talk |
 | `src/dns.rs` | forwards NAT guests' DNS to the host's resolver |
+| `src/console.rs` | relays the login console to `console.sock` |
 | `src/vm.rs` | crosvm's command line, kernel command line, starting processes |
 | `src/manager.rs` | the daemon's state, starting, supervising and stopping VMs, the D-Bus object |
 | `src/ready.rs` | the vsock listener for the guests' boot notifications |

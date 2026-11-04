@@ -1,6 +1,7 @@
 //! gerant: starts crosvm guests on request and hands out what they share.
 
 pub mod config;
+pub mod console;
 pub mod dbus;
 pub mod dns;
 pub mod ini;

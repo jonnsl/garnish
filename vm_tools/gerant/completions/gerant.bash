@@ -17,12 +17,12 @@ _gerant()
     _init_completion || return
 
     if ((cword == 1)); then
-        COMPREPLY=($(compgen -W 'start stop list ssh' -- "$cur"))
+        COMPREPLY=($(compgen -W 'start stop list ssh console' -- "$cur"))
         return
     fi
 
     case ${words[1]} in
-        start)
+        start | console)
             ((cword == 2)) && COMPREPLY=($(compgen -W "$(_gerant_vms)" -- "$cur"))
             ;;
         stop)

@@ -1,5 +1,8 @@
 //! gerant: command line client for gerantd.
 
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, ExitCode};
 
@@ -14,7 +17,12 @@ usage: gerant start <name>              start the VM in ~/.config/garnish/vms/<n
        gerant stop [--force] <name>     shut a VM down and wait until it's off;
                                         --force stops crosvm without asking the guest
        gerant list                      the configured VMs and what the running ones got
-       gerant ssh <name> [command...]   ssh into a running VM over vsock";
+       gerant ssh <name> [command...]   ssh into a running VM over vsock
+       gerant console <name>            attach to a running VM's serial console;
+                                        Ctrl-] detaches";
+
+/// Ctrl-], as in telnet and virsh.
+const DETACH: u8 = 0x1d;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
@@ -26,6 +34,7 @@ async fn main() -> ExitCode {
         ["stop", "--force", name] | ["stop", name, "--force"] => stop(name, true).await,
         ["list"] => list().await,
         ["ssh", name, ref command @ ..] => ssh(name, command).await,
+        ["console", name] => console(name).await,
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
@@ -125,7 +134,8 @@ async fn list() -> Result<(), String> {
     Ok(())
 }
 
-async fn ssh(name: &str, command: &[&str]) -> Result<(), String> {
+/// The running VM called `name`.
+async fn running(name: &str) -> Result<VmInfo, String> {
     let vms = proxy().await?.list_vms().await.map_err(message)?;
     let vm = vms
         .into_iter()
@@ -134,6 +144,11 @@ async fn ssh(name: &str, command: &[&str]) -> Result<(), String> {
     if vm.cid == 0 {
         return Err(format!("{name} isn't running"));
     }
+    Ok(vm)
+}
+
+async fn ssh(name: &str, command: &[&str]) -> Result<(), String> {
+    let vm = running(name).await?;
     // The vsock/<cid> host comes from systemd's ssh proxy (systemd >= 256),
     // which turns host key checking off. CIDs are shared by every user's VMs
     // and reused, so check the key against the VM's name instead: the first
@@ -153,4 +168,109 @@ async fn ssh(name: &str, command: &[&str]) -> Result<(), String> {
         .args(command)
         .exec();
     Err(format!("running ssh: {err}"))
+}
+
+async fn console(name: &str) -> Result<(), String> {
+    running(name).await?;
+    let socket = gerant::vm::console_socket(&xdg::vm_runtime_dir(name));
+    let mut stream = UnixStream::connect(&socket)
+        .map_err(|e| format!("connecting to {}: {e}", socket.display()))?;
+    let raw = RawMode::enter();
+    if raw.is_some() {
+        eprint!("{name}'s console, Ctrl-] detaches. Press Enter for a prompt.\r\n");
+    }
+    let result = relay(&mut stream, raw.is_some());
+    drop(raw);
+    match result {
+        Ok(End::Detached) => Ok(()),
+        Ok(End::Stopped) => {
+            eprintln!("\n{name} stopped");
+            Ok(())
+        }
+        Err(e) => Err(format!("console: {e}")),
+    }
+}
+
+enum End {
+    /// Ctrl-], or the end of stdin.
+    Detached,
+    Stopped,
+}
+
+/// Copies stdin to the console and the console to stdout, until Ctrl-]
+/// (when `detach` is set), the end of stdin, or the VM stopping.
+fn relay(stream: &mut UnixStream, detach: bool) -> io::Result<End> {
+    let mut stdin = io::stdin().lock();
+    let mut stdout = io::stdout().lock();
+    let mut buf = [0u8; 4096];
+    loop {
+        let mut fds = [
+            libc::pollfd {
+                fd: stdin.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: stream.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
+        if unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) } < 0 {
+            let e = io::Error::last_os_error();
+            if e.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(e);
+        }
+        if fds[1].revents != 0 {
+            let n = stream.read(&mut buf)?;
+            if n == 0 {
+                return Ok(End::Stopped);
+            }
+            stdout.write_all(&buf[..n])?;
+            stdout.flush()?;
+        }
+        if fds[0].revents != 0 {
+            let n = stdin.read(&mut buf)?;
+            if n == 0 {
+                return Ok(End::Detached);
+            }
+            let typed = &buf[..n];
+            match typed.iter().position(|&b| detach && b == DETACH) {
+                Some(i) => {
+                    stream.write_all(&typed[..i])?;
+                    return Ok(End::Detached);
+                }
+                None => stream.write_all(typed)?,
+            }
+        }
+    }
+}
+
+/// The terminal on stdin in raw mode, so keys like Ctrl-C reach the guest;
+/// restored when dropped.
+struct RawMode(libc::termios);
+
+impl RawMode {
+    /// None if stdin isn't a terminal.
+    fn enter() -> Option<RawMode> {
+        let fd = libc::STDIN_FILENO;
+        let mut saved: libc::termios = unsafe { std::mem::zeroed() };
+        if unsafe { libc::tcgetattr(fd, &mut saved) } != 0 {
+            return None;
+        }
+        let mut raw = saved;
+        unsafe { libc::cfmakeraw(&mut raw) };
+        if unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &raw) } != 0 {
+            return None;
+        }
+        Some(RawMode(saved))
+    }
+}
+
+impl Drop for RawMode {
+    fn drop(&mut self) {
+        unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &self.0) };
+    }
 }

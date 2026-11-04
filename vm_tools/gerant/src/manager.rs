@@ -18,6 +18,7 @@ use zbus::object_server::SignalEmitter;
 use zbus::{Connection, interface};
 
 use crate::config::{self, Clipboard, DaemonConfig, NetworkMode, VmConfig};
+use crate::console::Console;
 use crate::dbus::{Error, OBJECT_PATH, VmInfo};
 use crate::dns;
 use crate::ini;
@@ -82,6 +83,8 @@ struct Launched {
     /// restarts.
     net: Option<Net>,
     helpers: Vec<(&'static str, Child)>,
+    /// crosvm's stdin and stdout, kept across reboots.
+    console: Console,
 }
 
 fn log(msg: impl std::fmt::Display) {
@@ -121,6 +124,19 @@ async fn control(name: &str, command: &str, paths: &Paths) {
         Ok(Err(e)) => log(format!("{name}: crosvm {command}: {e}")),
         Err(_) => log(format!("{name}: crosvm {command}: timed out")),
     }
+}
+
+/// Starts crosvm with the login console on its stdin and stdout, and its
+/// own messages appended to crosvm.log.
+fn spawn_crosvm(
+    args: &[OsString],
+    console: &Console,
+    paths: &Paths,
+    tap_fd: Option<std::os::fd::RawFd>,
+) -> io::Result<Child> {
+    let (stdin, stdout) = console.stdio()?;
+    let stderr = vm::append(&paths.log("crosvm"))?;
+    vm::spawn_stdio("crosvm", args, &[], stdin, stdout, stderr.into(), tap_fd)
 }
 
 /// Asks the helpers to exit and kills those that don't.
@@ -272,7 +288,7 @@ impl Manager {
         let config = self.load(name)?;
         let wayland = std::env::var_os("WAYLAND_DISPLAY").unwrap_or_else(|| "wayland-0".into());
         let paths = Paths {
-            runtime: xdg::runtime_dir().join("garnish").join(name),
+            runtime: xdg::vm_runtime_dir(name),
             logs: xdg::state_dir().join(name),
             wayland: xdg::runtime_dir().join(wayland),
         };
@@ -434,6 +450,7 @@ impl Manager {
             paths.sound_socket(),
             paths.passt_socket(),
             paths.videur_socket(),
+            paths.console_socket(),
         ] {
             if socket.as_os_str().len() >= 108 {
                 return Err(Error::StartFailed(format!(
@@ -464,11 +481,12 @@ impl Manager {
         if result.is_err() {
             stop_helpers(name, &mut helpers).await;
         }
-        result.map(|(crosvm, args)| Launched {
+        result.map(|(crosvm, args, console)| Launched {
             crosvm,
             args,
             net: res.net.clone(),
             helpers,
+            console,
         })
     }
 
@@ -479,7 +497,7 @@ impl Manager {
         res: &Resources,
         paths: &Paths,
         helpers: &mut Vec<(&'static str, Child)>,
-    ) -> Result<(Child, Vec<OsString>), Error> {
+    ) -> Result<(Child, Vec<OsString>, Console), Error> {
         let failed = |e: io::Error| Error::StartFailed(e.to_string());
         // Truncated once per start; crosvm appends after a reboot.
         let truncate = |log: &str| File::create(paths.log(log)).map(drop).map_err(failed);
@@ -577,6 +595,7 @@ impl Manager {
             helpers.push(("videur", child));
         }
 
+        let console = Console::start(&paths.console_socket()).map_err(failed)?;
         truncate("console")?;
         truncate("crosvm")?;
         let args = vm::crosvm_args(
@@ -588,15 +607,7 @@ impl Manager {
             unsafe { libc::getgid() },
         );
         let tap_fd = res.net.as_ref().and_then(Net::tap_fd);
-        let mut crosvm = vm::spawn(
-            "crosvm",
-            &args,
-            &[],
-            &paths.log("console"),
-            &paths.log("crosvm"),
-            tap_fd,
-        )
-        .map_err(failed)?;
+        let mut crosvm = spawn_crosvm(&args, &console, paths, tap_fd).map_err(failed)?;
 
         let socket = paths.control_socket();
         let deadline = Instant::now() + START_TIMEOUT;
@@ -610,7 +621,7 @@ impl Manager {
                 )));
             }
             if socket.exists() {
-                return Ok((crosvm, args));
+                return Ok((crosvm, args, console));
             }
             if Instant::now() > deadline {
                 let _ = crosvm.kill().await;
@@ -678,7 +689,7 @@ impl Manager {
                     // the next connection, and carte and sonnette reconnect.
                     let _ = fs::remove_file(paths.control_socket());
                     let tap_fd = launched.net.as_ref().and_then(Net::tap_fd);
-                    match vm::spawn("crosvm", &launched.args, &[], &paths.log("console"), &paths.log("crosvm"), tap_fd) {
+                    match spawn_crosvm(&launched.args, &launched.console, &paths, tap_fd) {
                         Ok(child) => {
                             launched.crosvm = child;
                             self.set_state(&name, self.booting_state(), launched.crosvm.id()).await;

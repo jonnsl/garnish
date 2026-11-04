@@ -14,6 +14,7 @@ _gerant() {
     'stop:shut a VM down and wait until it is off'
     'list:list the configured VMs and what the running ones got'
     'ssh:ssh into a running VM over vsock'
+    'console:attach to a running VM'"'"'s serial console'
   )
 
   if (( CURRENT == 2 )); then
@@ -26,7 +27,7 @@ _gerant() {
   shift words
   (( CURRENT-- ))
   case $cmd in
-    start)
+    start|console)
       _arguments ':VM:_gerant_vms'
       ;;
     stop)

@@ -14,6 +14,9 @@ gerant \- start, stop and list garnish VMs
 .B gerant ssh
 .I name
 .RI [ command ...]
+.br
+.B gerant console
+.I name
 .SH DESCRIPTION
 .B gerant
 is the command line client of
@@ -81,6 +84,26 @@ The first connection records the key in
 if it changes later, for example after rebuilding the image, ssh refuses to
 connect until the old key is removed with
 .BI "ssh\-keygen \-R " name " \-f ~/.local/state/garnish/known_hosts" .
+.TP
+.BI console " name"
+Attach the terminal to a running VM's second serial port,
+.IR ttyS1 ,
+where the guest shows a login prompt.
+Nothing typed or shown there goes to
+.IR console.log ,
+which has only the boot messages from the kernel console,
+.IR ttyS0 .
+The terminal is put in raw mode, so keys like Ctrl\-C go to the guest;
+.B Ctrl\-]
+detaches.
+Output from before attaching isn't shown again; press Enter for a new prompt.
+Several terminals can attach at once.
+When the VM stops,
+.B gerant console
+says so and exits.
+If standard input isn't a terminal, it is sent as is and
+.B gerant console
+exits at its end.
 .SH EXIT STATUS
 0 on success, 1 on failure, 2 for a usage error.
 .SH FILES
@@ -91,16 +114,21 @@ The VM's configuration.
 .I ~/.local/state/garnish/name/
 The VM's logs, starting with
 .IR console.log ,
-the guest's serial console.
+the kernel's and systemd's boot messages.
 .TP
 .I ~/.local/state/garnish/known_hosts
 The guests' ssh host keys, by VM name.
+.TP
+.I $XDG_RUNTIME_DIR/garnish/name/console.sock
+The VM's login console, served by
+.BR gerantd .
 .SH EXAMPLES
 .EX
 $ mkdir \-p ~/.config/garnish/vms
 $ cp /usr/share/doc/gerant/examples/debian.conf ~/.config/garnish/vms/
 $ gerant start debian
 $ gerant ssh debian uname \-a
+$ gerant console debian
 $ gerant stop debian
 .EE
 .SH SEE ALSO
