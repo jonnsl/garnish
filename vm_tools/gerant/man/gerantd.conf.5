@@ -1,0 +1,38 @@
+.TH GERANTD.CONF 5 2026-11-04 garnish "garnish manual"
+.SH NAME
+gerantd.conf \- what gerantd hands out to VMs
+.SH SYNOPSIS
+.I ~/.config/garnish/gerantd.conf
+.SH DESCRIPTION
+.BR gerantd (1)
+reads this file once, at startup; restart it after a change
+.RB ( "systemctl \-\-user restart gerantd" ,
+which shuts running VMs down). The file is optional, and so is every
+setting. The syntax is that of
+.BR garnish\-vm.conf (5).
+.SH [Pool] SECTION
+.TP
+.BI CIDs= low \- high
+The vsock context IDs given to VMs. A VM gets the lowest free one, and gives
+it back when it stops. Default: 3\-99.
+.TP
+.BI DNS= addresses
+At most two DNS servers, given to every guest on its kernel command line.
+Unset, guests use the host's resolver: passt forwards the queries its
+guests send to 10.0.2.3, and
+.B gerantd
+those NAT guests send to their gateway, to the first nameserver in
+.IR /etc/resolv.conf .
+Empty: no DNS servers.
+.SH [Manager] SECTION
+.TP
+.BI StopTimeoutSec= seconds
+How long a guest gets to shut down after the power button before crosvm is
+stopped. Default: 30.
+.PP
+The NAT guests' addresses are set for all users in
+.BR garnish\-network.conf (5).
+.SH SEE ALSO
+.BR gerantd (1),
+.BR garnish\-vm.conf (5),
+.BR garnish\-network.conf (5)

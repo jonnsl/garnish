@@ -1,0 +1,242 @@
+.TH GERANTD 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+gerantd \- session-bus daemon that runs garnish VMs
+.SH SYNOPSIS
+.B gerantd
+.SH DESCRIPTION
+.B gerantd
+starts and stops crosvm virtual machines when asked to over D-Bus. It runs as
+your user, without root, and owns
+.B org.garnish.Gerant
+on the session bus. It is usually started by D-Bus activation, as
+.B gerantd.service
+in the user's systemd instance, and logs to the journal
+.RB ( "journalctl \-\-user \-u gerantd" ).
+Run by hand, it logs to standard error.
+.PP
+Each VM is configured in
+.IR ~/.config/garnish/vms/name.conf ;
+see
+.BR garnish\-vm.conf (5).
+The configuration is read on every start, so changes apply the next time a
+VM starts.
+.SS Starting a VM
+.B gerantd
+reads and checks the VM's configuration, gets a tap device from
+.BR gerant\-net (8)
+with
+.BR Mode=nat ,
+takes the lowest free vsock CID, then starts the helpers the configuration
+asks for and
+.BR "crosvm run" :
+.TP
+.B passt
+the network, with
+.B Mode=passt
+(the default).
+.TP
+.B vhost\-device\-sound
+sound, with
+.BR Audio=yes .
+Its playback stream is named
+.BI garnish. name
+on the host.
+.TP
+.BI "carte sync \-\-cid " cid
+the guest's applications in the host's menu, with
+.B AppMenu=yes
+or
+.BR Wayland=yes ;
+see
+.BR carte (1).
+.TP
+.BI "sonnette relay \-\-cid " cid
+the guest's notifications, with
+.BR Notifications=yes ;
+see
+.BR sonnette (1).
+.TP
+.B videur
+the clipboard filter, with
+.B Wayland=yes
+and
+.B Clipboard=
+other than
+.BR both ;
+see
+.BR videur (1).
+.PP
+.BR crosvm ,
+.BR vhost\-device\-sound ,
+.BR passt ,
+.BR carte ,
+.BR sonnette ,
+.B videur
+and
+.B gerant\-net
+are looked up in
+.BR PATH .
+.B carte
+and
+.B sonnette
+are skipped if they are not installed; a
+.B gerant\-net
+that is not setuid root is skipped.
+.PP
+The VM is
+.B booting
+once crosvm runs, and
+.B running
+once the guest reports that it has booted: the image's
+.B gerant\-ready.service
+sends
+.B READY=1
+to vsock port 8891 on the host. An image without it shows as running after
+120 seconds. vsock ports are shared by all users: if another user's
+.B gerantd
+holds port 8891, VMs show as running as soon as crosvm runs.
+.PP
+When the guest reboots, crosvm exits with status 32 and
+.B gerantd
+starts it again with the same resources. A guest that reboots more than 5
+times in 60 seconds is stopped.
+.SS Stopping a VM
+.B StopVm
+presses the ACPI power button
+.RB ( "crosvm powerbtn" ).
+If the guest is still running after
+.B StopTimeoutSec=
+(see
+.BR gerantd.conf (5)),
+.B gerantd
+runs
+.BR "crosvm stop" ,
+and kills crosvm 5 seconds later if it is still there.
+.B KillVm
+begins with
+.BR "crosvm stop" .
+When crosvm exits, the helpers are stopped and the CID and tap are given
+back, so a VM's CID and address can change between runs.
+.SH D-BUS INTERFACE
+Object
+.BR /org/garnish/Gerant ,
+interface
+.BR org.garnish.Gerant1 :
+.TP
+.BI StartVm( "s name" ") \(-> VmInfo"
+Start a VM; returns once crosvm runs.
+.TP
+.BI StopVm( "s name" )
+Press the power button; returns right away.
+.TP
+.BI KillVm( "s name" )
+Run
+.BR "crosvm stop" ;
+returns right away.
+.TP
+.B ListVms() \(-> a(VmInfo)
+Every configured VM, running or not.
+.TP
+.BI "signal VmStarted(" VmInfo )
+.TQ
+.BI "signal VmStopped(" "s name" ", " "s reason" )
+.TQ
+.BI "signal VmStateChanged(" VmInfo )
+.B VmStateChanged
+follows a VM through every state, and also reports crosvm's new PID after
+a guest reboot.
+.PP
+.I VmInfo
+is
+.B (ssusssuss)
+.RI ( name ,
+.IR state ,
+.IR cid ,
+.IR tap ,
+.IR address ,
+.IR user ,
+.IR pid ,
+.IR log_dir ,
+.IR address6 ).
+.I state
+is
+.BR stopped ,
+.BR starting ,
+.BR booting ,
+.B running
+or
+.BR stopping .
+For a stopped VM the other fields are empty or 0.
+.PP
+Errors are
+.BI org.garnish.Gerant1.Error. name
+with a message:
+.BR NoSuchVm ,
+.BR InvalidConfig ,
+.BR AlreadyRunning ,
+.BR NotRunning ,
+.B NoResources
+(out of CIDs),
+.BR StartFailed ,
+.BR ShuttingDown .
+.PP
+Anything running as your user can call these, just as it could run crosvm.
+.SH SIGNALS
+.TP
+.BR SIGTERM ", " SIGINT
+Shut every VM down as
+.B StopVm
+does, then exit. A second signal stops them right away.
+.PP
+crosvm and the helpers get
+.B SIGTERM
+if
+.B gerantd
+dies.
+.SH FILES
+.TP
+.I ~/.config/garnish/vms/name.conf
+VM configurations; see
+.BR garnish\-vm.conf (5).
+.TP
+.I ~/.config/garnish/gerantd.conf
+What
+.B gerantd
+hands out to VMs, read at startup; see
+.BR gerantd.conf (5).
+.TP
+.I ~/.local/state/garnish/name/
+The VM's logs, emptied on every start:
+.I console.log
+(the guest's serial console),
+.IR crosvm.log ,
+and
+.IR passt.log ,
+.IR vhost\-device\-sound.log ,
+.IR carte.log ,
+.I sonnette.log
+and
+.I videur.log
+for the helpers that ran.
+.TP
+.I $XDG_RUNTIME_DIR/garnish/name/
+The VM's sockets.
+.TP
+.I /usr/lib/systemd/user/gerantd.service
+.TQ
+.I /usr/share/dbus\-1/services/org.garnish.Gerant.service
+The user unit and its D-Bus activation file.
+.SH EXAMPLES
+.EX
+$ busctl \-\-user call org.garnish.Gerant /org/garnish/Gerant \e
+      org.garnish.Gerant1 StartVm s debian
+$ systemctl \-\-user stop gerantd    # shuts every VM down
+.EE
+.SH SEE ALSO
+.BR gerant (1),
+.BR gerant\-net (8),
+.BR garnish\-vm.conf (5),
+.BR gerantd.conf (5),
+.BR crosvm (1),
+.BR passt (1),
+.BR garnish (7)

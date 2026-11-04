@@ -1,0 +1,254 @@
+.TH GARNISH\-VM.CONF 5 2026-11-04 garnish "garnish manual"
+.SH NAME
+garnish\-vm.conf \- configuration of a garnish VM
+.SH SYNOPSIS
+.I ~/.config/garnish/vms/name.conf
+.br
+.I ~/.config/garnish/vms/name.conf.d/*.conf
+.SH DESCRIPTION
+Each file in
+.I ~/.config/garnish/vms/
+configures one VM for
+.BR gerantd (1).
+The file name without
+.I .conf
+is the VM's name, which is also the guest's hostname: letters, digits and
+.B \-
+(not first or last), at most 32 characters.
+.PP
+The file is read every time the VM starts, so a change applies at the next
+start.
+.BR salle (1)
+edits these files too, changing only the lines of the settings it writes.
+.SH SYNTAX
+The format is the one systemd and mkosi use:
+.IP \(bu 2
+.B [Section]
+headers and
+.IB Key = Value
+settings;
+.B #
+and
+.B ;
+start comments.
+.IP \(bu
+A value continues on the next line if that line is indented or the line
+ends with
+.BR \e .
+.IP \(bu
+Assigning a setting again replaces it, except for lists, which grow. An
+empty assignment
+.RB ( Key= )
+resets a setting to its default.
+.IP \(bu
+Drop-ins in
+.I name.conf.d/*.conf
+are read after the file, in name order.
+.IP \(bu
+Relative paths are relative to the file they are in;
+.B ~/
+is your home directory.
+.IP \(bu
+List items are separated by spaces; quote an item
+.RB ( \(aq...\(aq
+or
+.BR \(dq...\(dq )
+or use
+.B \e
+to put a space in it.
+.IP \(bu
+Booleans are
+.BR yes / no ,
+.BR true / false ,
+.BR on / off
+or
+.BR 1 / 0 .
+.IP \(bu
+Unknown sections and settings are errors.
+.SH [Boot] SECTION
+.TP
+.BI Image= path
+The disk image. Required.
+.TP
+.BI Kernel= path
+The kernel. Default: the image's path with
+.I .vmlinuz
+in place of its extension.
+.TP
+.BI Initrd= path
+The initrd. Default: the image's path with
+.IR .initrd ,
+if that file exists.
+.TP
+.BI KernelCommandLine= string
+Replaces the default kernel command line, which is the images':
+.EX
+root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual\-1:d
+.EE
+.TP
+.BI KernelCommandLineExtra= words
+A list, added to the command line.
+.PP
+To either,
+.B gerantd
+adds
+.BI systemd.hostname= name\fR,\fP
+the guest's address, gateway and DNS servers
+.RB ( ip= ,
+with
+.BR net.ifnames=0 ),
+and, with
+.BR SharedHome= ,
+a
+.B systemd.mount\-extra=
+for the home directory.
+.SH [Machine] SECTION
+.TP
+.BI Title= text
+A name for people, such as
+.BR "Debian (work)" .
+.BR salle (1)
+shows it instead of the VM's name, and the host's sound settings name the
+VM's audio stream after it.
+.TP
+.BI CPUs= n
+Default: 4.
+.TP
+.BI Memory= size
+With a
+.BR K ,
+.BR M ,
+.B G
+or
+.B T
+suffix; a plain number is bytes. At least 128M. Default: 4G.
+.TP
+.BI SharedHome= path
+A host directory mounted over the guest user's home with virtio-fs. If the
+mount fails, the guest boots with the home from the image.
+.TP
+.BI Audio= bool
+A virtio-snd sound card, through
+.BR vhost\-device\-sound .
+Default: no.
+.TP
+.BI Microphone= bool
+Lets the guest record from the host's default input. Default: no.
+.TP
+.BI Wayland= bool
+A virtio GPU with
+.B GpuContextTypes=
+and the host's Wayland socket, which sommelier in the guest uses to show
+the guest's windows on the host. Default: yes.
+.TP
+.BR Clipboard= both | to\-host | from\-host | none
+Which way copied data may go:
+.B to\-host
+lets the host paste what the guest copies, not the other way round;
+.B from\-host
+is the reverse. Anything but
+.B both
+runs
+.BR videur (1)
+between crosvm and the host's Wayland socket. Copy and paste inside the
+guest works in every mode. Default: both.
+.TP
+.BI GpuContextTypes= words
+A list. Add
+.B virgl2
+only if crosvm was built with virglrenderer. Default: cross-domain.
+.TP
+.BI ExtraArguments= words
+A list, passed to
+.B crosvm run
+as they are.
+.SH [Network] SECTION
+.TP
+.BR Mode= passt | nat | none
+.RS
+.TP
+.B passt
+The default. The guest reaches the outside and the host's other addresses
+through
+.BR passt (1),
+which runs as you and makes the guest's connections for it. The guest is
+10.0.2.15 with gateway 10.0.2.2, and gets IPv6 when the host has it. The
+host can't reach the guest over the network, and nothing needs root.
+.TP
+.B nat
+A tap device of its own on the host, from
+.BR gerant\-net (8),
+with an address the host can reach and NAT to the outside. The addresses
+come from
+.BR garnish\-network.conf (5).
+.TP
+.B none
+No network device.
+.RE
+.IP
+In every mode the host reaches the guest over vsock, for
+.BR "gerant ssh" ,
+the application menu and Wayland. Unless
+.B [Pool] DNS=
+is set in
+.BR gerantd.conf (5),
+the guest's DNS queries go to the host's resolver.
+.SH [Guest] SECTION
+.TP
+.BI User= name
+The user the image was built with
+.RB ( GUEST_USER ),
+for the shared home and
+.BR "gerant ssh" .
+Default: your user name.
+.TP
+.BI UID= n
+.TQ
+.BI GID= n
+The guest user's IDs, for the shared home. Default: 1000, and the UID.
+.TP
+.BI AppMenu= bool
+Run
+.B carte sync
+while the VM is up, putting the guest's applications in the host's menu.
+With
+.B Wayland=yes
+and
+.BR AppMenu=no ,
+.B carte sync \-\-no\-menu
+only keeps the list of applications, for
+.BR salle (1).
+See
+.BR carte (1).
+Default: yes.
+.TP
+.BI Notifications= bool
+Run
+.B sonnette relay
+while the VM is up, showing the guest's notifications on the host. See
+.BR sonnette (1).
+Default: yes.
+.SH EXAMPLES
+.EX
+# ~/.config/garnish/vms/debian.conf
+[Boot]
+Image=~/images/debian.raw
+
+[Machine]
+Title=Debian
+Memory=8G
+Audio=yes
+Clipboard=to\-host
+
+[Network]
+Mode=nat
+.EE
+.PP
+A commented example with every setting is in
+.IR /usr/share/doc/gerant/examples/debian.conf .
+.SH SEE ALSO
+.BR gerant (1),
+.BR gerantd (1),
+.BR gerantd.conf (5),
+.BR garnish\-network.conf (5),
+.BR salle (1)

@@ -1,0 +1,87 @@
+.TH GARNISH 7 2026-11-04 garnish "garnish manual"
+.SH NAME
+garnish \- Linux applications from other distributions in lightweight VMs
+.SH DESCRIPTION
+garnish runs Linux applications from other distributions in small crosvm
+virtual machines, with their windows on the host's Wayland desktop. Each
+guest's Wayland applications reach the host through sommelier, so they open
+as ordinary windows, and its installed applications show up in the host's
+application menu. Guests are VMs, not containers: they can't see each
+other, get no microphone unless allowed, and only share the host directory
+they are given. Nothing runs as root, except the optional NAT helper.
+.SH COMPONENTS
+.SS On the host
+.TP
+.BR gerantd (1)
+The session-bus daemon that starts and stops VMs.
+.TP
+.BR gerant (1)
+Its command line client.
+.TP
+.BR gerant\-net (8)
+The setuid helper that creates network devices for VMs with
+.BR Mode=nat .
+.TP
+.BR salle (1)
+A GTK application to create, edit, start and stop VMs.
+.TP
+.BR carte (1)
+Puts the guests' applications in the host's menu.
+.TP
+.BR sonnette (1)
+Shows the guests' notifications on the host.
+.TP
+.BR videur (1)
+Controls which way a guest's clipboard goes.
+.SS In the guest
+.TP
+.BR carte\-agent (1)
+Serves the guest's applications to
+.BR carte .
+.TP
+.BR sonnette\-agent (1)
+The guest's notification server, which forwards to
+.BR sonnette .
+.TP
+.B sommelier
+Shows the guest's Wayland windows on the host.
+.TP
+.B gerant\-ready.service
+Tells
+.B gerantd
+when the guest has booted.
+.SS Configuration
+.TP
+.BR garnish\-vm.conf (5)
+One file per VM.
+.TP
+.BR gerantd.conf (5)
+vsock CIDs, DNS and the stop timeout.
+.TP
+.BR garnish\-network.conf (5)
+The NAT VMs' networks, for all users.
+.SH VSOCK PORTS
+.TP
+.B 8890
+.BR carte\-agent ,
+in the guest.
+.TP
+.B 8891
+Boot notifications, on the host.
+.TP
+.B 8892
+.BR sonnette\-agent ,
+in the guest.
+.SH EXAMPLES
+.EX
+$ mkdir \-p ~/.config/garnish/vms
+$ cp /usr/share/doc/gerant/examples/debian.conf ~/.config/garnish/vms/
+$ $EDITOR ~/.config/garnish/vms/debian.conf    # set Image=
+$ gerant start debian
+.EE
+.SH SEE ALSO
+.BR crosvm (1),
+.BR passt (1)
+.PP
+.UR https://github.com/jonnsl/garnish
+.UE

@@ -1,0 +1,121 @@
+.TH CARTE 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+carte \- put a garnish VM's applications in the host's application menu
+.SH SYNOPSIS
+.B carte sync \-\-cid
+.I cid
+.RB [ \-\-no\-menu ]
+.br
+.B carte launch
+.RB [ \-\-no\-notify ]
+.I vm app-id
+.br
+.B carte hide
+.I vm app-id
+.br
+.B carte show
+.I vm app-id
+.br
+.B carte remove
+.I vm
+.SH DESCRIPTION
+.B carte
+is the host side of
+.BR carte\-agent (1),
+which runs in the guest. It writes a launcher for each of the guest's
+graphical applications to
+.IR ~/.local/share/applications ,
+keeps them in sync, and starts the applications in the guest when a
+launcher is clicked.
+.PP
+.BR gerantd (1)
+runs
+.B carte sync
+for every VM it starts with
+.B AppMenu=yes
+or
+.BR Wayland=yes ,
+so it is rarely run by hand.
+.SH COMMANDS
+.TP
+.BI "sync \-\-cid " cid " \fR[\fP\-\-no\-menu\fR]\fP"
+Follow the VM at vsock CID
+.I cid
+until killed. It waits for the agent, retrying every second, and reconnects
+when the agent restarts or the VM reboots. On every change in the guest it
+fetches the icons, saves the list of applications, writes a launcher for
+each application that isn't hidden, and removes the launchers and icons of
+applications that are gone or hidden. Files are replaced atomically and only
+when their content changed. With
+.BR \-\-no\-menu ,
+it keeps the list but writes no launchers.
+.TP
+.BR launch " [" \-\-no\-notify ]
+.I vm app-id
+Start an application in a running VM. Each launcher runs this. Errors, such
+as the VM being off, also go to a desktop notification
+.RB ( notify\-send ),
+unless
+.BR \-\-no\-notify .
+.TP
+.BI hide " vm app-id"
+Take an application out of the menu. It applies at once, also while the VM
+is off.
+.TP
+.BI show " vm app-id"
+Put a hidden application back.
+.TP
+.BI remove " vm"
+Delete a VM's launchers, icons and list.
+.PP
+Launchers stay when the VM stops, so applications pinned to a dock stay too.
+Their names get
+.RI \(dq " " ( vm )\(dq
+appended, and their keywords the VM's name, so searching for it lists all of
+its applications.
+.SH EXIT STATUS
+0 on success, 1 on failure, 2 for a usage error.
+.SH FILES
+.TP
+.I ~/.local/share/applications/carte\-vm.app-id.desktop
+The launchers.
+.TP
+.I ~/.local/share/carte/icons/vm/app-id.png
+.TQ
+.I ~/.local/share/carte/icons/vm/app-id.svg
+Their icons.
+.TP
+.I ~/.local/share/carte/apps/vm.json
+The last list of applications from the agent, kept while the VM is off;
+.BR salle (1)
+reads it.
+.TP
+.I ~/.config/carte/vm.hidden
+Applications left out of the menu, one ID per line.
+.TP
+.I $XDG_RUNTIME_DIR/carte/vm.cid
+The CID of a VM while
+.B carte sync
+is connected to it;
+.B carte launch
+finds the VM through it.
+.TP
+.I ~/.local/state/garnish/vm/carte.log
+.BR "carte sync" 's
+output, when
+.B gerantd
+runs it.
+.SH SECURITY
+Everything from the guest is untrusted. VM names and application IDs are
+checked before they are used in file names, guest text only goes into
+display keys of the launchers, and every launcher's
+.B Exec=
+is built on the host, so a guest can't make the host run anything but
+.BR "carte launch" .
+Icons are accepted only as PNG or SVG, up to 4 MiB.
+.SH SEE ALSO
+.BR carte\-agent (1),
+.BR gerantd (1),
+.BR garnish\-vm.conf (5),
+.BR salle (1),
+.BR garnish (7)

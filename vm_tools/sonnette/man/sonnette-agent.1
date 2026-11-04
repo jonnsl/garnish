@@ -1,0 +1,51 @@
+.TH SONNETTE\-AGENT 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+sonnette\-agent \- notification server that forwards a garnish guest's notifications to the host
+.SH SYNOPSIS
+.B sonnette\-agent
+.SH DESCRIPTION
+.B sonnette\-agent
+runs in the guest's user session. It is the guest's notification server: it
+owns
+.B org.freedesktop.Notifications
+on the session bus and hands every notification to
+.BR sonnette (1)
+on the host over vsock port 8892. It only accepts connections from CID 2,
+the host. Actions the user picks and notifications closed on the host come
+back as the usual
+.B ActionInvoked
+and
+.B NotificationClosed
+signals.
+.PP
+It is started by
+.B sonnette\-agent.service
+in every user's session, and by D-Bus activation the first time an
+application sends a notification.
+.PP
+The VM's name is the guest's hostname, which
+.BR gerantd (1)
+sets to the name of the VM's configuration. The sending application is the
+.B desktop\-entry
+hint it gave, or else the application
+.BR carte\-agent (1)
+started it as, found from the sender's
+.BR app\-carte\-*.scope .
+Icons given as files or icon names are looked up in the guest and sent as
+PNG or SVG.
+.PP
+.B GetCapabilities
+answers with what the host's server can do. Notifications sent while the
+host isn't connected, such as during boot, wait in the agent (up to 32)
+and are shown when it connects.
+.SH FILES
+.TP
+.I /usr/lib/systemd/user/sonnette\-agent.service
+Starts the agent in every user's session.
+.TP
+.I /usr/share/dbus\-1/services/org.garnish.sonnette.service
+Starts it on the first notification.
+.SH SEE ALSO
+.BR sonnette (1),
+.BR carte\-agent (1),
+.BR garnish (7)

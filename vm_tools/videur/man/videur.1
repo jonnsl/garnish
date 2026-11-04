@@ -1,0 +1,103 @@
+.TH VIDEUR 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+videur \- Wayland proxy that controls which way a garnish VM's clipboard goes
+.SH SYNOPSIS
+.B videur
+.B \-\-display
+.I socket
+.B \-\-listen
+.I socket
+.B \-\-clipboard
+.BR both | to\-host | from\-host | none
+.RB [ \-\-protocols
+.IR dir ]...
+.SH DESCRIPTION
+.B videur
+sits between crosvm and the host's Wayland compositor and passes on only the
+clipboard data the policy allows.
+.BR gerantd (1)
+starts one for every VM with
+.B Wayland=yes
+and
+.B Clipboard=
+other than
+.BR both ,
+and gives crosvm its socket instead of the compositor's.
+.PP
+Copy and paste between the guest's own applications works in every mode,
+even though sommelier passes the guest's clipboard through the host: videur
+recognizes the guest's own offers and lets their pastes go straight back to
+the guest. Drag and drop follows the same rules.
+.PP
+Only what the guest is given can be used: requests for objects it wasn't
+given, binds to globals it wasn't offered, or anything that doesn't parse
+end the connection. This holds even against a guest whose root user talks to
+the GPU channel directly.
+.SH OPTIONS
+.TP
+.BI \-\-display " socket"
+The compositor's socket, such as
+.IR $XDG_RUNTIME_DIR/wayland\-0 .
+.TP
+.BI \-\-listen " socket"
+Where to listen for clients (crosvm's
+.BR \-\-wayland\-sock ).
+An existing file there is removed.
+.TP
+.BI \-\-clipboard " policy"
+.RS
+.TP
+.B both
+The host pastes what the guest copies, and the guest what the host copies.
+.TP
+.B to\-host
+Only the host pastes what the guest copies. The guest sees an empty
+clipboard when a host application owns it.
+.TP
+.B from\-host
+Only the guest pastes what the host copies. Host applications paste
+nothing from the guest, though the host still sees that the guest copied
+something, and its types.
+.TP
+.B none
+Neither.
+.RE
+.TP
+.BI \-\-protocols " dir"
+Also read protocol descriptions from
+.IR dir .
+May be repeated.
+.TP
+.BR \-h ", " \-\-help
+Print a short usage message.
+.SH PROTOCOLS
+To know which file descriptors go with which message and which objects a
+message creates, videur reads the protocol descriptions in
+.IR /usr/share/wayland ,
+.I /usr/share/wayland\-protocols
+and each
+.B \-\-protocols
+directory. Globals of other protocols are hidden from the guest, and
+versions are capped at the ones in those files.
+.PP
+Always hidden:
+.B ext_data_control_manager_v1
+and
+.BR zwlr_data_control_manager_v1 ,
+which read the clipboard without focus, and
+.BR gtk_primary_selection_device_manager .
+The primary selection
+.RB ( zwp_primary_selection_device_manager_v1 )
+follows the same rules as the clipboard.
+.SH EXIT STATUS
+0 on success, 1 on failure, 2 for a usage error.
+.SH FILES
+.TP
+.I ~/.local/state/garnish/vm/videur.log
+Its output, when
+.B gerantd
+runs it.
+.SH SEE ALSO
+.BR gerantd (1),
+.BR garnish\-vm.conf (5),
+.BR garnish (7)

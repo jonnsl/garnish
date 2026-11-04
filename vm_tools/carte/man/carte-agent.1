@@ -1,0 +1,67 @@
+.TH CARTE\-AGENT 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+carte\-agent \- serve a garnish guest's applications to the host
+.SH SYNOPSIS
+.B carte\-agent
+.SH DESCRIPTION
+.B carte\-agent
+runs in the guest's user session, started by
+.BR carte\-agent.service .
+It reads the guest's desktop entries, watches them for changes, and serves
+the list of applications, their icons and launch requests to
+.BR carte (1)
+on the host over vsock port 8890. It only accepts connections from CID 2,
+the host.
+.PP
+The VM's name is the guest's hostname, which
+.BR gerantd (1)
+sets to the name of the VM's configuration.
+.SS What is exported
+The agent reads
+.I applications/
+under
+.B $XDG_DATA_HOME
+and
+.BR $XDG_DATA_DIRS ,
+subdirectories included; the first file with a given desktop ID wins. It
+leaves out entries that are not
+.BR Type=Application ,
+have
+.B NoDisplay
+or
+.BR Hidden ,
+are in the
+.B Settings
+category, are hidden from GNOME by
+.BR OnlyShowIn / NotShowIn ,
+have a
+.B TryExec
+that isn't installed, or have
+.BR Terminal=true .
+Changes are picked up with inotify, once the directories have been quiet
+for a second.
+.SS Starting applications
+For a launch request, the agent re-reads the desktop entry, applies the same
+filter, expands
+.B Exec=
+(file and URL field codes are dropped), and runs
+.PP
+.EX
+systemd\-run \-\-user \-\-scope \-\-quiet \-\-collect \e
+    \-\-unit=app\-carte\-\fIid\fP\-\fIn\fP.scope \-\- \fIargv\fP
+.EE
+.PP
+in
+.B Path=
+if set, else in the home directory, with the user manager's environment.
+That environment needs the Wayland variables; the garnish images set them in
+.IR /usr/lib/environment.d/ .
+.SH FILES
+.TP
+.I /usr/lib/systemd/user/carte\-agent.service
+Starts the agent in every user's session.
+.SH SEE ALSO
+.BR carte (1),
+.BR sonnette\-agent (1),
+.BR systemd\-run (1),
+.BR garnish (7)

@@ -41,6 +41,8 @@ subdir('src')
 subdir('po')
 subdir('tests')
 
+install_man('man/salle.1')
+
 gnome.post_install(
   glib_compile_schemas: true,
   gtk_update_icon_cache: true,

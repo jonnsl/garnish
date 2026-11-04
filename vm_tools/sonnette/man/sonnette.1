@@ -1,0 +1,81 @@
+.TH SONNETTE 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+sonnette \- show a garnish VM's desktop notifications on the host
+.SH SYNOPSIS
+.B sonnette relay \-\-cid
+.I cid
+.SH DESCRIPTION
+.B sonnette relay
+is the host side of
+.BR sonnette\-agent (1),
+the guest's notification server. It connects to the agent of the VM at vsock
+CID
+.IR cid ,
+shows the guest's notifications through the host's own notification server,
+and sends back the actions the user picks and the notifications that close.
+.PP
+.BR gerantd (1)
+runs it for every VM it starts with
+.BR Notifications=yes ,
+so it is rarely run by hand.
+.PP
+It waits for the agent, retrying every second, and reconnects when the agent
+restarts or the VM reboots. When the connection ends, or the relay gets
+.B SIGTERM
+or
+.BR SIGINT ,
+it closes every notification it showed.
+.SS How notifications look
+.IP \(bu 2
+The application name gets the VM's name:
+.BR "Firefox (debian)" .
+.IP \(bu
+If
+.BR carte (1)
+has a launcher for the sending application, the notification names it in
+its
+.B desktop\-entry
+hint, so the host shows the launcher's name and icon and can turn that
+application's notifications off on its own.
+.IP \(bu
+Icons are read in the guest and written to
+.I $XDG_RUNTIME_DIR/sonnette/vm/
+for the host's server, until the notification closes.
+.IP \(bu
+Hints that mean the same on the host are passed on:
+.BR urgency ,
+.BR category ,
+.BR resident ,
+.BR transient ,
+.BR action\-icons ,
+.BR sound\-name ,
+.BR suppress\-sound .
+Others are dropped.
+.SH EXIT STATUS
+0 on success, 1 on failure, 2 for a usage error.
+.SH FILES
+.TP
+.I $XDG_RUNTIME_DIR/sonnette/vm/
+Icons of the notifications on screen.
+.TP
+.I ~/.local/state/garnish/vm/sonnette.log
+The relay's output, when
+.B gerantd
+runs it.
+.SH SECURITY
+Everything from the guest is untrusted. The relay cuts names, summaries,
+bodies, actions and hints to fixed lengths and keeps at most 16 actions;
+drops
+.B <a>
+and
+.B <img>
+tags from the body, keeping a link's text; accepts icons only as PNG or SVG
+and pixel data only as 8-bit RGB or RGBA; and lets a VM show 20 new
+notifications at once and 2 per second after that (replacing one doesn't
+count). The application name always has the VM's name in it, so a guest
+can't pass its notifications off as the host's.
+.SH SEE ALSO
+.BR sonnette\-agent (1),
+.BR gerantd (1),
+.BR carte (1),
+.BR garnish (7)

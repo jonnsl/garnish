@@ -102,6 +102,12 @@ package_garnish-host() {
   install -Dm644 "$carte/completions/carte.bash" "$pkgdir/usr/share/bash-completion/completions/carte"
   install -Dm644 "$gerant/completions/_gerant" "$carte/completions/_carte" -t "$pkgdir/usr/share/zsh/site-functions/"
 
+  install -Dm644 "$gerant"/man/*.1 "$carte/man/carte.1" "$sonnette/man/sonnette.1" "$videur/man/videur.1" \
+    -t "$pkgdir/usr/share/man/man1/"
+  install -Dm644 "$gerant"/man/*.5 -t "$pkgdir/usr/share/man/man5/"
+  install -Dm644 "$gerant"/man/*.8 -t "$pkgdir/usr/share/man/man8/"
+  install -Dm644 "$_tools/../docs/garnish.7" -t "$pkgdir/usr/share/man/man7/"
+
   install -Dm644 "$gerant/README.md" "$pkgdir/usr/share/doc/gerant/README.md"
   install -Dm644 "$gerant"/examples/*.conf -t "$pkgdir/usr/share/doc/gerant/examples/"
   install -Dm644 "$carte/README.md" "$pkgdir/usr/share/doc/carte/README.md"

@@ -1,0 +1,99 @@
+.TH GERANT 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+gerant \- start, stop and list garnish VMs
+.SH SYNOPSIS
+.B gerant start
+.I name
+.br
+.B gerant stop
+.RB [ \-\-force ]
+.I name
+.br
+.B gerant list
+.br
+.B gerant ssh
+.I name
+.RI [ command ...]
+.SH DESCRIPTION
+.B gerant
+is the command line client of
+.BR gerantd (1),
+which runs the crosvm virtual machines configured in
+.IR ~/.config/garnish/vms/ .
+It talks to
+.B gerantd
+over the session bus; the first call starts it through D-Bus activation.
+.PP
+A VM's name is the name of its configuration file without
+.IR .conf ;
+see
+.BR garnish\-vm.conf (5).
+.SH COMMANDS
+.TP
+.BI start " name"
+Start the VM and return once crosvm runs, while the guest is still booting.
+Prints the VM's vsock CID, its addresses (with
+.BR Mode=nat ),
+its log directory and how to reach it with
+.BR ssh .
+If the start fails, the error has the end of crosvm's log.
+.TP
+.BR stop " [" \-\-force ]
+.I name
+Press the VM's ACPI power button, so the guest shuts down cleanly, and wait
+until the VM is off. If the guest is still up after
+.B StopTimeoutSec=
+(see
+.BR gerantd.conf (5)),
+.B gerantd
+stops crosvm.
+With
+.BR \-\-force ,
+stop crosvm right away without asking the guest.
+.TP
+.B list
+List every configured VM with its state
+.RB ( stopped ,
+.BR starting ,
+.BR booting ,
+.B running
+or
+.BR stopping )
+and, for running ones, the CID, IPv4 address, tap device and IPv6 address.
+.TP
+.BI ssh " name" " \fR[\fPcommand\fR ...]\fP"
+Run
+.BI "ssh " user @vsock/ cid
+for a running VM, with
+.I command
+if given. The host name
+.BI vsock/ cid
+needs systemd's ssh proxy (systemd 256 or newer).
+.I user
+is the VM's
+.B [Guest] User=
+setting.
+.SH EXIT STATUS
+0 on success, 1 on failure, 2 for a usage error.
+.SH FILES
+.TP
+.I ~/.config/garnish/vms/name.conf
+The VM's configuration.
+.TP
+.I ~/.local/state/garnish/name/
+The VM's logs, starting with
+.IR console.log ,
+the guest's serial console.
+.SH EXAMPLES
+.EX
+$ mkdir \-p ~/.config/garnish/vms
+$ cp /usr/share/doc/gerant/examples/debian.conf ~/.config/garnish/vms/
+$ gerant start debian
+$ gerant ssh debian uname \-a
+$ gerant stop debian
+.EE
+.SH SEE ALSO
+.BR gerantd (1),
+.BR garnish\-vm.conf (5),
+.BR salle (1),
+.BR garnish (7)

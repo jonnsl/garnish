@@ -43,9 +43,11 @@ cargo build --frozen --release --manifest-path sonnette/Cargo.toml \
 %files
 %license LICENSE
 %{_bindir}/carte-agent
+%{_mandir}/man1/carte-agent.1*
 %{_userunitdir}/carte-agent.service
 %{_userunitdir}/default.target.wants/carte-agent.service
 %{_bindir}/sonnette-agent
+%{_mandir}/man1/sonnette-agent.1*
 %{_userunitdir}/sonnette-agent.service
 %{_userunitdir}/default.target.wants/sonnette-agent.service
 %{_datadir}/dbus-1/services/org.garnish.sonnette.service

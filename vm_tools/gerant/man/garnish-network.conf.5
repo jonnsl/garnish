@@ -1,0 +1,46 @@
+.TH GARNISH\-NETWORK.CONF 5 2026-11-04 garnish "garnish manual"
+.SH NAME
+garnish\-network.conf \- networks of garnish NAT VMs
+.SH SYNOPSIS
+.I /etc/garnish/network.conf
+.SH DESCRIPTION
+.BR gerant\-net (8)
+reads this file each time it creates a tap device for a VM with
+.BR Mode=nat .
+It sets the networks of every user's VMs. It is optional; without it, the
+defaults below apply. It has to belong to root and not be writable by
+anyone else, since the helper runs setuid root. The syntax is that of
+.BR garnish\-vm.conf (5).
+.SH [NAT] SECTION
+.TP
+.BI Subnet= network
+An IPv4 network from /16 to /30, split into /30 networks, one per running
+VM. The
+.IR n -th
+uses tap
+.BI garnish n\fR;\fP
+the host has its first address and the guest its second. Pick one that
+doesn't overlap a network the host is on. Default: 192.168.10.0/24, so the
+first VM is 192.168.10.2, the second 192.168.10.6, and so on.
+.TP
+.BI Subnet6= network
+An IPv6 network split into /64 networks, the
+.IR n -th
+for the same VM as the
+.IR n -th
+/30: the host is
+.B ::1
+in it and the guest
+.BR ::2 .
+It needs a /64 for each /30 (/58 or larger for a /24). Empty: IPv4 only.
+Default: fd67:6172:6e69::/48.
+.SH EXAMPLES
+.EX
+[NAT]
+Subnet=10.123.0.0/24
+Subnet6=
+.EE
+.SH SEE ALSO
+.BR gerant\-net (8),
+.BR gerantd (1),
+.BR garnish\-vm.conf (5)

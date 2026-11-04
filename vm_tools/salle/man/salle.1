@@ -1,0 +1,108 @@
+.TH SALLE 1 2026-11-04 garnish "garnish manual"
+.SH NAME
+salle \- create, edit, start and stop garnish VMs
+.SH SYNOPSIS
+.B salle
+.SH DESCRIPTION
+.B Salle
+is a GTK application for the VMs that
+.BR gerantd (1)
+runs. It talks to
+.B gerantd
+over the session bus, and reads and writes the VMs' configuration files in
+.I ~/.config/garnish/vms/
+itself.
+.TP
+.B List
+Every VM with a configuration file, with its state and a button to start
+or shut it down. VMs started or stopped elsewhere, such as with
+.BR gerant (1),
+and files added, changed or removed in the directory show up too.
+.TP
+.B Start, Shut Down, Force Off
+.BR StartVm ,
+.B StopVm
+(the ACPI power button) and, after asking,
+.BR KillVm .
+If a start fails, Salle shows gerantd's message with a way to the logs.
+.TP
+.B Running VMs
+The ssh command, to copy or to open in a terminal through
+.BR xdg\-terminal\-exec ,
+the IPv4 and IPv6 addresses, tap device, vsock CID and crosvm's PID.
+.TP
+.B Sound
+For a running VM with
+.BR Audio=yes ,
+a volume slider and a mute button for the VM's stream on the host.
+.TP
+.B Apps
+For a VM with
+.BR Wayland=yes ,
+the guest's graphical applications, from the list
+.BR carte (1)
+keeps, also while the VM is off. Clicking one in a running VM opens it.
+With
+.BR AppMenu=yes ,
+editing the VM chooses which ones are in the host's application menu.
+.TP
+.B New and Edit
+One dialog for the common settings and, under Advanced, the kernel, initrd,
+extra kernel parameters, GPU context types and extra crosvm arguments.
+.TP
+.B Delete
+Removes the configuration file. The image and logs stay.
+.TP
+.B Logs
+The VM's logs, followed as they grow.
+.PP
+Salle edits configuration files in place: changing a setting rewrites only
+that setting's lines, so comments, other settings and their order stay.
+Settings in drop-ins are shown, but saving only changes the main file, so a
+drop-in still wins.
+.SH OPTIONS
+Salle takes the standard GTK application options; see
+.BR "salle \-\-help\-all" .
+.SH KEYBOARD SHORTCUTS
+.TP
+.B Ctrl+N
+New VM.
+.TP
+.BR F5 ", " Ctrl+R
+Refresh.
+.TP
+.B Ctrl+E
+Edit the selected VM's settings.
+.TP
+.B Ctrl+L
+Show its logs.
+.TP
+.B Ctrl+T
+Open a terminal with ssh into it.
+.TP
+.B Ctrl+?
+Keyboard shortcuts.
+.TP
+.B Ctrl+Q
+Quit.
+.SH FILES
+.TP
+.I ~/.config/garnish/vms/name.conf
+VM configurations; see
+.BR garnish\-vm.conf (5).
+.TP
+.I ~/.local/state/garnish/name/
+VM logs.
+.TP
+.I ~/.local/share/carte/apps/name.json
+A VM's applications, written by
+.BR carte (1).
+.PP
+Window size and the last selected VM are kept in GSettings, under
+.BR org.garnish.Salle .
+.SH SEE ALSO
+.BR gerant (1),
+.BR gerantd (1),
+.BR garnish\-vm.conf (5),
+.BR carte (1),
+.BR garnish (7)
