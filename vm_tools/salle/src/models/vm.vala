@@ -61,7 +61,7 @@ namespace Salle {
         /* The guest's IPv4 and IPv6 addresses on its tap */
         public string address { get; set; default = ""; }
         public string address6 { get; set; default = ""; }
-        /* The guest user, for ssh */
+        /* The guest user */
         public string user { get; set; default = ""; }
         /* crosvm's process ID */
         public uint pid { get; set; }
@@ -109,9 +109,13 @@ namespace Salle {
             update (VmInfo.stopped (name));
         }
 
-        /* `ssh <target>` reaches the guest over vsock (systemd's ssh proxy, systemd >= 256) */
-        public string ssh_target {
-            owned get { return "%s@vsock/%u".printf (user, cid); }
+        /* gerant ssh checks the guest's host key by VM name; a bare ssh to vsock/<cid> doesn't check it */
+        public string[] ssh_argv {
+            owned get { return { "gerant", "ssh", name }; }
+        }
+
+        public string ssh_command {
+            owned get { return string.joinv (" ", ssh_argv); }
         }
 
         public string config_path {

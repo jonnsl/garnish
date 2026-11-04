@@ -60,7 +60,7 @@ cp examples/debian.conf ~/.config/garnish/vms/   # and set Image=
 
 gerant start debian          # prints the CID and the address
 gerant list
-gerant ssh debian            # ssh <user>@vsock/<cid>
+gerant ssh debian            # ssh <user>@vsock/<cid>, checking the host key
 gerant stop debian           # shut down, and wait until it's off
 gerant stop --force debian   # stop crosvm without waiting for the guest
 ```

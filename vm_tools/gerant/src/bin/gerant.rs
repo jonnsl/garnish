@@ -7,6 +7,7 @@ use futures_util::StreamExt;
 use zbus::Connection;
 
 use gerant::dbus::{GerantProxy, VmInfo};
+use gerant::xdg;
 
 const USAGE: &str = "\
 usage: gerant start <name>              start the VM in ~/.config/garnish/vms/<name>.conf
@@ -79,10 +80,7 @@ async fn start(name: &str) -> Result<(), String> {
     let info = proxy().await?.start_vm(name).await.map_err(message)?;
     println!("{name}: {}", describe(&info));
     println!("logs: {}", info.log_dir);
-    println!(
-        "ssh: gerant ssh {name}  (or ssh {}@vsock/{})",
-        info.user, info.cid
-    );
+    println!("ssh: gerant ssh {name}");
     Ok(())
 }
 
@@ -136,8 +134,21 @@ async fn ssh(name: &str, command: &[&str]) -> Result<(), String> {
     if vm.cid == 0 {
         return Err(format!("{name} isn't running"));
     }
-    // The vsock/<cid> host comes from systemd's ssh proxy (systemd >= 256).
+    // The vsock/<cid> host comes from systemd's ssh proxy (systemd >= 256),
+    // which turns host key checking off. CIDs are shared by every user's VMs
+    // and reused, so check the key against the VM's name instead: the first
+    // connection records it, a different key later is refused. ssh takes the
+    // first value it sees for an option, so these beat the proxy's config.
+    let state = xdg::state_dir();
+    std::fs::create_dir_all(&state).map_err(|e| format!("creating {}: {e}", state.display()))?;
+    let known_hosts = state.join("known_hosts");
     let err = Command::new("ssh")
+        .arg(format!("-oHostKeyAlias={name}"))
+        .arg(format!(
+            "-oUserKnownHostsFile=\"{}\"",
+            known_hosts.display()
+        ))
+        .arg("-oStrictHostKeyChecking=accept-new")
         .arg(format!("{}@vsock/{}", vm.user, vm.cid))
         .args(command)
         .exec();

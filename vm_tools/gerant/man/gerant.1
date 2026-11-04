@@ -73,6 +73,14 @@ needs systemd's ssh proxy (systemd 256 or newer).
 is the VM's
 .B [Guest] User=
 setting.
+.IP
+The guest's host key is checked against the VM's name, not its CID, since
+CIDs are reused by other VMs, including other users'.
+The first connection records the key in
+.IR ~/.local/state/garnish/known_hosts ;
+if it changes later, for example after rebuilding the image, ssh refuses to
+connect until the old key is removed with
+.BI "ssh\-keygen \-R " name " \-f ~/.local/state/garnish/known_hosts" .
 .SH EXIT STATUS
 0 on success, 1 on failure, 2 for a usage error.
 .SH FILES
@@ -84,6 +92,9 @@ The VM's configuration.
 The VM's logs, starting with
 .IR console.log ,
 the guest's serial console.
+.TP
+.I ~/.local/state/garnish/known_hosts
+The guests' ssh host keys, by VM name.
 .SH EXAMPLES
 .EX
 $ mkdir \-p ~/.config/garnish/vms

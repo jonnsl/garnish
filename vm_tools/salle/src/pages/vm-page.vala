@@ -111,7 +111,7 @@ namespace Salle {
                                        || state == VmState.STOPPING;
 
             connection_group.visible = state == VmState.RUNNING;
-            ssh_row.subtitle = "ssh " + vm.ssh_target;
+            ssh_row.subtitle = vm.ssh_command;
             address_row.visible = vm.address != "";
             address_row.subtitle = vm.address;
             address6_row.visible = vm.address6 != "";

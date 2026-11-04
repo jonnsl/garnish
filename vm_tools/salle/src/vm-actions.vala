@@ -170,7 +170,7 @@ namespace Salle.VmActions {
         if (vm == null || !vm.is_running) {
             return;
         }
-        Utils.copy_to_clipboard (widget, "ssh " + vm.ssh_target);
+        Utils.copy_to_clipboard (widget, vm.ssh_command);
         toast (widget, _("SSH command copied"));
     }
 
@@ -184,7 +184,11 @@ namespace Salle.VmActions {
             return;
         }
         try {
-            new Subprocess.newv ({ "xdg-terminal-exec", "ssh", vm.ssh_target }, SubprocessFlags.NONE);
+            string[] argv = { "xdg-terminal-exec" };
+            foreach (var arg in vm.ssh_argv) {
+                argv += arg;
+            }
+            new Subprocess.newv (argv, SubprocessFlags.NONE);
         } catch (Error e) {
             toast (widget, _("Can’t open a terminal: %s").printf (e.message));
         }
