@@ -1,0 +1,15 @@
+# The linux package's mkinitcpio preset, from garnish's image (in place of
+# the one mkinitcpio would generate): after every kernel update, a unified
+# kernel image in the EFI system partition, mounted at /efi. gerantd boots
+# the newest kernel it finds there (see gerant-boot(8)), so a reboot boots
+# the new kernel.
+
+# The kernel straight from the package; no copy of it in /boot.
+for _pkgbase in /usr/lib/modules/*/pkgbase; do
+    [[ $(<"$_pkgbase") == linux ]] && ALL_kver="${_pkgbase%/pkgbase}/vmlinuz"
+done
+unset _pkgbase
+
+PRESETS=('default')
+# The same name as the one mkosi builds the image with, so it's replaced.
+default_uki="/efi/EFI/Linux/arch-linux.efi"

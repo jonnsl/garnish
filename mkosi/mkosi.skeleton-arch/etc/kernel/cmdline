@@ -1,0 +1,1 @@
+root=PARTLABEL=root rw console=ttyS0 systemd.firstboot=off video=Virtual-1:d

@@ -87,12 +87,30 @@ configuration.
 
 ## Booting
 
-crosvm boots `vmlinuz`/`initrd` directly, so the kernel command line comes from
-gerantd (`KernelCommandLine=` in the VM's file, by default the same as in
-`mkosi/mkosi.conf`), not from `mkosi/mkosi.conf`. If you change one, change
-the other. The image also has an ESP with a UKI, so UEFI boot (`--bios
-OVMF.fd` in `ExtraArguments=`) works too. That path uses `KernelCommandLine=`
-from `mkosi/mkosi.conf`.
+The image's EFI system partition has a unified kernel image (UKI), and
+gerantd boots the newest kernel it finds there ([gerant's
+README](../vm_tools/gerant/README.md#booting)). crosvm still boots it
+directly, without firmware, so the kernel command line comes from gerantd
+(`KernelCommandLine=` in the VM's file, by default the same as in
+`mkosi/mkosi.conf`), not from the image. If you change one, change the other.
+UEFI boot (`--bios OVMF.fd` in `ExtraArguments=`) works too, and uses the
+command line in the UKI.
+
+On Arch, the guest keeps that kernel up to date: the ESP is mounted at `/efi`
+(root only), and after every kernel update mkinitcpio builds
+`/efi/EFI/Linux/arch-linux.efi`, which replaces the one mkosi built (same
+name, `UnifiedKernelImageFormat=`). Its settings are in
+`mkosi.skeleton-arch/`: the preset, a small initrd like mkosi's
+(`virtio_pci`, `virtio_blk` and `ext4`, with the `systemd` hook) and
+`/etc/kernel/cmdline` for UEFI boot. Reboot the guest after a kernel update
+to boot the new kernel. The other distributions don't install new kernels
+there yet, so they keep booting the one the image was built with, and an
+update that removes its modules leaves them without modules until the image
+is rebuilt.
+
+`<name>.vmlinuz` and `<name>.initrd` next to the image are copies of the
+image's first kernel, for VMs that set `[Boot] Kernel=` to them and for
+images without a kernel in the ESP.
 
 The root filesystem is 16 GiB but the file is sparse. To make it bigger, run
 `truncate -s +10G mkosi/mkosi.output/debian.raw`. systemd-growfs then grows the

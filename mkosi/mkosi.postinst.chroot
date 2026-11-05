@@ -114,6 +114,20 @@ UNIT
     systemctl enable pacman-init.service
 fi
 
+# --- boot -------------------------------------------------------------------
+# gerantd boots the newest kernel in the image's EFI system partition
+# (gerant-boot(8)), so the guest can update its own kernel. On Arch,
+# mkinitcpio puts a unified kernel image there on every kernel update
+# (mkosi.skeleton-arch). Mounted for root only: FAT has no permissions of its
+# own, and whoever can write the ESP chooses the kernel.
+# TODO: Debian, Ubuntu and Fedora (kernel-install, with an initrd generator).
+if [[ "$DISTRIBUTION" == arch ]]; then
+    echo 'PARTLABEL=esp /efi vfat umask=0077,nofail,x-systemd.device-timeout=10s 0 2' >> /etc/fstab
+    # mkinitcpio built one when the kernel was installed; mkosi builds the
+    # image's own (UnifiedKernelImageFormat=arch-linux) after this script.
+    rm -f /efi/EFI/Linux/arch-linux.efi
+fi
+
 # --- network ----------------------------------------------------------------
 # gerantd gives every VM its own address with ip=... on the kernel command
 # line. systemd-network-generator turns that into
