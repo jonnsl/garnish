@@ -307,8 +307,8 @@ msgid "Kernel"
 msgstr "Kernel"
 
 #: src/dialogs/vm-dialog.blp:186
-msgid "Use the Kernel Next to the Image"
-msgstr "Usar o kernel ao lado da imagem"
+msgid "Use the Kernel in the Image"
+msgstr "Usar o kernel da imagem"
 
 #: src/dialogs/vm-dialog.blp:198 src/dialogs/vm-dialog.vala:273
 msgid "Choose Kernel"
@@ -319,8 +319,8 @@ msgid "Initrd"
 msgstr "Initrd"
 
 #: src/dialogs/vm-dialog.blp:216
-msgid "Use the Initrd Next to the Image"
-msgstr "Usar o initrd ao lado da imagem"
+msgid "Use the Default Initrd"
+msgstr "Usar o initrd padrão"
 
 #: src/dialogs/vm-dialog.blp:228 src/dialogs/vm-dialog.vala:273
 msgid "Choose Initrd"
@@ -373,9 +373,11 @@ msgstr "Nenhuma: o convidado tem sua própria pasta pessoal"
 msgid "Next to the image: %s"
 msgstr "Ao lado da imagem: %s"
 
-#: src/dialogs/vm-dialog.vala:99
-msgid "Next to the image"
-msgstr "Ao lado da imagem"
+msgid "The newest one in the image"
+msgstr "O mais recente da imagem"
+
+msgid "The kernel’s"
+msgstr "O do kernel"
 
 #: src/dialogs/vm-dialog.vala:152
 msgid "Give the virtual machine a name"
@@ -438,11 +440,6 @@ msgstr "A imagem de disco %s não existe"
 #, c-format
 msgid "The kernel %s doesn’t exist"
 msgstr "O kernel %s não existe"
-
-#: src/models/vm-config.vala:246
-#, c-format
-msgid "There’s no kernel next to the image (%s); choose one in Advanced"
-msgstr "Não há kernel ao lado da imagem (%s); escolha um em Avançado"
 
 #: src/models/vm-config.vala:250
 #, c-format

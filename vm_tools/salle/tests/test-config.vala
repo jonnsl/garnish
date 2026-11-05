@@ -125,7 +125,7 @@ void test_load () {
     }
     var c = load_vm ("load");
     assert (c.image == Path.build_filename (VmConfig.vm_dir (), "images/debian.raw"));
-    assert (c.effective_kernel == Path.build_filename (VmConfig.vm_dir (), "images/debian.vmlinuz"));
+    assert (c.kernel == null && c.initrd == null && c.initrd_beside_image == null);
     assert (c.cmdline_extra == "b \"c d\"");
     assert (c.title == "Débian (work)" && c.display_name == "Débian (work)");
     assert (c.cpus == 3 && c.memory_mib == 8192 && c.network_mode == "none" && c.audio && !c.microphone && c.wayland);

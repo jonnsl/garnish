@@ -110,21 +110,20 @@ namespace Salle {
                 : _("None: the guest has its own home");
             shared_home_clear.visible = config.shared_home != null;
 
-            var kernel = config.effective_kernel;
-            if (config.kernel != null) {
-                kernel_row.subtitle = Utils.display_path (config.kernel);
-            } else if (kernel != null) {
-                kernel_row.subtitle = _("Next to the image: %s").printf (Path.get_basename (kernel));
-            } else {
-                kernel_row.subtitle = _("Next to the image");
-            }
+            // Without a kernel set, gerant boots the newest one installed in
+            // the image, so the guest can update it.
+            kernel_row.subtitle = config.kernel != null
+                ? Utils.display_path (config.kernel)
+                : _("The newest one in the image");
             kernel_reset.visible = config.kernel != null;
 
-            var initrd = config.effective_initrd;
+            var beside = config.initrd_beside_image;
             if (config.initrd != null) {
                 initrd_row.subtitle = Utils.display_path (config.initrd);
-            } else if (initrd != null) {
-                initrd_row.subtitle = _("Next to the image: %s").printf (Path.get_basename (initrd));
+            } else if (config.kernel == null) {
+                initrd_row.subtitle = _("The kernel’s");
+            } else if (beside != null) {
+                initrd_row.subtitle = _("Next to the image: %s").printf (Path.get_basename (beside));
             } else {
                 initrd_row.subtitle = _("None");
             }
@@ -299,7 +298,7 @@ namespace Salle {
         }
 
         private async void choose_boot_file (bool kernel) {
-            var current = kernel ? config.effective_kernel : config.effective_initrd;
+            var current = kernel ? config.kernel : config.initrd;
             var folder = current ?? config.image;
             var dialog = new Gtk.FileDialog () {
                 title = kernel ? _("Choose Kernel") : _("Choose Initrd"),

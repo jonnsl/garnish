@@ -202,16 +202,15 @@ namespace Salle {
             return c;
         }
 
-        /* The kernel gerant uses: by default the image with .vmlinuz */
-        public string? effective_kernel {
-            owned get { return kernel ?? (image != null ? replace_extension (image, ".vmlinuz") : null); }
-        }
-
-        /* The initrd gerant uses: by default the image with .initrd, if there is one */
-        public string? effective_initrd {
+        /*
+         * The initrd gerant uses with a kernel that's set (Kernel=): the image
+         * with .initrd, if there is one. Without Kernel=, gerant boots the
+         * newest kernel in the image, and its initrd.
+         */
+        public string? initrd_beside_image {
             owned get {
-                if (initrd != null || image == null) {
-                    return initrd;
+                if (image == null) {
+                    return null;
                 }
                 var path = replace_extension (image, ".initrd");
                 return FileUtils.test (path, FileTest.IS_REGULAR) ? path : null;
@@ -260,13 +259,8 @@ namespace Salle {
             if (image != null && !FileUtils.test (image, FileTest.IS_REGULAR)) {
                 return _("The disk image %s doesn’t exist").printf (image);
             }
-            var k = effective_kernel;
-            if (k != null && !FileUtils.test (k, FileTest.IS_REGULAR)) {
-                if (kernel != null) {
-                    return _("The kernel %s doesn’t exist").printf (k);
-                }
-                return _("There’s no kernel next to the image (%s); choose one in Advanced")
-                       .printf (Path.get_basename (k));
+            if (kernel != null && !FileUtils.test (kernel, FileTest.IS_REGULAR)) {
+                return _("The kernel %s doesn’t exist").printf (kernel);
             }
             if (initrd != null && !FileUtils.test (initrd, FileTest.IS_REGULAR)) {
                 return _("The initrd %s doesn’t exist").printf (initrd);

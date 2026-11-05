@@ -244,7 +244,7 @@ template $SalleVmDialog: Adw.Dialog {
               [suffix]
               Button kernel_reset {
                 icon-name: "edit-undo-symbolic";
-                tooltip-text: _("Use the Kernel Next to the Image");
+                tooltip-text: _("Use the Kernel in the Image");
                 valign: center;
                 clicked => $on_reset_kernel_clicked();
 
@@ -274,7 +274,7 @@ template $SalleVmDialog: Adw.Dialog {
               [suffix]
               Button initrd_reset {
                 icon-name: "edit-undo-symbolic";
-                tooltip-text: _("Use the Initrd Next to the Image");
+                tooltip-text: _("Use the Default Initrd");
                 valign: center;
                 clicked => $on_reset_initrd_clicked();
 
