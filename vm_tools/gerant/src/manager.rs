@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, DirBuilder, File};
-use std::io;
+use std::io::{self, Write};
 use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -17,6 +17,7 @@ use tokio::time::{Instant, sleep, sleep_until, timeout};
 use zbus::object_server::SignalEmitter;
 use zbus::{Connection, interface};
 
+use crate::boot::{self, Boot};
 use crate::config::{self, Clipboard, DaemonConfig, NetworkMode, VmConfig};
 use crate::console::Console;
 use crate::dbus::{Error, OBJECT_PATH, VmInfo};
@@ -77,11 +78,10 @@ pub struct Manager {
 /// What `launch` started.
 struct Launched {
     crosvm: Child,
-    /// crosvm's arguments, to start it again when the guest reboots.
-    args: Vec<OsString>,
-    /// The network crosvm's arguments refer to; a tap stays open for those
-    /// restarts.
-    net: Option<Net>,
+    /// What crosvm was started with, to start it again when the guest
+    /// reboots. A tap stays open for those restarts.
+    config: VmConfig,
+    res: Resources,
     helpers: Vec<(&'static str, Child)>,
     /// crosvm's stdin and stdout, kept across reboots.
     console: Console,
@@ -137,6 +137,39 @@ fn spawn_crosvm(
     let (stdin, stdout) = console.stdio()?;
     let stderr = vm::append(&paths.log("crosvm"))?;
     vm::spawn_stdio("crosvm", args, &[], stdin, stdout, stderr.into(), tap_fd)
+}
+
+/// Gets the kernel and initrd ready (see `boot`), saying where they come
+/// from.
+async fn prepare_boot(name: &str, config: &VmConfig, paths: &Paths) -> Result<Boot, String> {
+    let boot = boot::prepare(config, &paths.runtime).await?;
+    for note in &boot.notes {
+        log(format!("{name}: {note}"));
+    }
+    log(format!("{name}: booting {}", boot.source));
+    Ok(boot)
+}
+
+/// crosvm's arguments for booting `boot`, which also goes in crosvm.log.
+fn boot_args(
+    name: &str,
+    config: &VmConfig,
+    res: &Resources,
+    paths: &Paths,
+    boot: &Boot,
+) -> Vec<OsString> {
+    if let Ok(mut log) = vm::append(&paths.log("crosvm")) {
+        let _ = writeln!(log, "gerantd: booting {}", boot.source);
+    }
+    vm::crosvm_args(
+        name,
+        config,
+        res,
+        paths,
+        boot,
+        unsafe { libc::getuid() },
+        unsafe { libc::getgid() },
+    )
 }
 
 /// Asks the helpers to exit and kills those that don't.
@@ -481,10 +514,10 @@ impl Manager {
         if result.is_err() {
             stop_helpers(name, &mut helpers).await;
         }
-        result.map(|(crosvm, args, console)| Launched {
+        result.map(|(crosvm, console)| Launched {
             crosvm,
-            args,
-            net: res.net.clone(),
+            config: config.clone(),
+            res: res.clone(),
             helpers,
             console,
         })
@@ -497,8 +530,13 @@ impl Manager {
         res: &Resources,
         paths: &Paths,
         helpers: &mut Vec<(&'static str, Child)>,
-    ) -> Result<(Child, Vec<OsString>, Console), Error> {
+    ) -> Result<(Child, Console), Error> {
         let failed = |e: io::Error| Error::StartFailed(e.to_string());
+        // First: it's the likeliest to fail, and nothing has to be stopped
+        // then.
+        let boot = prepare_boot(name, config, paths)
+            .await
+            .map_err(Error::StartFailed)?;
         // Truncated once per start; crosvm appends after a reboot.
         let truncate = |log: &str| File::create(paths.log(log)).map(drop).map_err(failed);
 
@@ -598,14 +636,7 @@ impl Manager {
         let console = Console::start(&paths.console_socket()).map_err(failed)?;
         truncate("console")?;
         truncate("crosvm")?;
-        let args = vm::crosvm_args(
-            name,
-            config,
-            res,
-            paths,
-            unsafe { libc::getuid() },
-            unsafe { libc::getgid() },
-        );
+        let args = boot_args(name, config, res, paths, &boot);
         let tap_fd = res.net.as_ref().and_then(Net::tap_fd);
         let mut crosvm = spawn_crosvm(&args, &console, paths, tap_fd).map_err(failed)?;
 
@@ -621,7 +652,7 @@ impl Manager {
                 )));
             }
             if socket.exists() {
-                return Ok((crosvm, args, console));
+                return Ok((crosvm, console));
             }
             if Instant::now() > deadline {
                 let _ = crosvm.kill().await;
@@ -688,8 +719,13 @@ impl Manager {
                     // The helpers stay: passt and vhost-device-sound serve
                     // the next connection, and carte and sonnette reconnect.
                     let _ = fs::remove_file(paths.control_socket());
-                    let tap_fd = launched.net.as_ref().and_then(Net::tap_fd);
-                    match spawn_crosvm(&launched.args, &launched.console, &paths, tap_fd) {
+                    // The guest may have installed another kernel.
+                    let args = match prepare_boot(&name, &launched.config, &paths).await {
+                        Ok(boot) => boot_args(&name, &launched.config, &launched.res, &paths, &boot),
+                        Err(e) => break format!("the guest rebooted, but {e}"),
+                    };
+                    let tap_fd = launched.res.net.as_ref().and_then(Net::tap_fd);
+                    match spawn_crosvm(&args, &launched.console, &paths, tap_fd) {
                         Ok(child) => {
                             launched.crosvm = child;
                             self.set_state(&name, self.booting_state(), launched.crosvm.id()).await;

@@ -5,7 +5,8 @@ root, that starts and stops VMs when asked to over D-Bus. It gives each one a
 vsock CID and a network, starts crosvm and the programs that go with it, and
 takes everything back when the VM stops. `gerant` is the command line
 client. `gerant-net` is the small setuid-root helper for VMs with NAT
-networking.
+networking, and `gerant-boot` the sandboxed one that finds the kernel to
+boot in a VM's image.
 
 It does roughly what concierge does on ChromeOS, for the images in this
 repository.
@@ -13,7 +14,7 @@ repository.
 ## Install
 
 ```sh
-cargo install --locked --path .        # gerantd, gerant and gerant-net to ~/.cargo/bin
+cargo install --locked --path .        # gerantd, gerant, gerant-net and gerant-boot to ~/.cargo/bin
 # gerant-net has to be setuid root, so it can't stay in ~/.cargo/bin
 sudo install -o root -g root -m 4755 ~/.cargo/bin/gerant-net /usr/local/bin/
 rm ~/.cargo/bin/gerant-net
@@ -48,6 +49,7 @@ The unit puts `~/.cargo/bin` and `~/.local/bin` in `PATH`, where it looks for
 `crosvm`, `vhost-device-sound`, `carte` and `sonnette`. If yours are elsewhere, change
 `Environment=PATH=` in the unit. `passt` and `gerant-net` are looked up in
 `PATH` too; a copy of gerant-net that isn't setuid root is skipped.
+`gerant-boot` is looked for next to `gerantd` first, then in `PATH`.
 
 Requires Rust 1.88 or newer. Dependencies: `zbus`, `tokio`, `serde`,
 `futures-util`, `libc`.
@@ -104,8 +106,8 @@ one systemd and mkosi use:
 | Setting | Default | Meaning |
 |---|---|---|
 | `[Boot] Image=` | (required) | disk image |
-| `[Boot] Kernel=` | `Image` with `.vmlinuz` | kernel |
-| `[Boot] Initrd=` | `Image` with `.initrd`, if it exists | initrd |
+| `[Boot] Kernel=` | the newest kernel in the image | kernel; see [Booting](#booting) |
+| `[Boot] Initrd=` | the kernel's | initrd |
 | `[Boot] KernelCommandLine=` | see below | replaces the default command line |
 | `[Boot] KernelCommandLineExtra=` | | list, added to the command line |
 | `[Machine] Title=` | | a name for people, e.g. `Debian (work)`; Salle shows it instead of the VM's name |
@@ -144,8 +146,46 @@ systemd.firstboot=off video=Virtual-1:d`. gerantd adds to it:
   from the image)
 
 The configuration is read on every start, so a change applies the next time
-the VM starts. gerantd checks that the image, kernel, initrd and shared home
-exist before it starts anything.
+the VM starts. gerantd checks that the image, the kernel and initrd if they
+are set, and the shared home exist before it starts anything.
+
+## Booting
+
+Without `Kernel=`, a VM boots the kernel installed in its own image, so a
+guest updates its kernel and initrd like any other package. On every start
+and every reboot, gerantd runs `gerant-boot` on the image, which looks in its
+EFI system partition (and XBOOTLDR partition) the way the Boot Loader
+Specification lays them out:
+
+- unified kernel images in `/EFI/Linux/*.efi`: the `.linux` and `.initrd`
+  sections
+- type 1 entries in `/loader/entries/*.conf`: their `linux` and `initrd`
+  files
+
+and picks the newest version, as systemd-boot would. The kernel and initrd
+go to `$XDG_RUNTIME_DIR/garnish/<name>/` for crosvm, and the journal and
+`crosvm.log` say which one booted. The image's own command line is ignored:
+the one above is used either way. Once the guest has installed a new
+kernel, a reboot from inside the guest boots it.
+
+An image with no kernel there boots `<image>.vmlinuz` and `<image>.initrd`
+next to it, which mkosi writes too (`SplitArtifacts=`), and so does an image
+`gerant-boot` can't read; gerantd logs why. `Kernel=` boots that file
+instead, with `Initrd=` or else `<image>.initrd` if it exists. `Initrd=`
+alone replaces the initrd of the kernel in the image.
+
+The image comes from the guest, so it is read by `gerant-boot`, not gerantd.
+Before it reads anything, gerant-boot limits its memory and CPU time and
+installs a seccomp filter: from then on it can read the image on its
+standard input, write to its standard output and error, and nothing else.
+gerantd checks the sizes it sends (a 64 MiB kernel and 512 MiB of initrd at
+most) and that the kernel is a bzImage. Running the guest's own kernel gives
+the guest nothing new: guest root could already load modules or kexec
+another kernel. The guest images mount their ESP at `/efi` for root only;
+see [mkosi/README.md](../../mkosi/README.md#booting).
+
+`gerant-boot --list < image.raw` lists the kernels it finds, the one it
+would boot first.
 
 ## The pool
 
@@ -247,13 +287,14 @@ To start a VM, gerantd
 
 1. reads and checks its configuration,
 2. with `Mode=nat`, gets a tap from `gerant-net`, and takes a CID,
-3. starts `passt` (with `Mode=passt`), `vhost-device-sound` (with
+3. gets the kernel ready (see [Booting](#booting)),
+4. starts `passt` (with `Mode=passt`), `vhost-device-sound` (with
    `Audio=yes`), `carte sync --cid <cid>` (with `AppMenu=yes` or
    `Wayland=yes`, adding `--no-menu` without `AppMenu`, if `carte` is
    installed), `sonnette relay --cid <cid>` (with `Notifications=yes`,
    if `sonnette` is installed) and `videur` (with `Wayland=yes` and
    `Clipboard=` other than `both`; it has to be installed),
-4. starts `crosvm run` and waits for its control socket.
+5. starts `crosvm run` and waits for its control socket.
 
 vhost-device-sound gets `PIPEWIRE_PROPS` naming its playback stream after
 the VM: `node.name=garnish.<name>`, `application.name` the title (or the
@@ -366,12 +407,16 @@ Anything running as your user can call these, just as it could run crosvm.
 | `src/dns.rs` | forwards NAT guests' DNS to the host's resolver |
 | `src/console.rs` | relays the login console to `console.sock` |
 | `src/vm.rs` | crosvm's command line, kernel command line, starting processes |
+| `src/boot.rs` | the kernel to boot: running gerant-boot and receiving what it finds |
+| `src/boot/` | what gerant-boot reads: GPT, FAT, PE, boot loader entries, versions |
+| `src/seccomp.rs` | the seccomp filters of gerant-net and gerant-boot |
 | `src/manager.rs` | the daemon's state, starting, supervising and stopping VMs, the D-Bus object |
 | `src/ready.rs` | the vsock listener for the guests' boot notifications |
 | `src/dbus.rs` | names, `VmInfo`, errors and the client proxy |
 | `src/bin/gerantd.rs` | the daemon |
 | `src/bin/gerant.rs` | the client |
-| `src/bin/gerant-net/` | the setuid helper: dropping privileges, the seccomp filter, netlink and nftables |
+| `src/bin/gerant-net/` | the setuid helper: dropping privileges, netlink and nftables |
+| `src/bin/gerant-boot.rs` | the sandboxed helper that finds the kernel in an image |
 | `data/` | systemd user unit, D-Bus service file, networkd file for the taps |
 | `completions/` | bash and zsh completions for `gerant` |
 | `examples/` | a VM configuration, the pool defaults and `/etc/garnish/network.conf` |

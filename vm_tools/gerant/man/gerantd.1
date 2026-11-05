@@ -26,8 +26,11 @@ reads and checks the VM's configuration, gets a tap device from
 .BR gerant\-net (8)
 with
 .BR Mode=nat ,
-takes the lowest free vsock CID, then starts the helpers the configuration
-asks for and
+takes the lowest free vsock CID, gets the kernel to boot (without
+.BR Kernel= ,
+the newest one in the image, from
+.BR gerant\-boot (8)),
+then starts the helpers the configuration asks for and
 .BR "crosvm run" :
 .TP
 .B passt
@@ -82,6 +85,10 @@ and
 are skipped if they are not installed; a
 .B gerant\-net
 that is not setuid root is skipped.
+.B gerant\-boot
+is looked for next to
+.B gerantd
+first.
 .PP
 The VM is
 .B booting
@@ -98,7 +105,9 @@ holds port 8891, VMs show as running as soon as crosvm runs.
 .PP
 When the guest reboots, crosvm exits with status 32 and
 .B gerantd
-starts it again with the same resources. A guest that reboots more than 5
+starts it again with the same resources, booting the newest kernel in the
+image again, so a kernel the guest just installed boots. A guest that
+reboots more than 5
 times in 60 seconds is stopped.
 .SS Stopping a VM
 .B StopVm
@@ -223,7 +232,11 @@ for the helpers that ran.
 The VM's sockets, among them
 .I console.sock
 for
-.BR "gerant console" .
+.BR "gerant console" ,
+and the kernel and initrd from its image,
+.I vmlinuz
+and
+.IR initrd .
 .TP
 .I /usr/lib/systemd/user/gerantd.service
 .TQ
@@ -238,6 +251,7 @@ $ systemctl \-\-user stop gerantd    # shuts every VM down
 .SH SEE ALSO
 .BR gerant (1),
 .BR gerant\-net (8),
+.BR gerant\-boot (8),
 .BR garnish\-vm.conf (5),
 .BR gerantd.conf (5),
 .BR crosvm (1),

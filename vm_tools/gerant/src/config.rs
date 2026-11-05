@@ -14,7 +14,8 @@ pub const DEFAULT_CMDLINE: &str =
 #[derive(Debug, Clone, PartialEq)]
 pub struct VmConfig {
     pub image: PathBuf,
-    pub kernel: PathBuf,
+    /// Set, these replace what's in the image (see `boot`).
+    pub kernel: Option<PathBuf>,
     pub initrd: Option<PathBuf>,
     pub cmdline: String,
     pub cmdline_extra: Vec<String>,
@@ -231,12 +232,6 @@ impl VmConfig {
         }
 
         let image = image.ok_or("[Boot] Image= is not set")?;
-        // mkosi's SplitArtifacts= puts <name>.vmlinuz and <name>.initrd
-        // next to <name>.raw.
-        let kernel = kernel.unwrap_or_else(|| image.with_extension("vmlinuz"));
-        // Explicitly set, it has to exist; the default is optional.
-        let initrd =
-            initrd.or_else(|| Some(image.with_extension("initrd")).filter(|p| p.is_file()));
         let guest_user = guest_user.unwrap_or_else(|| user.to_owned());
         if guest_user.is_empty()
             || !guest_user
@@ -273,11 +268,12 @@ impl VmConfig {
     /// Checks that the files the VM needs are there, so that a typo is
     /// reported as such and not as a crosvm error.
     pub fn check_files(&self) -> Result<(), String> {
-        let mut files = vec![("Image", &self.image), ("Kernel", &self.kernel)];
-        if let Some(initrd) = &self.initrd {
-            files.push(("Initrd", initrd));
-        }
-        for (key, file) in files {
+        let files = [
+            ("Image", Some(&self.image)),
+            ("Kernel", self.kernel.as_ref()),
+            ("Initrd", self.initrd.as_ref()),
+        ];
+        for (key, file) in files.into_iter().filter_map(|(k, f)| Some((k, f?))) {
             if !file.is_file() {
                 return Err(format!("[Boot] {key}={}: no such file", file.display()));
             }
@@ -409,7 +405,7 @@ mod tests {
     fn defaults() {
         let c = vm("[Boot]\nImage=../images/debian.raw\n").unwrap();
         assert_eq!(c.image, Path::new("/cfg/vms/../images/debian.raw"));
-        assert_eq!(c.kernel, Path::new("/cfg/vms/../images/debian.vmlinuz"));
+        assert_eq!(c.kernel, None);
         assert_eq!(c.initrd, None);
         assert_eq!(c.cmdline, DEFAULT_CMDLINE);
         assert_eq!(c.title, None);
@@ -454,7 +450,7 @@ mod tests {
                     [Network]\nMode=none\n[Guest]\nUser=alice\nUID=1001\nAppMenu=off\nNotifications=no\n")
         .unwrap();
         assert_eq!(c.image, Path::new("/home/me/d.raw"));
-        assert_eq!(c.kernel, Path::new("/k"));
+        assert_eq!(c.kernel.as_deref(), Some(Path::new("/k")));
         assert_eq!(c.cmdline_extra, ["c", "d e"]);
         assert_eq!(c.title.as_deref(), Some("Débian (work)"));
         assert_eq!(

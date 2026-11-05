@@ -1,0 +1,98 @@
+.TH GERANT\-BOOT 8 2026-11-05 garnish "garnish manual"
+.SH NAME
+gerant\-boot \- sandboxed helper that finds the kernel in a garnish VM's disk image
+.SH SYNOPSIS
+.B gerant\-boot
+.RB [ \-\-list ]
+.BI < image
+.SH DESCRIPTION
+.BR gerantd (1)
+runs
+.B gerant\-boot
+every time a VM without
+.B [Boot] Kernel=
+starts or reboots, so that the guest boots the kernel it installed itself.
+The disk image is its standard input.
+.PP
+It reads the image's GPT, then the FAT file systems of its EFI system
+partition and, if there is one, its extended boot loader partition
+(XBOOTLDR), and looks for kernels where the Boot Loader Specification
+puts them:
+.IP \(bu 2
+unified kernel images,
+.IR /EFI/Linux/*.efi ,
+whose
+.B .linux
+and
+.B .initrd
+sections are the kernel and initrd and whose
+.B .uname
+section is the kernel's version,
+.IP \(bu
+type 1 entries,
+.IR /loader/entries/*.conf ,
+with their
+.BR linux ,
+.BR initrd ,
+.B version
+and
+.B architecture
+lines (or a
+.B uki
+line naming a unified kernel image).
+.PP
+Kernels that aren't x86-64 bzImages, entries for other architectures and
+entries whose boot counter has run out
+.RI ( name+0\- n )
+are skipped or tried last. Of the rest, the one with the newest version
+wins, compared as
+.BR systemd\-boot (7)
+compares them; the version comes from the entry or image, or else from
+the kernel itself. The command line and other sections in the image are
+ignored:
+.B gerantd
+passes its own command line.
+.PP
+It writes the chosen kernel and its initrds (one after the other, each
+padded to 4 bytes) to standard output, after a short header with the
+entry's name, the version and the two sizes. Kernels larger than 64 MiB
+and initrds larger than 512 MiB are refused.
+.B gerantd
+copies them to
+.IR $XDG_RUNTIME_DIR/garnish/name/vmlinuz " and " initrd
+and hands those to crosvm.
+.SH OPTIONS
+.TP
+.B \-\-list
+Lists the kernels found instead, the one that would be booted first: the
+partition and path, the version, and the sizes.
+.SH SANDBOX
+Everything in the image comes from the guest, so before reading any of it
+.B gerant\-boot
+closes every descriptor but its standard input, output and error, limits
+its address space to 512 MiB and its CPU time to 30 seconds, turns off
+core dumps and new privileges, and installs a seccomp filter. The filter
+lets it read standard input, write standard output and error, manage its
+memory and exit; any other system call, such as opening a file or a
+socket, kills it.
+.B gerantd
+gives it 60 seconds, checks the sizes it sends and that the kernel is a
+bzImage.
+.SH EXIT STATUS
+0 when it sent (or listed) a kernel, 2 when the image has none, 1 on
+errors. The reason for an error is the last line on standard error;
+earlier lines are warnings about kernels that were skipped, which
+.B gerantd
+logs.
+.SH EXAMPLES
+.EX
+$ gerant\-boot \-\-list < ~/vm/archlinux.raw
+ESP:/EFI/Linux/arch\-linux.efi	7.2.15\-arch1\-1	kernel 16844 KiB, initrd 21233 KiB
+ESP:/EFI/Linux/arch\-7.2.14\-arch1\-1.efi	7.2.14\-arch1\-1	kernel 16844 KiB, initrd 70802 KiB
+.EE
+.SH SEE ALSO
+.BR gerantd (1),
+.BR garnish\-vm.conf (5),
+.BR seccomp (2),
+.BR systemd\-boot (7),
+.BR kernel\-install (8)

@@ -71,12 +71,20 @@ Unknown sections and settings are errors.
 The disk image. Required.
 .TP
 .BI Kernel= path
-The kernel. Default: the image's path with
+The kernel. By default, the VM boots the newest kernel installed in the
+image's EFI system partition (unified kernel images in
+.I /EFI/Linux
+or boot loader entries in
+.IR /loader/entries ),
+found again at every start and reboot by
+.BR gerant\-boot (8),
+so the guest can update it. An image without one boots the image's path with
 .I .vmlinuz
 in place of its extension.
 .TP
 .BI Initrd= path
-The initrd. Default: the image's path with
+The initrd. Default: the one that goes with the kernel: from the image, or
+else the image's path with
 .IR .initrd ,
 if that file exists.
 .TP

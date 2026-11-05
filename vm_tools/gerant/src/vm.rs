@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use tokio::process::{Child, Command};
 
+use crate::boot::Boot;
 use crate::config::{Clipboard, VmConfig};
 use crate::net::{self, Tap};
 
@@ -167,13 +168,14 @@ pub fn kernel_cmdline(name: &str, config: &VmConfig, res: &Resources) -> String 
     params.join(" ")
 }
 
-/// `crosvm` and its arguments for the VM called `name`. `host_uid`/`host_gid`
-/// own the shared home.
+/// `crosvm` and its arguments for the VM called `name`, booting `boot`.
+/// `host_uid`/`host_gid` own the shared home.
 pub fn crosvm_args(
     name: &str,
     config: &VmConfig,
     res: &Resources,
     paths: &Paths,
+    boot: &Boot,
     host_uid: u32,
     host_gid: u32,
 ) -> Vec<OsString> {
@@ -199,7 +201,7 @@ pub fn crosvm_args(
     args.push("type=stdout,num=2,stdin".into());
     args.push("--block".into());
     args.push(prefixed("path=", &config.image));
-    if let Some(initrd) = &config.initrd {
+    if let Some(initrd) = &boot.initrd {
         args.push("--initrd".into());
         args.push(initrd.into());
     }
@@ -270,7 +272,7 @@ pub fn crosvm_args(
         args.push("5000".into());
     }
     args.extend(config.extra_args.iter().map(OsString::from));
-    args.push(config.kernel.clone().into());
+    args.push(boot.kernel.clone().into());
     args
 }
 
@@ -473,6 +475,16 @@ mod tests {
     use super::*;
     use crate::ini;
 
+    /// What gerantd would boot without a kernel in the image.
+    fn boot(c: &VmConfig) -> Boot {
+        Boot {
+            kernel: c.image.with_extension("vmlinuz"),
+            initrd: c.initrd.clone(),
+            source: String::new(),
+            notes: Vec::new(),
+        }
+    }
+
     fn config(text: &str) -> VmConfig {
         let entries = ini::parse(text, Path::new("/cfg/debian.conf")).unwrap();
         VmConfig::from_entries(&entries, "me", Path::new("/home/me")).unwrap()
@@ -553,7 +565,15 @@ mod tests {
             "[Boot]\nImage=d.raw\nInitrd=d.initrd\n[Machine]\nCPUs=2\nMemory=2G\nAudio=yes\nSharedHome=/h\nExtraArguments=--x 'y z'\n",
         );
         let res = net();
-        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1001, 1002));
+        let args = strings(crosvm_args(
+            "debian",
+            &c,
+            &res,
+            &paths(),
+            &boot(&c),
+            1001,
+            1002,
+        ));
         let cmdline = kernel_cmdline("debian", &c, &res);
         let tap_fd = format!("tap-fd={}", res.net.as_ref().unwrap().tap_fd().unwrap());
         let expected = [
@@ -604,7 +624,15 @@ mod tests {
             net: None,
             dns: vec![],
         };
-        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        let args = strings(crosvm_args(
+            "debian",
+            &c,
+            &res,
+            &paths(),
+            &boot(&c),
+            1000,
+            1000,
+        ));
         for absent in [
             "--gpu",
             "--wayland-sock",
@@ -624,7 +652,15 @@ mod tests {
             net: None,
             dns: vec![],
         };
-        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        let args = strings(crosvm_args(
+            "debian",
+            &c,
+            &res,
+            &paths(),
+            &boot(&c),
+            1000,
+            1000,
+        ));
         let i = args.iter().position(|a| a == "--wayland-sock").unwrap();
         assert_eq!(args[i + 1], "/run/user/1000/garnish/debian/wayland.sock");
         assert_eq!(
@@ -652,7 +688,15 @@ mod tests {
             kernel_cmdline("debian", &c, &res)
                 .contains(" ip=10.0.2.15::10.0.2.2:255.255.255.0::eth0:auto6:1.1.1.1 ")
         );
-        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        let args = strings(crosvm_args(
+            "debian",
+            &c,
+            &res,
+            &paths(),
+            &boot(&c),
+            1000,
+            1000,
+        ));
         let tail = &args[args.len() - 5..];
         assert_eq!(
             tail,
@@ -686,7 +730,15 @@ mod tests {
         );
         // With sound too, the timeout comes once.
         let c = config("[Boot]\nImage=d.raw\n[Machine]\nAudio=yes\n");
-        let args = strings(crosvm_args("debian", &c, &res, &paths(), 1000, 1000));
+        let args = strings(crosvm_args(
+            "debian",
+            &c,
+            &res,
+            &paths(),
+            &boot(&c),
+            1000,
+            1000,
+        ));
         assert_eq!(args.iter().filter(|a| *a == "--vhost-user").count(), 2);
         assert_eq!(
             args.iter()

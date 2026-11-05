@@ -1,6 +1,7 @@
 # The host side of garnish, as two packages from one build:
 # - garnish-host: gerantd, the D-Bus VM manager, and gerant, its client;
 #   gerant-net, the setuid-root helper that creates the VMs' network devices;
+#   gerant-boot, the sandboxed helper that finds the kernel in a VM's image;
 #   carte, the host side of the app menu; sonnette, which shows the
 #   guests' notifications; and videur, which restricts their clipboard
 # - salle: the GTK app for gerantd's VMs, separate so the command line tools
@@ -89,7 +90,7 @@ package_garnish-host() {
   options=(!debug)
 
   local gerant="$_tools/gerant" carte="$_tools/carte" sonnette="$_tools/sonnette" videur="$_tools/videur"
-  install -Dm755 "$srcdir"/target/release/{gerantd,gerant,carte,sonnette,videur} -t "$pkgdir/usr/bin/"
+  install -Dm755 "$srcdir"/target/release/{gerantd,gerant,gerant-boot,carte,sonnette,videur} -t "$pkgdir/usr/bin/"
   # setuid root: it drops everything but CAP_NET_ADMIN and seccomp-confines
   # itself before doing anything (vm_tools/gerant/src/bin/gerant-net).
   install -Dm4755 "$srcdir/target/release/gerant-net" -t "$pkgdir/usr/bin/"
