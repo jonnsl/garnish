@@ -97,7 +97,7 @@ UEFI boot (`--bios OVMF.fd` in `ExtraArguments=`) works too, and uses the
 command line in the UKI.
 
 On Arch, the guest keeps that kernel up to date: the ESP is mounted at `/efi`
-(root only), and after every kernel update mkinitcpio builds
+(root only, on demand), and after every kernel update mkinitcpio builds
 `/efi/EFI/Linux/arch-linux.efi`, which replaces the one mkosi built (same
 name, `UnifiedKernelImageFormat=`). Its settings are in
 `mkosi.skeleton-arch/`: the preset, a small initrd like mkosi's

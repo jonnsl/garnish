@@ -119,10 +119,12 @@ fi
 # (gerant-boot(8)), so the guest can update its own kernel. On Arch,
 # mkinitcpio puts a unified kernel image there on every kernel update
 # (mkosi.skeleton-arch). Mounted for root only: FAT has no permissions of its
-# own, and whoever can write the ESP chooses the kernel.
+# own, and whoever can write the ESP chooses the kernel. Mounted on demand
+# and unmounted after a minute, so a crash or a killed VM rarely catches FAT
+# (which has no journal) mid-write; gerant-boot reads it at every start.
 # TODO: Debian, Ubuntu and Fedora (kernel-install, with an initrd generator).
 if [[ "$DISTRIBUTION" == arch ]]; then
-    echo 'PARTLABEL=esp /efi vfat umask=0077,nofail,x-systemd.device-timeout=10s 0 2' >> /etc/fstab
+    echo 'PARTLABEL=esp /efi vfat umask=0077,noauto,x-systemd.automount,x-systemd.idle-timeout=1min,nofail 0 2' >> /etc/fstab
     # mkinitcpio built one when the kernel was installed; mkosi builds the
     # image's own (UnifiedKernelImageFormat=arch-linux) after this script.
     rm -f /efi/EFI/Linux/arch-linux.efi
