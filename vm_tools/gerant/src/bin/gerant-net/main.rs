@@ -6,7 +6,7 @@
 //!    CAP_NET_BIND_SERVICE (privs.rs),
 //! 2. opens every file and socket it will use,
 //! 3. installs a seccomp filter: no more opening, and the calls that are
-//!    left work only on those descriptors (seccomp.rs),
+//!    left work only on those descriptors (gerant::seccomp),
 //! 4. reads the settings, creates the tap, configures it, enables IPv4
 //!    and IPv6 forwarding and loads the firewall rules (netlink.rs),
 //! 5. binds the DNS sockets to port 53 of the host's addresses on the tap,
@@ -25,7 +25,6 @@
 
 mod netlink;
 mod privs;
-mod seccomp;
 
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -35,8 +34,8 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::process::ExitCode;
 
 use gerant::net::{self, DnsSocket, NatTap, NatTap6, NetConfig};
+use gerant::seccomp::{self, Rule};
 use netlink::Netlink;
-use seccomp::Rule;
 
 const USAGE: &str = "\
 usage: gerant-net nat

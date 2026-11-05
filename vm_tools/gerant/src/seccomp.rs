@@ -1,6 +1,7 @@
 //! A seccomp filter that allows only what's left to do once every file and
 //! socket is open: no new files, sockets or processes, and the calls that
-//! act on a descriptor only on the descriptors meant for them.
+//! act on a descriptor only on the descriptors meant for them. Used by
+//! gerant-net and gerant-boot.
 
 use std::io;
 
@@ -9,7 +10,7 @@ const AUDIT_ARCH: u32 = 0xc000_003e;
 #[cfg(target_arch = "aarch64")]
 const AUDIT_ARCH: u32 = 0xc000_00b7;
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-compile_error!("gerant-net's seccomp filter knows only x86_64 and aarch64");
+compile_error!("the seccomp filter knows only x86_64 and aarch64");
 
 // Offsets in struct seccomp_data.
 const NR: u32 = 0;
