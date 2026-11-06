@@ -1,0 +1,9 @@
+#!/bin/sh
+# Removes the unified kernel image mkosi built the image with
+# (EFI/Linux/<distro>-<version>.efi) when its kernel is removed. Fedora's
+# kernel packages remove kernels with `kernel-install remove --entry-type
+# type1`, and 90-uki-copy.install then leaves unified kernel images alone.
+# Without this, gerantd would keep booting that kernel after its modules
+# are gone, since it's the newest one in the ESP.
+[ "$1" = remove ] || exit 0
+exec rm -f "$KERNEL_INSTALL_BOOT_ROOT/EFI/Linux/$KERNEL_INSTALL_ENTRY_TOKEN-$2.efi"

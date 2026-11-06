@@ -96,21 +96,30 @@ directly, without firmware, so the kernel command line comes from gerantd
 UEFI boot (`--bios OVMF.fd` in `ExtraArguments=`) works too, and uses the
 command line in the UKI.
 
-On Arch, the guest keeps that kernel up to date: the ESP is mounted at `/efi`
-(root only, on demand), and after every kernel update mkinitcpio builds
-`/efi/EFI/Linux/arch-linux.efi`, which replaces the one mkosi built (same
-name, `UnifiedKernelImageFormat=`). Its settings are in
-`mkosi.skeleton-arch/`: the preset, a small initrd like mkosi's
-(`virtio_pci`, `virtio_blk` and `ext4`, with the `systemd` hook) and
-`/etc/kernel/cmdline` for UEFI boot. Reboot the guest after a kernel update
-to boot the new kernel. The other distributions don't install new kernels
-there yet, so they keep booting the one the image was built with, and an
-update that removes its modules leaves them without modules until the image
-is rebuilt.
+The guest keeps that kernel up to date. The ESP is mounted at `/efi` (root
+only, on demand), and every kernel the package manager installs goes there
+with a small initrd like mkosi's (`virtio_pci`, `virtio_blk` and `ext4`).
+Reboot the guest after a kernel update to boot the new kernel.
+`/etc/kernel/cmdline` (from `mkosi.extra/`) is the command line for UEFI
+boot.
+
+- Arch: after every kernel update mkinitcpio builds
+  `/efi/EFI/Linux/arch-linux.efi`, which replaces the one mkosi built (same
+  name, `UnifiedKernelImageFormat=`). Its settings are in
+  `mkosi.skeleton-arch/`: the preset and the initrd, with the `systemd` hook.
+- Debian, Ubuntu and Fedora: the kernel packages run `kernel-install`, which
+  writes a boot entry, `/efi/loader/entries/<distro>-<version>.conf`, with
+  the kernel and a dracut initrd in `/efi/<distro>/<version>/`. Removing a
+  kernel removes its entry, and the unified kernel image mkosi built if it's
+  that kernel's. The settings are in `mkosi.extra-kernel-install/`, and
+  `mkosi.postinst.chroot` turns off dracut's kernel-install plugin on Debian
+  and Ubuntu, whose kernel packages already run dracut. The initrd has no
+  network support, so the `ip=` gerantd passes doesn't make it wait for a
+  network device.
 
 `<name>.vmlinuz` and `<name>.initrd` next to the image are copies of the
 image's first kernel, for VMs that set `[Boot] Kernel=` to them and for
-images without a kernel in the ESP.
+older gerantds that don't look in the ESP.
 
 The root filesystem is 16 GiB but the file is sparse. To make it bigger, run
 `truncate -s +10G mkosi/mkosi.output/debian.raw`. systemd-growfs then grows the
@@ -123,11 +132,14 @@ partition at the next boot.
 | `mkosi.conf`                           | shared settings, build options, kernel command line  |
 | `mkosi.conf.d/10-<distro>.conf`        | release, packages and build packages for each distro |
 | `mkosi.conf.d/20-debian-ubuntu-packages.conf` | packages Debian and Ubuntu have in common     |
+| `mkosi.conf.d/30-kernel-install.conf`  | dracut and `mkosi.extra-kernel-install/` for Debian, Ubuntu and Fedora |
 | `mkosi.repart/`                        | ESP plus an ext4 root labelled `root`                |
 | `mkosi.build.chroot`                   | builds the `sommelier` and `garnish-guest` packages inside the target distro (`guest/build-packages.sh`) |
-| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, network, sommelier and carte-agent units, linger and Wayland variables |
+| `mkosi.postinst.chroot`                | sets up the user, sudo, ssh, the ESP mount, network, sommelier and carte-agent units, linger and Wayland variables |
 | `mkosi.finalize`                       | points `/etc/resolv.conf` at the systemd-resolved stub |
-| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in |
+| `mkosi.extra/`                         | `sshd-vsock.socket`, `sshd-vsock@.service`, preset, sshd drop-in, `/etc/kernel/cmdline` |
+| `mkosi.skeleton-arch/`                 | mkinitcpio's preset and initrd settings (Arch)       |
+| `mkosi.extra-kernel-install/`          | kernel-install and dracut settings (Debian, Ubuntu, Fedora) |
 | `authorized_keys`                      | your ssh public key (not in git)                     |
 
 The build mounts the whole repository at `$SRCDIR` (`BuildSources=..`), so

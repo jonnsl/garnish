@@ -118,16 +118,37 @@ fi
 # gerantd boots the newest kernel in the image's EFI system partition
 # (gerant-boot(8)), so the guest can update its own kernel. On Arch,
 # mkinitcpio puts a unified kernel image there on every kernel update
-# (mkosi.skeleton-arch). Mounted for root only: FAT has no permissions of its
-# own, and whoever can write the ESP chooses the kernel. Mounted on demand
-# and unmounted after a minute, so a crash or a killed VM rarely catches FAT
-# (which has no journal) mid-write; gerant-boot reads it at every start.
-# TODO: Debian, Ubuntu and Fedora (kernel-install, with an initrd generator).
-if [[ "$DISTRIBUTION" == arch ]]; then
-    echo 'PARTLABEL=esp /efi vfat umask=0077,noauto,x-systemd.automount,x-systemd.idle-timeout=1min,nofail 0 2' >> /etc/fstab
-    # mkinitcpio built one when the kernel was installed; mkosi builds the
-    # image's own (UnifiedKernelImageFormat=arch-linux) after this script.
-    rm -f /efi/EFI/Linux/arch-linux.efi
+# (mkosi.skeleton-arch); on Debian, Ubuntu and Fedora, kernel-install puts a
+# boot entry there (mkosi.extra-kernel-install). Mounted for root only: FAT
+# has no permissions of its own, and whoever can write the ESP chooses the
+# kernel. Mounted on demand and unmounted after a minute, so a crash or a
+# killed VM rarely catches FAT (which has no journal) mid-write; gerant-boot
+# reads it at every start. Being in fstab also keeps
+# systemd-gpt-auto-generator from mounting it at /boot, where the Debian and
+# Ubuntu kernel packages would put a copy of every kernel and initrd.
+echo 'PARTLABEL=esp /efi vfat umask=0077,noauto,x-systemd.automount,x-systemd.idle-timeout=1min,nofail 0 2' >> /etc/fstab
+
+case "$DISTRIBUTION" in
+    arch)
+        # mkinitcpio built one when the kernel was installed; mkosi builds the
+        # image's own (UnifiedKernelImageFormat=arch-linux) after this script.
+        rm -f /efi/EFI/Linux/arch-linux.efi
+        ;;
+    debian|ubuntu)
+        # Their kernel packages build the initrd with dracut in /boot
+        # (/etc/kernel/postinst.d/dracut), and 55-initrd.install puts it in
+        # the boot entry. dracut's own kernel-install plugin would build a
+        # second one: Debian would boot both, Ubuntu would build it twice.
+        ln -sf /dev/null /etc/kernel/install.d/50-dracut.install
+        ;;
+esac
+
+# The boot entries' names, and the name of the unified kernel image mkosi
+# builds the image with: <distro>-<version>. kernel-install removes that
+# image with its kernel only if the names match. Without this file,
+# kernel-install would use the machine ID on Debian.
+if [[ "$DISTRIBUTION" != arch && ! -s /etc/kernel/entry-token ]]; then
+    (. /etc/os-release && echo "$ID") > /etc/kernel/entry-token
 fi
 
 # --- network ----------------------------------------------------------------
