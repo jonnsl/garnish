@@ -139,6 +139,18 @@ pub fn is_valid_vm(vm: &str) -> bool {
         && vm.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
+/// Names carte accepted before VM names became hostnames: letters, digits,
+/// '.' and '_', not starting with '.'. `carte remove` takes them so the files
+/// of a VM renamed since can still be deleted.
+pub fn is_old_vm(vm: &str) -> bool {
+    !vm.is_empty()
+        && vm.len() <= 64
+        && !vm.starts_with('.')
+        && vm
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"._".contains(&b))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,5 +206,7 @@ mod tests {
         assert!(!is_valid_vm("debian.work"));
         assert!(!is_valid_vm("debian_2"));
         assert!(!is_valid_vm("-x") && !is_valid_vm("x-"));
+        assert!(is_old_vm("aloha_arch") && is_old_vm("debian.work"));
+        assert!(!is_old_vm(".x") && !is_old_vm("../x") && !is_old_vm("a/b"));
     }
 }

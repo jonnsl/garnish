@@ -441,7 +441,9 @@ fn set_hidden(vm: &str, id: &str, hide: bool) -> Result<(), String> {
 }
 
 fn remove(vm: &str) -> Result<(), String> {
-    check_vm(vm)?;
+    if !proto::is_old_vm(vm) {
+        check_vm(vm)?;
+    }
     let apps_dir = applications_dir();
     let none: HashSet<String> = HashSet::new();
     remove_others(
